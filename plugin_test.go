@@ -193,7 +193,7 @@ func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder {
 func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	t.Helper()
 	config := &Config{
-		JWKS:        b.jwks, // object or string; plugin accepts both
+		JWKS:        b.jwks,
 		ProxySecret: b.secret,
 		Lifetime:    b.lifetime,
 		Issuer:      b.issuer,
@@ -314,7 +314,7 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 	}
 }
 
-func TestUserAccessAllowedAndDenied(t *testing.T) {
+func TestUserAccessAllowed(t *testing.T) {
 	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
@@ -328,65 +328,74 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		Team("doe").
 		Sign(t)
 
-	// Allowed: user_jon
-	{
-		var seen http.Header = make(http.Header)
-		var called bool
-		next := captureNext(&seen, &called)
+	var seen http.Header = make(http.Header)
+	var called bool
+	next := captureNext(&seen, &called)
 
-		mw := NewMiddlewareBuilder(jwks).
-			WithIssuer("iss").
-			WithAudience("aud").
-			WithLeeway(60).
-			WithLifetime(300).
-			WithNow(now).
-			Build(t, next)
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
 
-		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
-		req.Header.Set("Authorization", "Bearer "+token)
-		rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
 
-		mw.ServeHTTP(rec, req)
+	mw.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK || !called {
-			t.Fatalf("expected allowed request to pass (code=%d called=%v)", rec.Code, called)
-		}
-		if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
-			t.Fatalf("username header = %q", got)
-		}
-		if got := seen.Get("X-Auth-CouchDB-Roles"); got != "" {
-			t.Fatalf("roles header = %q, want empty", got)
-		}
+	if rec.Code != http.StatusOK || !called {
+		t.Fatalf("expected allowed request to pass (code=%d called=%v)", rec.Code, called)
 	}
+	if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
+		t.Fatalf("username header = %q", got)
+	}
+	if got := seen.Get("X-Auth-CouchDB-Roles"); got != "" {
+		t.Fatalf("roles header = %q, want empty", got)
+	}
+}
 
-	// Denied: other database
-	{
-		var called bool
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			called = true
-			w.WriteHeader(http.StatusOK)
-		})
+func TestUserAccessDenied(t *testing.T) {
+	key := generate(t)
+	kid := "abc"
+	now := time.Unix(1_700_000_000, 0)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-		mw := NewMiddlewareBuilder(jwks).
-			WithIssuer("iss").
-			WithAudience("aud").
-			WithLeeway(60).
-			WithLifetime(300).
-			WithNow(now).
-			Build(t, next)
+	token := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		User("jon").
+		Team("doe").
+		Sign(t)
 
-		req := httptest.NewRequest(http.MethodGet, "http://host.domain/any/_all_docs", nil)
-		req.Header.Set("Authorization", "Bearer "+token)
-		rec := httptest.NewRecorder()
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
 
-		mw.ServeHTTP(rec, req)
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
 
-		if called {
-			t.Fatalf("next should not be called for forbidden")
-		}
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("expected 403, got %d", rec.Code)
-		}
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/any/_all_docs", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	if called {
+		t.Fatalf("next should not be called for forbidden")
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
 	}
 }
 
@@ -449,7 +458,7 @@ func TestProxySecretSigning(t *testing.T) {
 	}
 }
 
-func TestIssuerAudienceValidationValid(t *testing.T) {
+func TestIssuerAudienceValidationSuccess(t *testing.T) {
 	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
@@ -457,8 +466,8 @@ func TestIssuerAudienceValidationValid(t *testing.T) {
 
 	valid := NewTokenBuilder(key, kid).
 		At(now).
-		Issuer("issuer-ok").
-		Audience("aud-ok").
+		Issuer("valid").
+		Audience("valid").
 		User("jon").
 		Sign(t)
 
@@ -469,8 +478,8 @@ func TestIssuerAudienceValidationValid(t *testing.T) {
 	})
 
 	mw := NewMiddlewareBuilder(jwks).
-		WithIssuer("issuer-ok").
-		WithAudience("aud-ok").
+		WithIssuer("valid").
+		WithAudience("valid").
 		WithLeeway(60).
 		WithLifetime(300).
 		WithNow(now).
@@ -494,8 +503,8 @@ func TestIssuerAudienceValidationInvalid(t *testing.T) {
 
 	invalid := NewTokenBuilder(key, kid).
 		At(now).
-		Issuer("issuer-ok").
-		Audience("aud-bad").
+		Issuer("valid").
+		Audience("invalid").
 		User("jon").
 		Sign(t)
 
@@ -506,8 +515,8 @@ func TestIssuerAudienceValidationInvalid(t *testing.T) {
 	})
 
 	mw := NewMiddlewareBuilder(jwks).
-		WithIssuer("issuer-ok").
-		WithAudience("aud-ok").
+		WithIssuer("valid").
+		WithAudience("valid").
 		WithLeeway(60).
 		WithLifetime(300).
 		WithNow(now).
