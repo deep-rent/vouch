@@ -54,7 +54,6 @@ type Middleware struct {
 	config *Config
 	keys   jwt.Keyfunc
 	algs   map[string]struct{}
-
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
