@@ -41,7 +41,7 @@ type Config struct {
 	Issuer string `json:"issuer,omitempty"`
 
 	// Allowed audiences for JWT validation hardening (optional).
-	Audience []string `json:"audiences,omitempty"`
+	Audience []string `json:"audience,omitempty"`
 
 	// Allowed clock skew for temporal validity of tokens (in seconds). Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
