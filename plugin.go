@@ -219,12 +219,6 @@ func (m *Middleware) parse(token string) *Claims {
 	return claims
 }
 
-// allowed checks if the given algorithm is allowed for signature verification.
-func (m *Middleware) allowed(alg string) bool {
-	_, ok := m.algs[alg]
-	return ok
-}
-
 // has returns true if the wanted audience is present.
 func has(list jwt.ClaimStrings, want string) bool {
 	for _, v := range list {
