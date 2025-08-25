@@ -1,3 +1,9 @@
+// Copyright (c) 2025-present deep.rent GmbH (https://www.deep.rent)
+// All rights reserved.
+//
+// This source code is proprietary and confidential. Unauthorized copying, via
+// any medium is strictly prohibited.
+
 package traefikplugincouchdb
 
 import (
