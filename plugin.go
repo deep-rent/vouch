@@ -28,6 +28,16 @@ type Config struct {
 	// Lifetime controls the expiration time offset (in seconds) of the CouchDB
 	// proxy token. Defaults to 300.
 	Lifetime int `json:"lifetime,omitempty"`
+
+	// Expected issuer for JWT validation hardening.
+	Issuer string `json:"issuer,omitempty"`
+
+	// Expected audience for JWT validation hardening.
+	Audience string `json:"audience,omitempty"`
+
+	// Permissible clock skew for temporal validity of tokens (in seconds).
+	// Defaults to 60.
+	Leeway int `json:"leeway,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -49,14 +59,16 @@ type Claims struct {
 
 // Middleware is the HTTP middleware.
 type Middleware struct {
-	next   http.Handler
-	name   string
-	config *Config
-	keys   jwt.Keyfunc
-	algs   map[string]struct{}
-	secret []byte
-	ttl    time.Duration
-	now    func() time.Time
+	next    http.Handler
+	name    string
+	config  *Config
+	keys    jwt.Keyfunc
+	algs    map[string]struct{}
+	methods []string
+	parser  *jwt.Parser
+	secret  []byte
+	ttl     time.Duration
+	now     func() time.Time
 }
 
 // Ensure Middleware implements http.Handler.
@@ -82,21 +94,39 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		"ES256": {}, "ES384": {}, "ES512": {},
 		"PS256": {}, "PS384": {}, "PS512": {},
 	}
+	methods := make([]string, 0, len(algs))
+	for a := range algs {
+		methods = append(methods, a)
+	}
 
 	ttl := time.Duration(config.Lifetime) * time.Second
 	if ttl <= 0 {
 		ttl = 300 * time.Second
 	}
+	leeway := time.Duration(config.Leeway) * time.Second
+	if leeway < 0 {
+		leeway = 0
+	}
+	if leeway == 0 && config.Leeway == 0 {
+		leeway = 60 * time.Second
+	}
+
+	parser := jwt.NewParser(
+		jwt.WithValidMethods(methods),
+		jwt.WithLeeway(leeway),
+	)
 
 	return &Middleware{
-		next:   next,
-		name:   name,
-		config: config,
-		keys:   jwks.Keyfunc,
-		algs:   algs,
-		secret: []byte(config.ProxySecret),
-		ttl:    ttl,
-		now:    time.Now,
+		next:    next,
+		name:    name,
+		config:  config,
+		keys:    jwks.Keyfunc,
+		algs:    algs,
+		methods: methods,
+		parser:  parser,
+		secret:  []byte(config.ProxySecret),
+		ttl:     ttl,
+		now:     time.Now,
 	}, nil
 }
 
@@ -114,8 +144,8 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	claims, err := m.parse(token)
-	if err != nil || claims.UserID == "" {
+	claims := m.parse(token)
+	if claims == nil || claims.UserID == "" {
 		rw.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		http.Error(rw, "invalid token", http.StatusUnauthorized)
 		return
@@ -166,14 +196,24 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 // parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
-func (m *Middleware) parse(token string) (*Claims, error) {
-	parser := jwt.NewParser(jwt.WithValidMethods(m.methods()))
+func (m *Middleware) parse(token string) *Claims {
 	claims := &Claims{}
-	result, err := parser.ParseWithClaims(token, claims, m.keys)
-	if err != nil || result == nil || !result.Valid || !m.allowed(result.Method.Alg()) {
-		return nil, errors.New("token validation failed")
+	result, err := m.parser.ParseWithClaims(token, claims, m.keys)
+	if err != nil || result == nil || !result.Valid {
+		return nil
 	}
-	return claims, nil
+	// Enforce supported algorithms.
+	if _, ok := m.algs[result.Method.Alg()]; !ok {
+		return nil
+	}
+	// Optional issuer/audience checks.
+	if iss := strings.TrimSpace(m.config.Issuer); iss != "" && claims.Issuer != iss {
+		return nil
+	}
+	if aud := strings.TrimSpace(m.config.Audience); aud != "" && !has(claims.Audience, aud) {
+		return nil
+	}
+	return claims
 }
 
 // allowed checks if the given algorithm is allowed for signature verification.
@@ -182,13 +222,14 @@ func (m *Middleware) allowed(alg string) bool {
 	return ok
 }
 
-// methods returns a list of allowed algorithms for signature verification.
-func (m *Middleware) methods() []string {
-	methods := make([]string, 0, len(m.algs))
-	for alg := range m.algs {
-		methods = append(methods, alg)
+// has returns true if the wanted audience is present.
+func has(list jwt.ClaimStrings, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
 	}
-	return methods
+	return false
 }
 
 // bearer extracts a bearer token from the Authorization header value.
