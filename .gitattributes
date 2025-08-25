@@ -1,2 +1,9 @@
-# Auto detect
 * text=auto
+*.go     text
+*.json   text
+*.md     text diff=markdown
+*.svg    text
+*.yaml   text
+go.mod   text
+LICENSE  text
+Makefile text
