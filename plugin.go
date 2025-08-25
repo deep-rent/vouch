@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,32 +19,32 @@ import (
 
 // Config holds the plugin configuration.
 type Config struct {
-	// JWKS can be either a JWKS URL or a war JWKS JSON string.
-	JWKS string `json:"jwks"`
+	// JWKS can be:
+	// - a string containing a URL (http/https) to a remote JWKS
+	// - a string containing raw JWKS JSON
+	// - any JSON object/array representing a JWKS (will be marshaled)
+	JWKS any `json:"jwks"`
 
 	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
-	// By default, the proxy secret is not set.
 	ProxySecret string `json:"proxySecret,omitempty"`
 
-	// Lifetime controls the expiration time offset (in seconds) of the CouchDB
-	// proxy token. Defaults to 300.
+	// Lifetime controls the expiration time offset (in seconds) of the CouchDB proxy token. Defaults to 300.
 	Lifetime int `json:"lifetime,omitempty"`
 
-	// Expected issuer for JWT validation hardening.
+	// Expected issuer for JWT validation hardening (optional).
 	Issuer string `json:"issuer,omitempty"`
 
-	// Allowed audiences for JWT validation hardening.
+	// Allowed audiences for JWT validation hardening (optional).
 	Audience []string `json:"audiences,omitempty"`
 
-	// Allowed clock skew for temporal validity of tokens (in seconds).
-	// Defaults to 0.
+	// Allowed clock skew for temporal validity of tokens (in seconds). Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		JWKS:        "",
+		JWKS:        nil,
 		ProxySecret: "",
 		Lifetime:    300,
 		Issuer:      "",
@@ -76,33 +77,25 @@ type Middleware struct {
 var _ http.Handler = (*Middleware)(nil)
 
 // New creates a new Middleware based on the provided configuration.
-func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config == nil {
 		config = CreateConfig()
 	}
-	if strings.TrimSpace(config.JWKS) == "" {
+	if config.JWKS == nil {
 		return nil, errors.New("jwks is required")
 	}
 
-	var keys jwt.Keyfunc
-	if isURL(config.JWKS) {
-		k, err := keyfunc.NewDefaultCtx(context.Background(), []string{config.JWKS})
-		if err != nil {
-			return nil, fmt.Errorf("fetch jwks: %w", err)
-		}
-		keys = k.Keyfunc
-	} else {
-		k, err := keyfunc.NewJWKSetJSON([]byte(config.JWKS))
-		if err != nil {
-			return nil, fmt.Errorf("parse jwks: %w", err)
-		}
-		keys = k.Keyfunc
+	// Build the Keyfunc from URL/string/object.
+	keys, err := resolve(ctx, config.JWKS)
+	if err != nil {
+		return nil, fmt.Errorf("load jwks: %w", err)
 	}
 
 	ttl := time.Duration(config.Lifetime) * time.Second
 	if ttl <= 0 {
 		ttl = 300 * time.Second
 	}
+	leeway := max(time.Duration(config.Leeway)*time.Second, 0)
 
 	mw := &Middleware{
 		next:   next,
@@ -116,8 +109,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 
 	opts := []jwt.ParserOption{
 		jwt.WithExpirationRequired(),
-		jwt.WithLeeway(max(time.Duration(config.Leeway)*time.Second, 0)),
-		// Bind late to allow testing with fixed time.
+		jwt.WithLeeway(leeway),
+		// Bind to mw.now so tests can override the clock.
 		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
 		jwt.WithValidMethods([]string{
 			"RS256", "RS384", "RS512",
@@ -125,7 +118,6 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 			"PS256", "PS384", "PS512",
 		}),
 	}
-
 	if len(config.Audience) > 0 {
 		opts = append(opts, jwt.WithAudience(config.Audience...))
 	}
@@ -133,8 +125,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		opts = append(opts, jwt.WithIssuer(iss))
 	}
 
-	parser := jwt.NewParser(opts...)
-	mw.parser = parser
+	mw.parser = jwt.NewParser(opts...)
 	return mw, nil
 }
 
@@ -228,8 +219,7 @@ func bearer(header string) (string, bool) {
 	return parts[1], true
 }
 
-// database returns the name of the target database by decoding the first
-// non-empty segment of the given URL path.
+// database returns the name of the target database by decoding the first non-empty segment of the given URL path.
 func database(path string) string {
 	if path == "" {
 		return ""
@@ -256,4 +246,63 @@ func isURL(s string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+// resolve returns a key provider from a JWKS value that can be a
+// string (URL or raw JSON) or any JSON object/array.
+func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
+	switch t := v.(type) {
+	case string:
+		s := strings.TrimSpace(t)
+		if s == "" {
+			return nil, errors.New("empty jwks string")
+		}
+		if isURL(s) {
+			jwks, err := keyfunc.NewDefaultCtx(ctx, []string{s})
+			if err != nil {
+				return nil, err
+			}
+			return jwks.Keyfunc, nil
+		}
+		jwks, err := keyfunc.NewJWKSetJSON([]byte(s))
+		if err != nil {
+			return nil, err
+		}
+		return jwks.Keyfunc, nil
+
+	case []byte:
+		if len(t) == 0 {
+			return nil, errors.New("empty jwks bytes")
+		}
+		jwks, err := keyfunc.NewJWKSetJSON(t)
+		if err != nil {
+			return nil, err
+		}
+		return jwks.Keyfunc, nil
+
+	case json.RawMessage:
+		if len(t) == 0 {
+			return nil, errors.New("empty jwks raw message")
+		}
+		jwks, err := keyfunc.NewJWKSetJSON(t)
+		if err != nil {
+			return nil, err
+		}
+		return jwks.Keyfunc, nil
+
+	default:
+		// Marshal arbitrary object/array to JSON and treat as JWKS.
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("marshal jwks object: %w", err)
+		}
+		if len(b) == 0 {
+			return nil, errors.New("empty jwks object")
+		}
+		jwks, err := keyfunc.NewJWKSetJSON(b)
+		if err != nil {
+			return nil, err
+		}
+		return jwks.Keyfunc, nil
+	}
 }

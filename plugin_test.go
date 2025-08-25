@@ -8,7 +8,6 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -47,8 +46,9 @@ func intToBytes(v int64) []byte {
 	return out
 }
 
-func toJWKS(key *rsa.PublicKey, kid string) string {
-	set := JWKS{
+// toJWKS builds a JWKS object (not a string) from an RSA public key.
+func toJWKS(key *rsa.PublicKey, kid string) JWKS {
+	return JWKS{
 		Keys: []JWK{{
 			Kty: "RSA",
 			Kid: kid,
@@ -58,8 +58,6 @@ func toJWKS(key *rsa.PublicKey, kid string) string {
 			E:   base64url(intToBytes(int64(key.E))),
 		}},
 	}
-	b, _ := json.Marshal(set)
-	return string(b)
 }
 
 func generate(t *testing.T) *rsa.PrivateKey {
@@ -145,7 +143,7 @@ func (b *TokenBuilder) Sign(t *testing.T) string {
 }
 
 type MiddlewareBuilder struct {
-	jwks     string
+	jwks     any
 	secret   string
 	issuer   string
 	audience []string
@@ -154,7 +152,7 @@ type MiddlewareBuilder struct {
 	now      *time.Time
 }
 
-func NewMiddlewareBuilder(jwks string) *MiddlewareBuilder {
+func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
 	return &MiddlewareBuilder{
 		jwks:     jwks,
 		lifetime: 300,
@@ -195,7 +193,7 @@ func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder {
 func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	t.Helper()
 	config := &Config{
-		JWKS:        b.jwks,
+		JWKS:        b.jwks, // object or string; plugin accepts both
 		ProxySecret: b.secret,
 		Lifetime:    b.lifetime,
 		Issuer:      b.issuer,
@@ -451,7 +449,7 @@ func TestProxySecretSigning(t *testing.T) {
 	}
 }
 
-func TestIssuerAudienceValidation(t *testing.T) {
+func TestIssuerAudienceValidationValid(t *testing.T) {
 	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
@@ -464,6 +462,36 @@ func TestIssuerAudienceValidation(t *testing.T) {
 		User("jon").
 		Sign(t)
 
+	var called bool
+	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		called = true
+		res.WriteHeader(http.StatusOK)
+	})
+
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("issuer-ok").
+		WithAudience("aud-ok").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
+
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req.Header.Set("Authorization", "Bearer "+valid)
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !called {
+		t.Fatalf("expected valid token to pass")
+	}
+}
+
+func TestIssuerAudienceValidationInvalid(t *testing.T) {
+	key := generate(t)
+	kid := "abc"
+	now := time.Unix(1_700_000_000, 0)
+	jwks := toJWKS(&key.PublicKey, kid)
+
 	invalid := NewTokenBuilder(key, kid).
 		At(now).
 		Issuer("issuer-ok").
@@ -471,61 +499,34 @@ func TestIssuerAudienceValidation(t *testing.T) {
 		User("jon").
 		Sign(t)
 
-	t.Run("valid", func(t *testing.T) {
-		var called bool
-		next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			called = true
-			res.WriteHeader(http.StatusOK)
-		})
-
-		mw := NewMiddlewareBuilder(jwks).
-			WithIssuer("issuer-ok").
-			WithAudience("aud-ok").
-			WithLeeway(60).
-			WithLifetime(300).
-			WithNow(now).
-			Build(t, next)
-
-		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
-		req.Header.Set("Authorization", "Bearer "+valid)
-		rec := httptest.NewRecorder()
-
-		mw.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK || !called {
-			t.Fatalf("expected valid token to pass")
-		}
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
 	})
 
-	t.Run("invalid", func(t *testing.T) {
-		var called bool
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			called = true
-			w.WriteHeader(http.StatusOK)
-		})
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("issuer-ok").
+		WithAudience("aud-ok").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
 
-		mw := NewMiddlewareBuilder(jwks).
-			WithIssuer("issuer-ok").
-			WithAudience("aud-ok").
-			WithLeeway(60).
-			WithLifetime(300).
-			WithNow(now).
-			Build(t, next)
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req.Header.Set("Authorization", "Bearer "+invalid)
+	rec := httptest.NewRecorder()
 
-		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
-		req.Header.Set("Authorization", "Bearer "+invalid)
-		rec := httptest.NewRecorder()
-
-		mw.ServeHTTP(rec, req)
-		if called {
-			t.Fatalf("next should not be called for invalid token")
-		}
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("expected 401, got %d", rec.Code)
-		}
-		if got := rec.Header().Get("WWW-Authenticate"); got == "" {
-			t.Fatalf("expected WWW-Authenticate header")
-		}
-	})
+	mw.ServeHTTP(rec, req)
+	if called {
+		t.Fatalf("next should not be called for invalid token")
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("WWW-Authenticate"); got == "" {
+		t.Fatalf("expected WWW-Authenticate header")
+	}
 }
 
 func TestMissingAuthorizationHeader(t *testing.T) {
