@@ -22,5 +22,5 @@ testData:
   proxySecret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
   lifetime: 600
   issuer: https://auth.example.com/
-  audience: protocol
+  audience: [protocol]
   leeway: 60
