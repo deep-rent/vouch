@@ -18,7 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type testJWK struct {
+type jwk struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
 	Use string `json:"use,omitempty"`
@@ -26,13 +26,15 @@ type testJWK struct {
 	N   string `json:"n,omitempty"`
 	E   string `json:"e,omitempty"`
 }
-type testJWKS struct {
-	Keys []testJWK `json:"keys"`
+
+type jwks struct {
+	Keys []jwk `json:"keys"`
 }
 
-func b64url(b []byte) string {
+func base64url(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
+
 func intToBytes(v int64) []byte {
 	if v == 0 {
 		return []byte{0}
@@ -45,15 +47,15 @@ func intToBytes(v int64) []byte {
 	return out
 }
 
-func jwksFromRSAPub(pk *rsa.PublicKey, kid string) string {
-	j := testJWKS{
-		Keys: []testJWK{{
+func jwksFromRSA(pk *rsa.PublicKey, kid string) string {
+	j := jwks{
+		Keys: []jwk{{
 			Kty: "RSA",
 			Kid: kid,
 			Use: "sig",
 			Alg: "RS256",
-			N:   b64url(pk.N.Bytes()),
-			E:   b64url(intToBytes(int64(pk.E))), // usually AQAB for 65537
+			N:   base64url(pk.N.Bytes()),
+			E:   base64url(intToBytes(int64(pk.E))), // usually AQAB for 65537
 		}},
 	}
 	b, _ := json.Marshal(j)
@@ -69,7 +71,7 @@ func genRSA(t *testing.T) *rsa.PrivateKey {
 	return k
 }
 
-func signJWT(t *testing.T, priv *rsa.PrivateKey, kid, uid, tid string, admin bool, iss, aud string, now time.Time) string {
+func signJWT(t *testing.T, key *rsa.PrivateKey, kid, uid, tid string, admin bool, iss, aud string, now time.Time) string {
 	t.Helper()
 	claims := &Claims{
 		UserID: uid,
@@ -78,26 +80,25 @@ func signJWT(t *testing.T, priv *rsa.PrivateKey, kid, uid, tid string, admin boo
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
 			Audience:  []string{aud},
+			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
 			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			Subject:   uid,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	tok.Header["kid"] = kid
-	signed, err := tok.SignedString(priv)
+	signed, err := tok.SignedString(key)
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
 	}
 	return signed
 }
 
-func makeMiddleware(t *testing.T, next http.Handler, jwks, proxySecret, iss, aud string, lifetime, leeway int) *Middleware {
+func makeMiddleware(t *testing.T, next http.Handler, jwks, secret, iss, aud string, lifetime, leeway int) *Middleware {
 	t.Helper()
 	cfg := &Config{
 		JWKS:        jwks,
-		ProxySecret: proxySecret,
+		ProxySecret: secret,
 		Lifetime:    lifetime,
 		Issuer:      iss,
 		Audience:    aud,
@@ -134,10 +135,10 @@ func proxyToken(secret []byte, username, roles string, expires int64) string {
 
 func TestOptionsBypass(t *testing.T) {
 	priv := genRSA(t)
-	kid := "kid1"
+	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
 
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := captureNext(&seen, &called)
@@ -145,7 +146,7 @@ func TestOptionsBypass(t *testing.T) {
 	mw := makeMiddleware(t, next, jwks, "", "", "", 300, 60)
 	mw.now = func() time.Time { return now }
 
-	req := httptest.NewRequest(http.MethodOptions, "http://x/db/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodOptions, "http://host.domain/db/_all_docs", nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
@@ -163,11 +164,11 @@ func TestOptionsBypass(t *testing.T) {
 
 func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 	priv := genRSA(t)
-	kid := "kid1"
+	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 
-	token := signJWT(t, priv, kid, "u1", "", true, "iss", "aud", now)
+	token := signJWT(t, priv, kid, "jon", "", true, "iss", "aud", now)
 
 	var seen http.Header = make(http.Header)
 	var called bool
@@ -176,7 +177,7 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 	mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
 	mw.now = func() time.Time { return now }
 
-	req := httptest.NewRequest(http.MethodGet, "http://x/anydb/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/db/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -191,7 +192,7 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 	if got := seen.Get("Authorization"); got != "" {
 		t.Fatalf("Authorization header was not stripped")
 	}
-	if got := seen.Get("X-Auth-CouchDB-UserName"); got != "u1" {
+	if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
 		t.Fatalf("username header = %q", got)
 	}
 	if got := seen.Get("X-Auth-CouchDB-Roles"); got != "_admin" {
@@ -204,13 +205,12 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 
 func TestUserAccessAllowedAndDenied(t *testing.T) {
 	priv := genRSA(t)
-	kid := "kid1"
+	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 
-	token := signJWT(t, priv, kid, "u1", "t1", false, "iss", "aud", now)
+	token := signJWT(t, priv, kid, "jon", "doe", false, "iss", "aud", now)
 
-	// Allowed: user_u1
 	{
 		var seen http.Header = make(http.Header)
 		var called bool
@@ -219,7 +219,7 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
 		mw.now = func() time.Time { return now }
 
-		req := httptest.NewRequest(http.MethodGet, "http://x/user_u1/_all_docs", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 
@@ -228,7 +228,7 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		if rec.Code != http.StatusOK || !called {
 			t.Fatalf("expected allowed request to pass (code=%d called=%v)", rec.Code, called)
 		}
-		if got := seen.Get("X-Auth-CouchDB-UserName"); got != "u1" {
+		if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
 			t.Fatalf("username header = %q", got)
 		}
 		if got := seen.Get("X-Auth-CouchDB-Roles"); got != "" {
@@ -236,7 +236,6 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		}
 	}
 
-	// Denied: otherdb
 	{
 		var called bool
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +246,7 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
 		mw.now = func() time.Time { return now }
 
-		req := httptest.NewRequest(http.MethodGet, "http://x/otherdb/_all_docs", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://host.domain/any/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 
@@ -264,13 +263,13 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 
 func TestProxySecretSigning(t *testing.T) {
 	priv := genRSA(t)
-	kid := "kid1"
+	kid := "abc"
 	fixedNow := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 	secret := "supersecret"
 	lifetime := 300
 
-	token := signJWT(t, priv, kid, "u1", "", false, "iss", "aud", fixedNow)
+	token := signJWT(t, priv, kid, "jon", "", false, "iss", "aud", fixedNow)
 
 	var seen http.Header = make(http.Header)
 	var called bool
@@ -279,7 +278,7 @@ func TestProxySecretSigning(t *testing.T) {
 	mw := makeMiddleware(t, next, jwks, secret, "iss", "aud", lifetime, 60)
 	mw.now = func() time.Time { return fixedNow }
 
-	req := httptest.NewRequest(http.MethodGet, "http://x/user_u1/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -302,7 +301,7 @@ func TestProxySecretSigning(t *testing.T) {
 	if gotTok == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
-	wantTok := proxyToken([]byte(secret), "u1", "", wantExp)
+	wantTok := proxyToken([]byte(secret), "jon", "", wantExp)
 	if gotTok != wantTok {
 		t.Fatalf("token = %s, want %s", gotTok, wantTok)
 	}
@@ -310,12 +309,12 @@ func TestProxySecretSigning(t *testing.T) {
 
 func TestIssuerAudienceValidation(t *testing.T) {
 	priv := genRSA(t)
-	kid := "kid1"
+	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 
-	valid := signJWT(t, priv, kid, "u1", "", false, "issuer-ok", "aud-ok", now)
-	invalid := signJWT(t, priv, kid, "u1", "", false, "issuer-ok", "aud-bad", now)
+	valid := signJWT(t, priv, kid, "jon", "", false, "issuer-ok", "aud-ok", now)
+	invalid := signJWT(t, priv, kid, "jon", "", false, "issuer-ok", "aud-bad", now)
 
 	t.Run("valid", func(t *testing.T) {
 		var called bool
@@ -326,7 +325,7 @@ func TestIssuerAudienceValidation(t *testing.T) {
 		mw := makeMiddleware(t, next, jwks, "", "issuer-ok", "aud-ok", 300, 60)
 		mw.now = func() time.Time { return now }
 
-		req := httptest.NewRequest(http.MethodGet, "http://x/user_u1/_all_docs", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+valid)
 		rec := httptest.NewRecorder()
 
@@ -345,7 +344,7 @@ func TestIssuerAudienceValidation(t *testing.T) {
 		mw := makeMiddleware(t, next, jwks, "", "issuer-ok", "aud-ok", 300, 60)
 		mw.now = func() time.Time { return now }
 
-		req := httptest.NewRequest(http.MethodGet, "http://x/user_u1/_all_docs", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+invalid)
 		rec := httptest.NewRecorder()
 
@@ -370,11 +369,11 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 	})
 
 	priv := genRSA(t)
-	kid := "kid1"
-	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
+	kid := "abc"
+	jwks := jwksFromRSA(&priv.PublicKey, kid)
 
 	mw := makeMiddleware(t, next, jwks, "", "", "", 300, 60)
-	req := httptest.NewRequest(http.MethodGet, "http://x/user_x/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
