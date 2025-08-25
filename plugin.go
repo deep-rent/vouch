@@ -2,11 +2,15 @@ package traefikplugincouchdb
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	keyfunc "github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -14,14 +18,24 @@ import (
 
 // Config holds the plugin configuration.
 type Config struct {
-	// JWKS JSON string containing the public verification keys.
+	// JWKS defines the (public) keys used in signature verification.
 	JWKS string `json:"jwks"`
+
+	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
+	// By default, the proxy secret is not set.
+	ProxySecret string `json:"proxySecret,omitempty"`
+
+	// Lifetime controls the expiration time offset (in seconds) of the CouchDB
+	// proxy token. Defaults to 300.
+	Lifetime int `json:"lifetime,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		JWKS: "",
+		JWKS:        "",
+		ProxySecret: "",
+		Lifetime:    300,
 	}
 }
 
@@ -40,12 +54,16 @@ type Middleware struct {
 	config *Config
 	keys   jwt.Keyfunc
 	algs   map[string]struct{}
+
+	secret []byte
+	ttl    time.Duration
+	now    func() time.Time
 }
 
 // Ensure Middleware implements http.Handler.
 var _ http.Handler = (*Middleware)(nil)
 
-// New creates a new Middleware.
+// New creates a new Middleware based on the provided configuration.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config == nil {
 		config = CreateConfig()
@@ -59,11 +77,16 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, fmt.Errorf("parse jwks: %w", err)
 	}
 
-	// Supported algorithms: RS*, ES*, PS*
+	// Supported algorithms: RSXXX, ESXXX, PSXXX
 	algs := map[string]struct{}{
 		"RS256": {}, "RS384": {}, "RS512": {},
 		"ES256": {}, "ES384": {}, "ES512": {},
 		"PS256": {}, "PS384": {}, "PS512": {},
+	}
+
+	ttl := time.Duration(config.Lifetime) * time.Second
+	if ttl <= 0 {
+		ttl = 300 * time.Second
 	}
 
 	return &Middleware{
@@ -72,6 +95,9 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		config: config,
 		keys:   jwks.Keyfunc,
 		algs:   algs,
+		secret: []byte(config.ProxySecret),
+		ttl:    ttl,
+		now:    time.Now,
 	}, nil
 }
 
@@ -89,12 +115,8 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	claims, err := m.parse(token)
-	if err != nil {
+	if err != nil || claims.UserID == "" {
 		http.Error(rw, "invalid token", http.StatusUnauthorized)
-		return
-	}
-	if claims.UserID == "" {
-		http.Error(rw, "token missing uid", http.StatusUnauthorized)
 		return
 	}
 
@@ -121,9 +143,22 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// Always strip the Authorization header.
 	req.Header.Del("Authorization")
 
-	// Set CouchDB proxy auth headers (trusted proxy mode; no secret).
-	req.Header.Set("X-Auth-CouchDB-UserName", claims.UserID)
-	req.Header.Set("X-Auth-CouchDB-Roles", "")
+	// Set CouchDB proxy auth headers (trusted proxy mode).
+	username := claims.UserID
+	roles := ""
+	req.Header.Set("X-Auth-CouchDB-UserName", username)
+	req.Header.Set("X-Auth-CouchDB-Roles", roles)
+
+	// If a proxy secret is configured, also sign Expires/Token for CouchDB.
+	if len(m.secret) > 0 {
+		expires := m.now().Add(m.ttl).Unix()
+		req.Header.Set("X-Auth-CouchDB-Expires", fmt.Sprintf("%d", expires))
+
+		// Token = hex(HMAC-SHA1(secret, "username,roles,expires"))
+		mac := hmac.New(sha1.New, m.secret)
+		_, _ = mac.Write([]byte(username + "," + roles + "," + fmt.Sprintf("%d", expires)))
+		req.Header.Set("X-Auth-CouchDB-Token", hex.EncodeToString(mac.Sum(nil)))
+	}
 
 	// Forward request.
 	m.next.ServeHTTP(rw, req)
