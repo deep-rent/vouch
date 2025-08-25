@@ -4,6 +4,7 @@
 *.md     text diff=markdown
 *.svg    text
 *.yaml   text
+AUTHORS  text
 go.mod   text
 go.sum   text
 LICENSE  text
