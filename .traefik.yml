@@ -1,17 +1,24 @@
 displayName: CouchDB
+summary: Provides JWT authentication for the CouchDB cluster behind Protocol
+
 type: middleware
 import: github.com/deep-rent/traefik-plugin-couchdb
-summary: Provides JWT authentication for the CouchDB cluster behind Protocol
 
 testData:
   jwks:
     - kty: EC
       use: sig
-      crv: P-256
       kid: Is1uskkAi3KCrz14riT82BwtWqMYPPCCshvmb4A8hvE
+      alg: ES256
+      crv: P-256
       x: yxKwnD25UKgQiRi1md_mYUZzw0AjCgF88RCTvX6lihQ
       y: 2XAQO8F8266bk2jCrefbiy-eFCTJLLofQpZKn0PSHpE
-      alg: ES256
+    - kty: RSA
+      use: sig
+      kid: Bg1SKFhYebULc1qrJoL0lPqGoEtn8AqoUsxfTFPkJb0
+      alg: RS256
+      n: s3GCmurZR4HUil2EwrrP75efzlGSyXKt_VrTiOXDyOLI_LIxdIv58ro_VXfhNdZc4N0rYU9YFgfEgjxvSXmZXt0DB_yPCKotDIXnmfbjsrU3e1rFpkam25CZCdZ-oPU72DCnEaY-Q4zl1X6_0O_3eYJOx9QFHIr8OrjrYBvWfyBNdO77qe3ZD5guJNwHQKznnsg0yq_Qr9z6KTI_hBqk_azzOn1NJuulMc2aPXNe9_WkUURN7eA_6rYi_vUrG2UctinS7RF38ks6zU1OOXs3PLOVrXzNG5G-b5KbcrRk8nz_Ms2WGer8JV4WwppjLOM5vTfirirH1YrgsWF_BpTpzQ
+      e: AQAB
   proxySecret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
   lifetime: 600
   issuer: https://auth.example.com/
