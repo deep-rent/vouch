@@ -18,9 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// --- Helpers ---
-
-type jwk struct {
+type JWK struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
 	Use string `json:"use,omitempty"`
@@ -29,8 +27,8 @@ type jwk struct {
 	E   string `json:"e,omitempty"`
 }
 
-type jwks struct {
-	Keys []jwk `json:"keys"`
+type JWKS struct {
+	Keys []JWK `json:"keys"`
 }
 
 func base64url(b []byte) string {
@@ -49,70 +47,171 @@ func intToBytes(v int64) []byte {
 	return out
 }
 
-func jwksFromRSA(pk *rsa.PublicKey, kid string) string {
-	j := jwks{
-		Keys: []jwk{{
+func toJWKS(key *rsa.PublicKey, kid string) string {
+	set := JWKS{
+		Keys: []JWK{{
 			Kty: "RSA",
 			Kid: kid,
 			Use: "sig",
 			Alg: "RS256",
-			N:   base64url(pk.N.Bytes()),
-			E:   base64url(intToBytes(int64(pk.E))),
+			N:   base64url(key.N.Bytes()),
+			E:   base64url(intToBytes(int64(key.E))),
 		}},
 	}
-	b, _ := json.Marshal(j)
+	b, _ := json.Marshal(set)
 	return string(b)
 }
 
-func genRSA(t *testing.T) *rsa.PrivateKey {
+func generate(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
-	k, err := rsa.GenerateKey(rand.Reader, 2048)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate RSA: %v", err)
 	}
-	return k
+	return key
 }
 
-func signJWT(t *testing.T, key *rsa.PrivateKey, kid, uid, tid string, admin bool, iss, aud string, now time.Time) string {
+type TokenBuilder struct {
+	key *rsa.PrivateKey
+	kid string
+	now time.Time
+	iss string
+	aud string
+	uid string
+	tid string
+	adm bool
+}
+
+func NewTokenBuilder(key *rsa.PrivateKey, kid string) *TokenBuilder {
+	return &TokenBuilder{
+		key: key,
+		kid: kid,
+		now: time.Now(),
+	}
+}
+
+func (b *TokenBuilder) At(t time.Time) *TokenBuilder {
+	b.now = t
+	return b
+}
+
+func (b *TokenBuilder) Issuer(iss string) *TokenBuilder {
+	b.iss = iss
+	return b
+}
+
+func (b *TokenBuilder) Audience(aud string) *TokenBuilder {
+	b.aud = aud
+	return b
+}
+
+func (b *TokenBuilder) User(uid string) *TokenBuilder {
+	b.uid = uid
+	return b
+}
+
+func (b *TokenBuilder) Team(tid string) *TokenBuilder {
+	b.tid = tid
+	return b
+}
+
+func (b *TokenBuilder) Admin() *TokenBuilder {
+	b.adm = true
+	return b
+}
+
+func (b *TokenBuilder) Sign(t *testing.T) string {
 	t.Helper()
 	claims := &Claims{
-		UserID: uid,
-		TeamID: tid,
-		Admin:  admin,
+		UserID: b.uid,
+		TeamID: b.tid,
+		Admin:  b.adm,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    iss,
-			Audience:  []string{aud},
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
-			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
+			Issuer:    b.iss,
+			Audience:  []string{b.aud},
+			IssuedAt:  jwt.NewNumericDate(b.now),
+			ExpiresAt: jwt.NewNumericDate(b.now.Add(time.Hour)),
+			NotBefore: jwt.NewNumericDate(b.now.Add(-time.Minute)),
+			Subject:   b.uid,
 		},
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	tok.Header["kid"] = kid
-	signed, err := tok.SignedString(key)
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = b.kid
+	signed, err := token.SignedString(b.key)
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
 	}
 	return signed
 }
 
-func makeMiddleware(t *testing.T, next http.Handler, jwks, secret, iss, aud string, lifetime, leeway int) *Middleware {
-	t.Helper()
-	cfg := &Config{
-		JWKS:        jwks,
-		ProxySecret: secret,
-		Lifetime:    lifetime,
-		Issuer:      iss,
-		Audience:    aud,
-		Leeway:      leeway,
+type MiddlewareBuilder struct {
+	jwks     string
+	secret   string
+	issuer   string
+	audience string
+	lifetime int
+	leeway   int
+	now      *time.Time
+}
+
+func NewMiddlewareBuilder(jwks string) *MiddlewareBuilder {
+	return &MiddlewareBuilder{
+		jwks:     jwks,
+		lifetime: 300,
+		leeway:   60,
 	}
-	h, err := New(context.Background(), next, cfg, "test")
+}
+
+func (b *MiddlewareBuilder) WithProxySecret(secret string) *MiddlewareBuilder {
+	b.secret = secret
+	return b
+}
+
+func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder {
+	b.issuer = iss
+	return b
+}
+
+func (b *MiddlewareBuilder) WithAudience(aud string) *MiddlewareBuilder {
+	b.audience = aud
+	return b
+}
+
+func (b *MiddlewareBuilder) WithLifetime(sec int) *MiddlewareBuilder {
+	b.lifetime = sec
+	return b
+}
+
+func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder {
+	b.leeway = sec
+	return b
+}
+
+func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder {
+	b.now = &now
+	return b
+}
+
+func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
+	t.Helper()
+	config := &Config{
+		JWKS:        b.jwks,
+		ProxySecret: b.secret,
+		Lifetime:    b.lifetime,
+		Issuer:      b.issuer,
+		Audience:    b.audience,
+		Leeway:      b.leeway,
+	}
+	h, err := New(context.Background(), next, config, "test")
 	if err != nil {
-		t.Fatalf("New middleware: %v", err)
+		t.Fatalf("create middleware: %v", err)
 	}
 	mw, ok := h.(*Middleware)
 	if !ok {
 		t.Fatalf("expected *Middleware, got %T", h)
+	}
+	if b.now != nil {
+		mw.now = func() time.Time { return *b.now }
 	}
 	return mw
 }
@@ -133,20 +232,21 @@ func proxyToken(secret []byte, username, roles string, expires int64) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// --- Tests ---
-
 func TestOptionsBypass(t *testing.T) {
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := makeMiddleware(t, next, jwks, "", "", "", 300, 60)
-	mw.now = func() time.Time { return now }
+	mw := NewMiddlewareBuilder(jwks).
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
 
 	req := httptest.NewRequest(http.MethodOptions, "http://host.domain/db/_all_docs", nil)
 	rec := httptest.NewRecorder()
@@ -165,19 +265,30 @@ func TestOptionsBypass(t *testing.T) {
 }
 
 func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-	token := signJWT(t, priv, kid, "jon", "", true, "iss", "aud", now)
+	token := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		User("jon").
+		Admin().
+		Sign(t)
 
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
-	mw.now = func() time.Time { return now }
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
 
 	req := httptest.NewRequest(http.MethodGet, "http://host.domain/db/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -206,20 +317,32 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 }
 
 func TestUserAccessAllowedAndDenied(t *testing.T) {
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-	token := signJWT(t, priv, kid, "jon", "doe", false, "iss", "aud", now)
+	token := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		User("jon").
+		Team("doe").
+		Sign(t)
 
+	// Allowed: user_jon
 	{
 		var seen http.Header = make(http.Header)
 		var called bool
 		next := captureNext(&seen, &called)
 
-		mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
-		mw.now = func() time.Time { return now }
+		mw := NewMiddlewareBuilder(jwks).
+			WithIssuer("iss").
+			WithAudience("aud").
+			WithLeeway(60).
+			WithLifetime(300).
+			WithNow(now).
+			Build(t, next)
 
 		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -238,6 +361,7 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 		}
 	}
 
+	// Denied: other database
 	{
 		var called bool
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -245,8 +369,13 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		mw := makeMiddleware(t, next, jwks, "", "iss", "aud", 300, 60)
-		mw.now = func() time.Time { return now }
+		mw := NewMiddlewareBuilder(jwks).
+			WithIssuer("iss").
+			WithAudience("aud").
+			WithLeeway(60).
+			WithLifetime(300).
+			WithNow(now).
+			Build(t, next)
 
 		req := httptest.NewRequest(http.MethodGet, "http://host.domain/any/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -264,21 +393,32 @@ func TestUserAccessAllowedAndDenied(t *testing.T) {
 }
 
 func TestProxySecretSigning(t *testing.T) {
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
-	fixedNow := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
-	secret := "supersecret"
+	now := time.Unix(1_700_000_000, 0)
+	jwks := toJWKS(&key.PublicKey, kid)
+	secret := "12345"
 	lifetime := 300
 
-	token := signJWT(t, priv, kid, "jon", "", false, "iss", "aud", fixedNow)
+	token := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		User("jon").
+		Sign(t)
 
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := makeMiddleware(t, next, jwks, secret, "iss", "aud", lifetime, 60)
-	mw.now = func() time.Time { return fixedNow }
+	mw := NewMiddlewareBuilder(jwks).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithProxySecret(secret).
+		WithLifetime(lifetime).
+		WithLeeway(60).
+		WithNow(now).
+		Build(t, next)
 
 	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -294,7 +434,8 @@ func TestProxySecretSigning(t *testing.T) {
 	if gotExp == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Expires")
 	}
-	wantExp := fixedNow.Add(time.Duration(lifetime) * time.Second).Unix()
+
+	wantExp := now.Add(time.Duration(lifetime) * time.Second).Unix()
 	if gotExp != strconv.FormatInt(wantExp, 10) {
 		t.Fatalf("expires = %s, want %d", gotExp, wantExp)
 	}
@@ -303,6 +444,7 @@ func TestProxySecretSigning(t *testing.T) {
 	if gotTok == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
+
 	wantTok := proxyToken([]byte(secret), "jon", "", wantExp)
 	if gotTok != wantTok {
 		t.Fatalf("token = %s, want %s", gotTok, wantTok)
@@ -310,22 +452,39 @@ func TestProxySecretSigning(t *testing.T) {
 }
 
 func TestIssuerAudienceValidation(t *testing.T) {
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
 	now := time.Unix(1_700_000_000, 0)
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-	valid := signJWT(t, priv, kid, "jon", "", false, "issuer-ok", "aud-ok", now)
-	invalid := signJWT(t, priv, kid, "jon", "", false, "issuer-ok", "aud-bad", now)
+	valid := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("issuer-ok").
+		Audience("aud-ok").
+		User("jon").
+		Sign(t)
+
+	invalid := NewTokenBuilder(key, kid).
+		At(now).
+		Issuer("issuer-ok").
+		Audience("aud-bad").
+		User("jon").
+		Sign(t)
 
 	t.Run("valid", func(t *testing.T) {
 		var called bool
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			called = true
-			w.WriteHeader(http.StatusOK)
+			res.WriteHeader(http.StatusOK)
 		})
-		mw := makeMiddleware(t, next, jwks, "", "issuer-ok", "aud-ok", 300, 60)
-		mw.now = func() time.Time { return now }
+
+		mw := NewMiddlewareBuilder(jwks).
+			WithIssuer("issuer-ok").
+			WithAudience("aud-ok").
+			WithLeeway(60).
+			WithLifetime(300).
+			WithNow(now).
+			Build(t, next)
 
 		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+valid)
@@ -343,8 +502,14 @@ func TestIssuerAudienceValidation(t *testing.T) {
 			called = true
 			w.WriteHeader(http.StatusOK)
 		})
-		mw := makeMiddleware(t, next, jwks, "", "issuer-ok", "aud-ok", 300, 60)
-		mw.now = func() time.Time { return now }
+
+		mw := NewMiddlewareBuilder(jwks).
+			WithIssuer("issuer-ok").
+			WithAudience("aud-ok").
+			WithLeeway(60).
+			WithLifetime(300).
+			WithNow(now).
+			Build(t, next)
 
 		req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 		req.Header.Set("Authorization", "Bearer "+invalid)
@@ -370,11 +535,15 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	priv := genRSA(t)
+	key := generate(t)
 	kid := "abc"
-	jwks := jwksFromRSA(&priv.PublicKey, kid)
+	jwks := toJWKS(&key.PublicKey, kid)
 
-	mw := makeMiddleware(t, next, jwks, "", "", "", 300, 60)
+	mw := NewMiddlewareBuilder(jwks).
+		WithLeeway(60).
+		WithLifetime(300).
+		Build(t, next)
+
 	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
 	rec := httptest.NewRecorder()
 
@@ -383,9 +552,11 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 	if called {
 		t.Fatalf("next should not be called")
 	}
+
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
+
 	if got := rec.Header().Get("WWW-Authenticate"); got == "" {
 		t.Fatalf("expected WWW-Authenticate header")
 	}
