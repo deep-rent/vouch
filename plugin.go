@@ -109,12 +109,14 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	token, ok := bearer(req.Header.Get("Authorization"))
 	if !ok || token == "" {
+		rw.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
 		http.Error(rw, "missing or invalid authorization header", http.StatusUnauthorized)
 		return
 	}
 
 	claims, err := m.parse(token)
 	if err != nil || claims.UserID == "" {
+		rw.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		http.Error(rw, "invalid token", http.StatusUnauthorized)
 		return
 	}
