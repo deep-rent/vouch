@@ -18,7 +18,7 @@ import (
 
 // Config holds the plugin configuration.
 type Config struct {
-	// JWKS defines the (public) keys used in signature verification.
+	// JWKS can be either a JWKS URL or a war JWKS JSON string.
 	JWKS string `json:"jwks"`
 
 	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
@@ -59,16 +59,14 @@ type Claims struct {
 
 // Middleware is the HTTP middleware.
 type Middleware struct {
-	next    http.Handler
-	name    string
-	config  *Config
-	keys    jwt.Keyfunc
-	algs    map[string]struct{}
-	methods []string
-	parser  *jwt.Parser
-	secret  []byte
-	ttl     time.Duration
-	now     func() time.Time
+	next   http.Handler
+	name   string
+	config *Config
+	keys   jwt.Keyfunc
+	parser *jwt.Parser
+	secret []byte
+	ttl    time.Duration
+	now    func() time.Time
 }
 
 // Ensure Middleware implements http.Handler.
@@ -83,51 +81,58 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, errors.New("jwks is required")
 	}
 
-	jwks, err := keyfunc.NewJWKSetJSON([]byte(config.JWKS))
-	if err != nil {
-		return nil, fmt.Errorf("parse jwks: %w", err)
-	}
-
-	// Supported algorithms: RSXXX, ESXXX, PSXXX
-	algs := map[string]struct{}{
-		"RS256": {}, "RS384": {}, "RS512": {},
-		"ES256": {}, "ES384": {}, "ES512": {},
-		"PS256": {}, "PS384": {}, "PS512": {},
-	}
-	methods := make([]string, 0, len(algs))
-	for a := range algs {
-		methods = append(methods, a)
+	var keys jwt.Keyfunc
+	if isURL(config.JWKS) {
+		k, err := keyfunc.NewDefaultCtx(context.Background(), []string{config.JWKS})
+		if err != nil {
+			return nil, fmt.Errorf("fetch jwks: %w", err)
+		}
+		keys = k.Keyfunc
+	} else {
+		k, err := keyfunc.NewJWKSetJSON([]byte(config.JWKS))
+		if err != nil {
+			return nil, fmt.Errorf("parse jwks: %w", err)
+		}
+		keys = k.Keyfunc
 	}
 
 	ttl := time.Duration(config.Lifetime) * time.Second
 	if ttl <= 0 {
 		ttl = 300 * time.Second
 	}
-	leeway := time.Duration(config.Leeway) * time.Second
-	if leeway < 0 {
-		leeway = 0
-	}
-	if leeway == 0 && config.Leeway == 0 {
-		leeway = 60 * time.Second
+
+	mw := &Middleware{
+		next:   next,
+		name:   name,
+		config: config,
+		keys:   keys,
+		secret: []byte(config.ProxySecret),
+		ttl:    ttl,
+		now:    time.Now,
 	}
 
-	parser := jwt.NewParser(
-		jwt.WithValidMethods(methods),
-		jwt.WithLeeway(leeway),
-	)
+	opts := []jwt.ParserOption{
+		jwt.WithExpirationRequired(),
+		jwt.WithLeeway(max(time.Duration(config.Leeway)*time.Second, 0)),
+		// Bind late to allow testing with fixed time.
+		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
+		jwt.WithValidMethods([]string{
+			"RS256", "RS384", "RS512",
+			"ES256", "ES384", "ES512",
+			"PS256", "PS384", "PS512",
+		}),
+	}
 
-	return &Middleware{
-		next:    next,
-		name:    name,
-		config:  config,
-		keys:    jwks.Keyfunc,
-		algs:    algs,
-		methods: methods,
-		parser:  parser,
-		secret:  []byte(config.ProxySecret),
-		ttl:     ttl,
-		now:     time.Now,
-	}, nil
+	if aud := strings.TrimSpace(config.Audience); aud != "" {
+		opts = append(opts, jwt.WithAudience(aud))
+	}
+	if iss := strings.TrimSpace(config.Issuer); iss != "" {
+		opts = append(opts, jwt.WithIssuer(iss))
+	}
+
+	parser := jwt.NewParser(opts...)
+	mw.parser = parser
+	return mw, nil
 }
 
 func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -205,28 +210,7 @@ func (m *Middleware) parse(token string) *Claims {
 	if err != nil || result == nil || !result.Valid {
 		return nil
 	}
-	// Enforce supported algorithms.
-	if _, ok := m.algs[result.Method.Alg()]; !ok {
-		return nil
-	}
-	// Optional issuer/audience checks.
-	if iss := strings.TrimSpace(m.config.Issuer); iss != "" && claims.Issuer != iss {
-		return nil
-	}
-	if aud := strings.TrimSpace(m.config.Audience); aud != "" && !has(claims.Audience, aud) {
-		return nil
-	}
 	return claims
-}
-
-// has returns true if the wanted audience is present.
-func has(list jwt.ClaimStrings, want string) bool {
-	for _, v := range list {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 // bearer extracts a bearer token from the Authorization header value.
@@ -260,4 +244,13 @@ func database(path string) string {
 		return first
 	}
 	return s
+}
+
+// isURL determines if a string is a valid HTTP URL.
+func isURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "http" || u.Scheme == "https"
 }
