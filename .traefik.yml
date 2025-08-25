@@ -1,0 +1,19 @@
+displayName: CouchDB
+type: middleware
+import: github.com/deep-rent/traefik-plugin-couchdb
+summary: Provides JWT authentication for the CouchDB cluster behind Protocol
+
+testData:
+  jwks:
+    - kty: EC
+      use: sig
+      crv: P-256
+      kid: Is1uskkAi3KCrz14riT82BwtWqMYPPCCshvmb4A8hvE
+      x: yxKwnD25UKgQiRi1md_mYUZzw0AjCgF88RCTvX6lihQ
+      y: 2XAQO8F8266bk2jCrefbiy-eFCTJLLofQpZKn0PSHpE
+      alg: ES256
+  proxySecret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
+  lifetime: 600
+  issuer: https://auth.example.com/
+  audience: protocol
+  leeway: 60
