@@ -2,26 +2,44 @@ package traefikplugincouchdb
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
+
+	keyfunc "github.com/MicahParks/keyfunc/v3"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Config holds the plugin configuration.
 type Config struct {
-	// ...
+	// JWKS JSON string containing the public verification keys.
+	JWKS string `json:"jwks"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		// ...
+		JWKS: "",
 	}
+}
+
+// Claims represents the expected JWT claims.
+type Claims struct {
+	UserID string `json:"uid"`           // required
+	TeamID string `json:"tid,omitempty"` // optional
+	Admin  bool   `json:"adm,omitempty"` // optional
+	jwt.RegisteredClaims
 }
 
 // Middleware is the HTTP middleware.
 type Middleware struct {
-	next http.Handler
-	name string
-	cfg  *Config
+	next   http.Handler
+	name   string
+	config *Config
+	keys   jwt.Keyfunc
+	algs   map[string]struct{}
 }
 
 // Ensure Middleware implements http.Handler.
@@ -32,14 +50,140 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if config == nil {
 		config = CreateConfig()
 	}
+	if strings.TrimSpace(config.JWKS) == "" {
+		return nil, errors.New("jwks is required")
+	}
+
+	jwks, err := keyfunc.NewJWKJSON([]byte(config.JWKS))
+	if err != nil {
+		return nil, fmt.Errorf("parse jwks: %w", err)
+	}
+
+	// Supported algorithms: RS*, ES*, PS*
+	algs := map[string]struct{}{
+		"RS256": {}, "RS384": {}, "RS512": {},
+		"ES256": {}, "ES384": {}, "ES512": {},
+		"PS256": {}, "PS384": {}, "PS512": {},
+	}
+
 	return &Middleware{
-		next: next,
-		name: name,
-		cfg:  config,
+		next:   next,
+		name:   name,
+		config: config,
+		keys:   jwks.Keyfunc,
+		algs:   algs,
 	}, nil
 }
 
 func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Pass the request to the next handler in the chain.
+	// Allow CORS preflight through without authentication.
+	if req.Method == http.MethodOptions {
+		m.next.ServeHTTP(rw, req)
+		return
+	}
+
+	token, ok := bearer(req.Header.Get("Authorization"))
+	if !ok || token == "" {
+		http.Error(rw, "missing or invalid authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := m.parse(token)
+	if err != nil {
+		http.Error(rw, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	if claims.UserID == "" {
+		http.Error(rw, "token missing uid", http.StatusUnauthorized)
+		return
+	}
+
+	// Authorization against requested database path.
+	if !claims.Admin {
+		db := database(req.URL.Path)
+		if db == "" {
+			http.Error(rw, "insufficient permissions", http.StatusForbidden)
+			return
+		}
+		allowed := map[string]struct{}{
+			"user_" + claims.UserID: {},
+			"team_" + claims.UserID: {},
+		}
+		if claims.TeamID != "" {
+			allowed["team_"+claims.TeamID] = struct{}{}
+		}
+		if _, ok := allowed[db]; !ok {
+			http.Error(rw, "insufficient permissions", http.StatusForbidden)
+			return
+		}
+	}
+
+	// Always strip the Authorization header.
+	req.Header.Del("Authorization")
+
+	// Set CouchDB proxy auth headers (trusted proxy mode; no secret).
+	req.Header.Set("X-Auth-CouchDB-UserName", claims.UserID)
+	req.Header.Set("X-Auth-CouchDB-Roles", "")
+
+	// Forward request.
 	m.next.ServeHTTP(rw, req)
+}
+
+// parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
+func (m *Middleware) parse(token string) (*Claims, error) {
+	parser := jwt.NewParser(jwt.WithValidMethods(m.methods()))
+	claims := &Claims{}
+	result, err := parser.ParseWithClaims(token, claims, m.keys)
+	if err != nil || result == nil || !result.Valid || !m.allowed(result.Method.Alg()) {
+		return nil, errors.New("token validation failed")
+	}
+	return claims, nil
+}
+
+// allowed checks if the given algorithm is allowed for signature verification.
+func (m *Middleware) allowed(alg string) bool {
+	_, ok := m.algs[alg]
+	return ok
+}
+
+// methods returns a list of allowed algorithms for signature verification.
+func (m *Middleware) methods() []string {
+	methods := make([]string, 0, len(m.algs))
+	for alg := range m.algs {
+		methods = append(methods, alg)
+	}
+	return methods
+}
+
+// bearer extracts a bearer token from the Authorization header value.
+func bearer(header string) (string, bool) {
+	if header == "" {
+		return "", false
+	}
+	parts := strings.Fields(header)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return "", false
+	}
+	return parts[1], true
+}
+
+// database returns the name of the target database by decoding the first
+// non-empty segment of the given URL path.
+func database(path string) string {
+	if path == "" {
+		return ""
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	segments := strings.SplitN(path, "/", 3)
+	if len(segments) < 2 {
+		return ""
+	}
+	first := segments[1]
+	s, err := url.PathUnescape(first)
+	if err != nil {
+		return first
+	}
+	return s
 }
