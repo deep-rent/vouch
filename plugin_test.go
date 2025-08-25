@@ -18,6 +18,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// --- Helpers ---
+
 type jwk struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
@@ -55,7 +57,7 @@ func jwksFromRSA(pk *rsa.PublicKey, kid string) string {
 			Use: "sig",
 			Alg: "RS256",
 			N:   base64url(pk.N.Bytes()),
-			E:   base64url(intToBytes(int64(pk.E))), // usually AQAB for 65537
+			E:   base64url(intToBytes(int64(pk.E))),
 		}},
 	}
 	b, _ := json.Marshal(j)
