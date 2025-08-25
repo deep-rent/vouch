@@ -71,7 +71,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, errors.New("jwks is required")
 	}
 
-	jwks, err := keyfunc.NewJWKJSON([]byte(config.JWKS))
+	jwks, err := keyfunc.NewJWKSetJSON([]byte(config.JWKS))
 	if err != nil {
 		return nil, fmt.Errorf("parse jwks: %w", err)
 	}
