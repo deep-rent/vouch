@@ -34,39 +34,57 @@ func base64url(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func intToBytes(v int64) []byte {
-	if v == 0 {
+func encode(n int64) []byte {
+	if n == 0 {
 		return []byte{0}
 	}
 	out := make([]byte, 0, 8)
-	for v > 0 {
-		out = append([]byte{byte(v & 0xff)}, out...)
-		v >>= 8
+	for n > 0 {
+		out = append([]byte{byte(n & 0xff)}, out...)
+		n >>= 8
 	}
 	return out
 }
 
-// toJWKS builds a JWKS object (not a string) from an RSA public key.
-func toJWKS(key *rsa.PublicKey, kid string) JWKS {
+func thumbprint(pub *rsa.PublicKey) string {
+	h := sha1.New()
+	_, _ = h.Write(pub.N.Bytes())
+	_, _ = h.Write(encode(int64(pub.E)))
+	return hex.EncodeToString(h.Sum(nil)[:8])
+}
+
+type GeneratedKey struct {
+	Key *rsa.PrivateKey
+	Kid string
+	JWK JWK
+}
+
+func (t *GeneratedKey) JWKS() JWKS {
 	return JWKS{
-		Keys: []JWK{{
-			Kty: "RSA",
-			Kid: kid,
-			Use: "sig",
-			Alg: "RS256",
-			N:   base64url(key.N.Bytes()),
-			E:   base64url(intToBytes(int64(key.E))),
-		}},
+		Keys: []JWK{t.JWK},
 	}
 }
 
-func generate(t *testing.T) *rsa.PrivateKey {
+func generate(t *testing.T) *GeneratedKey {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate RSA: %v", err)
 	}
-	return key
+	pub := &key.PublicKey
+	kid := thumbprint(pub)
+	return &GeneratedKey{
+		Key: key,
+		Kid: kid,
+		JWK: JWK{
+			Kty: "RSA",
+			Kid: kid,
+			Use: "sig",
+			Alg: "RS256",
+			N:   base64url(pub.N.Bytes()),
+			E:   base64url(encode(int64(pub.E))),
+		},
+	}
 }
 
 type TokenBuilder struct {
@@ -231,16 +249,14 @@ func proxyToken(secret []byte, username, roles string, expires int64) string {
 }
 
 func TestOptionsBypass(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithLeeway(60).
 		WithLifetime(300).
 		WithNow(now).
@@ -262,13 +278,11 @@ func TestOptionsBypass(t *testing.T) {
 	}
 }
 
-func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+func TestAdminAccess(t *testing.T) {
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
-	token := NewTokenBuilder(key, kid).
+	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("iss").
 		Audience("aud").
@@ -280,7 +294,7 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -315,12 +329,10 @@ func TestAdminAccessSetsAdminRoleAndStripsAuth(t *testing.T) {
 }
 
 func TestUserAccessAllowed(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
-	token := NewTokenBuilder(key, kid).
+	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("iss").
 		Audience("aud").
@@ -332,7 +344,7 @@ func TestUserAccessAllowed(t *testing.T) {
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -358,12 +370,10 @@ func TestUserAccessAllowed(t *testing.T) {
 }
 
 func TestUserAccessDenied(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
-	token := NewTokenBuilder(key, kid).
+	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("iss").
 		Audience("aud").
@@ -377,7 +387,7 @@ func TestUserAccessDenied(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -400,14 +410,12 @@ func TestUserAccessDenied(t *testing.T) {
 }
 
 func TestProxySecretSigning(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 	secret := "12345"
 	lifetime := 300
 
-	token := NewTokenBuilder(key, kid).
+	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("iss").
 		Audience("aud").
@@ -418,7 +426,7 @@ func TestProxySecretSigning(t *testing.T) {
 	var called bool
 	next := captureNext(&seen, &called)
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithProxySecret(secret).
@@ -459,12 +467,10 @@ func TestProxySecretSigning(t *testing.T) {
 }
 
 func TestIssuerAudienceValidationSuccess(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
-	valid := NewTokenBuilder(key, kid).
+	valid := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("valid").
 		Audience("valid").
@@ -477,7 +483,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		res.WriteHeader(http.StatusOK)
 	})
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("valid").
 		WithAudience("valid").
 		WithLeeway(60).
@@ -495,13 +501,11 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 	}
 }
 
-func TestIssuerAudienceValidationInvalid(t *testing.T) {
-	key := generate(t)
-	kid := "abc"
+func TestIssuerAudienceValidationFailure(t *testing.T) {
+	gen := generate(t)
 	now := time.Unix(1_700_000_000, 0)
-	jwks := toJWKS(&key.PublicKey, kid)
 
-	invalid := NewTokenBuilder(key, kid).
+	invalid := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
 		Issuer("valid").
 		Audience("invalid").
@@ -514,7 +518,7 @@ func TestIssuerAudienceValidationInvalid(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("valid").
 		WithAudience("valid").
 		WithLeeway(60).
@@ -545,11 +549,7 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	key := generate(t)
-	kid := "abc"
-	jwks := toJWKS(&key.PublicKey, kid)
-
-	mw := NewMiddlewareBuilder(jwks).
+	mw := NewMiddlewareBuilder(generate(t).JWKS()).
 		WithLeeway(60).
 		WithLifetime(300).
 		Build(t, next)
