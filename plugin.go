@@ -36,7 +36,7 @@ type Config struct {
 	Audience string `json:"audience,omitempty"`
 
 	// Permissible clock skew for temporal validity of tokens (in seconds).
-	// Defaults to 60.
+	// Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
 }
 
@@ -46,6 +46,9 @@ func CreateConfig() *Config {
 		JWKS:        "",
 		ProxySecret: "",
 		Lifetime:    300,
+		Issuer:      "",
+		Audience:    "",
+		Leeway:      0,
 	}
 }
 
