@@ -8,3 +8,13 @@
 $RECYCLE.BIN/
 Thumbs.db
 UserInterfaceState.xcuserstate
+
+# Visual Studio Code
+!.vscode/*.code-snippets
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.history/
+.vscode/*
+*.vsix
