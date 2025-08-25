@@ -177,6 +177,9 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// Set CouchDB proxy auth headers (trusted proxy mode).
 	username := claims.UserID
 	roles := ""
+	if claims.Admin {
+		roles = "_admin"
+	}
 	req.Header.Set("X-Auth-CouchDB-UserName", username)
 	req.Header.Set("X-Auth-CouchDB-Roles", roles)
 
