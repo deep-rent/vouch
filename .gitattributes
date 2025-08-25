@@ -5,5 +5,6 @@
 *.svg    text
 *.yaml   text
 go.mod   text
+go.sum   text
 LICENSE  text
 Makefile text
