@@ -250,7 +250,7 @@ func proxyToken(secret []byte, username, roles string, expires int64) string {
 
 func TestOptionsBypass(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	var seen http.Header = make(http.Header)
 	var called bool
@@ -273,14 +273,16 @@ func TestOptionsBypass(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if seen.Get("X-Auth-CouchDB-UserName") != "" {
+
+	header := "X-Auth-CouchDB-UserName"
+	if got := seen.Get(header); got != "" {
 		t.Fatalf("unexpected proxy headers on OPTIONS")
 	}
 }
 
 func TestAdminAccess(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -314,23 +316,38 @@ func TestAdminAccess(t *testing.T) {
 	if !called {
 		t.Fatalf("next not called")
 	}
-	if got := seen.Get("Authorization"); got != "" {
-		t.Fatalf("Authorization header was not stripped")
+
+	var header string
+
+	header = "Authorization"
+	if got := seen.Get(header); got != "" {
+		t.Fatalf("%s header was not stripped", header)
 	}
-	if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
-		t.Fatalf("username header = %q", got)
+
+	header = "X-Auth-CouchDB-UserName"
+	if got := seen.Get(header); got != "jon" {
+		t.Fatalf("%s header = %q", header, got)
 	}
-	if got := seen.Get("X-Auth-CouchDB-Roles"); got != "_admin" {
-		t.Fatalf("roles header = %q, want _admin", got)
+
+	header = "X-Auth-CouchDB-Roles"
+	if got := seen.Get(header); got != "_admin" {
+		t.Fatalf("%s header = %q", header, got)
 	}
-	if seen.Get("X-Auth-CouchDB-Expires") != "" || seen.Get("X-Auth-CouchDB-Token") != "" {
-		t.Fatalf("did not expect proxy secret headers without secret")
+
+	header = "X-Auth-CouchDB-Expires"
+	if got := seen.Get(header); got != "" {
+		t.Fatalf("%s header was not stripped", header)
+	}
+
+	header = "X-Auth-CouchDB-Token"
+	if got := seen.Get(header); got != "" {
+		t.Fatalf("%s header was not stripped", header)
 	}
 }
 
 func TestUserAccessAllowed(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -361,17 +378,23 @@ func TestUserAccessAllowed(t *testing.T) {
 	if rec.Code != http.StatusOK || !called {
 		t.Fatalf("expected allowed request to pass (code=%d called=%v)", rec.Code, called)
 	}
-	if got := seen.Get("X-Auth-CouchDB-UserName"); got != "jon" {
-		t.Fatalf("username header = %q", got)
+
+	var header string
+
+	header = "X-Auth-CouchDB-UserName"
+	if got := seen.Get(header); got != "jon" {
+		t.Fatalf("%s header = %q", header, got)
 	}
-	if got := seen.Get("X-Auth-CouchDB-Roles"); got != "" {
-		t.Fatalf("roles header = %q, want empty", got)
+
+	header = "X-Auth-CouchDB-Roles"
+	if got := seen.Get(header); got != "" {
+		t.Fatalf("%s header = %q, want empty", header, got)
 	}
 }
 
 func TestUserAccessDenied(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -411,7 +434,7 @@ func TestUserAccessDenied(t *testing.T) {
 
 func TestProxySecretSigning(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 	secret := "12345"
 	lifetime := 300
 
@@ -445,30 +468,30 @@ func TestProxySecretSigning(t *testing.T) {
 		t.Fatalf("expected 200 and next called")
 	}
 
-	gotExp := seen.Get("X-Auth-CouchDB-Expires")
-	if gotExp == "" {
+	actExp := seen.Get("X-Auth-CouchDB-Expires")
+	if actExp == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Expires")
 	}
 
-	wantExp := now.Add(time.Duration(lifetime) * time.Second).Unix()
-	if gotExp != strconv.FormatInt(wantExp, 10) {
-		t.Fatalf("expires = %s, want %d", gotExp, wantExp)
+	expExp := now.Add(time.Duration(lifetime) * time.Second).Unix()
+	if actExp != strconv.FormatInt(expExp, 10) {
+		t.Fatalf("got expires = %s, want %d", actExp, expExp)
 	}
 
-	gotTok := seen.Get("X-Auth-CouchDB-Token")
-	if gotTok == "" {
+	actTok := seen.Get("X-Auth-CouchDB-Token")
+	if actTok == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
 
-	wantTok := proxyToken([]byte(secret), "jon", "", wantExp)
-	if gotTok != wantTok {
-		t.Fatalf("token = %s, want %s", gotTok, wantTok)
+	expTok := proxyToken([]byte(secret), "jon", "", expExp)
+	if actTok != expTok {
+		t.Fatalf("got token = %s, want %s", actTok, expTok)
 	}
 }
 
 func TestIssuerAudienceValidationSuccess(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	valid := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -503,7 +526,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 
 func TestIssuerAudienceValidationFailure(t *testing.T) {
 	gen := generate(t)
-	now := time.Unix(1_700_000_000, 0)
+	now := time.Unix(1_000_000_000, 0)
 
 	invalid := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -537,8 +560,10 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
-	if got := rec.Header().Get("WWW-Authenticate"); got == "" {
-		t.Fatalf("expected WWW-Authenticate header")
+
+	header := "WWW-Authenticate"
+	if got := rec.Header().Get(header); got == "" {
+		t.Fatalf("expected %s header", header)
 	}
 }
 
@@ -567,7 +592,8 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 
-	if got := rec.Header().Get("WWW-Authenticate"); got == "" {
-		t.Fatalf("expected WWW-Authenticate header")
+	header := "WWW-Authenticate"
+	if got := rec.Header().Get(header); got == "" {
+		t.Fatalf("expected %s header", header)
 	}
 }
