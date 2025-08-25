@@ -148,7 +148,7 @@ type MiddlewareBuilder struct {
 	jwks     string
 	secret   string
 	issuer   string
-	audience string
+	audience []string
 	lifetime int
 	leeway   int
 	now      *time.Time
@@ -172,7 +172,7 @@ func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder {
 	return b
 }
 
-func (b *MiddlewareBuilder) WithAudience(aud string) *MiddlewareBuilder {
+func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder {
 	b.audience = aud
 	return b
 }

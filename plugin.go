@@ -32,10 +32,10 @@ type Config struct {
 	// Expected issuer for JWT validation hardening.
 	Issuer string `json:"issuer,omitempty"`
 
-	// Expected audience for JWT validation hardening.
-	Audience string `json:"audience,omitempty"`
+	// Allowed audiences for JWT validation hardening.
+	Audience []string `json:"audiences,omitempty"`
 
-	// Permissible clock skew for temporal validity of tokens (in seconds).
+	// Allowed clock skew for temporal validity of tokens (in seconds).
 	// Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
 }
@@ -47,7 +47,7 @@ func CreateConfig() *Config {
 		ProxySecret: "",
 		Lifetime:    300,
 		Issuer:      "",
-		Audience:    "",
+		Audience:    []string{},
 		Leeway:      0,
 	}
 }
@@ -126,8 +126,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		}),
 	}
 
-	if aud := strings.TrimSpace(config.Audience); aud != "" {
-		opts = append(opts, jwt.WithAudience(aud))
+	if len(config.Audience) > 0 {
+		opts = append(opts, jwt.WithAudience(config.Audience...))
 	}
 	if iss := strings.TrimSpace(config.Issuer); iss != "" {
 		opts = append(opts, jwt.WithIssuer(iss))
