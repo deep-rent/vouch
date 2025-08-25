@@ -1,0 +1,10 @@
+# Miscellaneous
+.DS_Store
+*.log
+*.sw[mnpcod]
+*.tmp
+*.tmp.*
+*~
+$RECYCLE.BIN/
+Thumbs.db
+UserInterfaceState.xcuserstate
