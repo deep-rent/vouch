@@ -8,17 +8,57 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
-	"math/big"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Helpers
+type testJWK struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use,omitempty"`
+	Alg string `json:"alg,omitempty"`
+	N   string `json:"n,omitempty"`
+	E   string `json:"e,omitempty"`
+}
+type testJWKS struct {
+	Keys []testJWK `json:"keys"`
+}
+
+func b64url(b []byte) string {
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+func intToBytes(v int64) []byte {
+	if v == 0 {
+		return []byte{0}
+	}
+	out := make([]byte, 0, 8)
+	for v > 0 {
+		out = append([]byte{byte(v & 0xff)}, out...)
+		v >>= 8
+	}
+	return out
+}
+
+func jwksFromRSAPub(pk *rsa.PublicKey, kid string) string {
+	j := testJWKS{
+		Keys: []testJWK{{
+			Kty: "RSA",
+			Kid: kid,
+			Use: "sig",
+			Alg: "RS256",
+			N:   b64url(pk.N.Bytes()),
+			E:   b64url(intToBytes(int64(pk.E))), // usually AQAB for 65537
+		}},
+	}
+	b, _ := json.Marshal(j)
+	return string(b)
+}
 
 func genRSA(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
@@ -27,12 +67,6 @@ func genRSA(t *testing.T) *rsa.PrivateKey {
 		t.Fatalf("generate RSA: %v", err)
 	}
 	return k
-}
-
-func jwksFromRSAPub(pk *rsa.PublicKey, kid string) string {
-	n := base64.RawURLEncoding.EncodeToString(pk.N.Bytes())
-	e := base64.RawURLEncoding.EncodeToString(new(big.Int).SetInt64(int64(pk.E)).Bytes())
-	return fmt.Sprintf(`{"keys":[{"kty":"RSA","kid":"%s","n":"%s","e":"%s","alg":"RS256","use":"sig"}]}`, kid, n, e)
 }
 
 func signJWT(t *testing.T, priv *rsa.PrivateKey, kid, uid, tid string, admin bool, iss, aud string, now time.Time) string {
@@ -83,9 +117,8 @@ func makeMiddleware(t *testing.T, next http.Handler, jwks, proxySecret, iss, aud
 func captureNext(headersOut *http.Header, called *bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		*called = true
-		for k, v := range r.Header {
+		for k := range r.Header {
 			headersOut.Set(k, r.Header.Get(k))
-			_ = v
 		}
 		w.WriteHeader(http.StatusOK)
 	}
@@ -93,11 +126,11 @@ func captureNext(headersOut *http.Header, called *bool) http.HandlerFunc {
 
 func proxyToken(secret []byte, username, roles string, expires int64) string {
 	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(fmt.Sprintf("%s,%s,%d", username, roles, expires)))
+	_, _ = mac.Write([]byte(username + "," + roles + "," + strconv.FormatInt(expires, 10)))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Tests
+// --- Tests ---
 
 func TestOptionsBypass(t *testing.T) {
 	priv := genRSA(t)
@@ -256,14 +289,12 @@ func TestProxySecretSigning(t *testing.T) {
 		t.Fatalf("expected 200 and next called")
 	}
 
-	// Verify Expires and Token.
 	gotExp := seen.Get("X-Auth-CouchDB-Expires")
 	if gotExp == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Expires")
 	}
-	// expected expires unix
 	wantExp := fixedNow.Add(time.Duration(lifetime) * time.Second).Unix()
-	if gotExp != fmt.Sprintf("%d", wantExp) {
+	if gotExp != strconv.FormatInt(wantExp, 10) {
 		t.Fatalf("expires = %s, want %d", gotExp, wantExp)
 	}
 
@@ -283,10 +314,7 @@ func TestIssuerAudienceValidation(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
 
-	// Valid token (iss/aud match).
 	valid := signJWT(t, priv, kid, "u1", "", false, "issuer-ok", "aud-ok", now)
-
-	// Mismatched token (wrong aud).
 	invalid := signJWT(t, priv, kid, "u1", "", false, "issuer-ok", "aud-bad", now)
 
 	t.Run("valid", func(t *testing.T) {
@@ -335,14 +363,12 @@ func TestIssuerAudienceValidation(t *testing.T) {
 }
 
 func TestMissingAuthorizationHeader(t *testing.T) {
-	// No token should yield 401 with WWW-Authenticate.
 	var called bool
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Minimal JWKS (not used since OPTIONS/auth missing)
 	priv := genRSA(t)
 	kid := "kid1"
 	jwks := jwksFromRSAPub(&priv.PublicKey, kid)
