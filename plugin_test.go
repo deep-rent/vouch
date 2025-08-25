@@ -114,13 +114,13 @@ func makeMiddleware(t *testing.T, next http.Handler, jwks, proxySecret, iss, aud
 	return mw
 }
 
-func captureNext(headersOut *http.Header, called *bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func captureNext(headers *http.Header, called *bool) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
 		*called = true
-		for k := range r.Header {
-			headersOut.Set(k, r.Header.Get(k))
+		for k := range req.Header {
+			headers.Set(k, req.Header.Get(k))
 		}
-		w.WriteHeader(http.StatusOK)
+		res.WriteHeader(http.StatusOK)
 	}
 }
 

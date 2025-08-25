@@ -135,24 +135,24 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	return mw, nil
 }
 
-func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Allow CORS preflight through without authentication.
 	if req.Method == http.MethodOptions {
-		m.next.ServeHTTP(rw, req)
+		m.next.ServeHTTP(res, req)
 		return
 	}
 
 	token, ok := bearer(req.Header.Get("Authorization"))
 	if !ok || token == "" {
-		rw.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
-		http.Error(rw, "missing or invalid authorization header", http.StatusUnauthorized)
+		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
+		http.Error(res, "missing or invalid authorization header", http.StatusUnauthorized)
 		return
 	}
 
 	claims := m.parse(token)
 	if claims == nil || claims.UserID == "" {
-		rw.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
-		http.Error(rw, "invalid token", http.StatusUnauthorized)
+		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+		http.Error(res, "invalid token", http.StatusUnauthorized)
 		return
 	}
 
@@ -160,7 +160,7 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if !claims.Admin {
 		db := database(req.URL.Path)
 		if db == "" {
-			http.Error(rw, "insufficient permissions", http.StatusForbidden)
+			http.Error(res, "insufficient permissions", http.StatusForbidden)
 			return
 		}
 		allowed := map[string]struct{}{
@@ -171,7 +171,7 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			allowed["team_"+claims.TeamID] = struct{}{}
 		}
 		if _, ok := allowed[db]; !ok {
-			http.Error(rw, "insufficient permissions", http.StatusForbidden)
+			http.Error(res, "insufficient permissions", http.StatusForbidden)
 			return
 		}
 	}
@@ -200,7 +200,7 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Forward request.
-	m.next.ServeHTTP(rw, req)
+	m.next.ServeHTTP(res, req)
 }
 
 // parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
