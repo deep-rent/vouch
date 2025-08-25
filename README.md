@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  A Traefik plugin that implements CouchDB proxy authentication for Protocol.
+  A Traefik plugin that implements JWT authentication for the CouchDB cluster behind Protocol.
 </p>
 
 <p align="center">
