@@ -553,7 +553,7 @@ func TestProxySecretSigning(t *testing.T) {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
 
-	expTok := proxyToken([]byte(secret), "jon", "", expExp)
+	expTok := createProxyToken([]byte(secret), "jon", "", expExp)
 	if actTok != expTok {
 		t.Fatalf("got token = %s, want %s", actTok, expTok)
 	}

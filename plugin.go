@@ -43,7 +43,8 @@ type Config struct {
 	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
 	ProxySecret string `json:"proxySecret,omitempty"`
 
-	// Lifetime controls the expiration time offset (in seconds) of the CouchDB proxy token. Defaults to 300.
+	// Lifetime controls the expiration time offset (in seconds) of the
+	// CouchDB proxy token. Defaults to 300.
 	Lifetime int `json:"lifetime,omitempty"`
 
 	// Expected issuer for JWT validation hardening (optional).
@@ -52,7 +53,8 @@ type Config struct {
 	// Allowed audiences for JWT validation hardening (optional).
 	Audience []string `json:"audience,omitempty"`
 
-	// Allowed clock skew for temporal validity of tokens (in seconds). Defaults to 0.
+	// Allowed clock skew for temporal validity of tokens (in seconds).
+	// Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
 
 	// Allowed signature JWAs. Defaults to the RS*, ES*, and PS* families.
@@ -96,7 +98,12 @@ type Middleware struct {
 var _ http.Handler = (*Middleware)(nil)
 
 // New creates a new Middleware based on the provided configuration.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+func New(
+	ctx context.Context,
+	next http.Handler,
+	config *Config,
+	name string,
+) (http.Handler, error) {
 	if config == nil {
 		config = CreateConfig()
 	}
@@ -163,14 +170,16 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	token, ok := bearerToken(req.Header.Get("Authorization"))
 	if !ok || token == "" {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
-		http.Error(res, "missing or invalid authorization header", http.StatusUnauthorized)
+		msg := "missing or invalid authorization header"
+		http.Error(res, msg, http.StatusUnauthorized)
 		return
 	}
 
 	claims := m.parse(token)
 	if claims == nil || claims.UserID == "" {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
-		http.Error(res, "invalid token", http.StatusUnauthorized)
+		msg := "invalid token"
+		http.Error(res, msg, http.StatusUnauthorized)
 		return
 	}
 
@@ -178,7 +187,8 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if !claims.Admin {
 		db := database(req.URL.Path)
 		if db == "" {
-			http.Error(res, "insufficient permissions", http.StatusForbidden)
+			msg := "insufficient permissions"
+			http.Error(res, msg, http.StatusForbidden)
 			return
 		}
 		allowed := map[string]struct{}{
@@ -189,7 +199,8 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			allowed["team_"+claims.TeamID] = struct{}{}
 		}
 		if _, ok := allowed[db]; !ok {
-			http.Error(res, "insufficient permissions", http.StatusForbidden)
+			msg := "insufficient permissions"
+			http.Error(res, msg, http.StatusForbidden)
 			return
 		}
 	}
@@ -210,14 +221,17 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if len(m.secret) > 0 {
 		expires := m.now().Add(m.ttl).Unix()
 		req.Header.Set("X-Auth-CouchDB-Expires", strconv.FormatInt(expires, 10))
-		req.Header.Set("X-Auth-CouchDB-Token", proxyToken(m.secret, username, roles, expires))
+
+		hash := createProxyToken(m.secret, username, roles, expires)
+		req.Header.Set("X-Auth-CouchDB-Token", hash)
 	}
 
 	// Forward request.
 	m.next.ServeHTTP(res, req)
 }
 
-// parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
+// parse parses and validates the JWT using the JWKS keyfunc and
+// allowed algorithms.
 func (m *Middleware) parse(token string) *Claims {
 	claims := &Claims{}
 	result, err := m.parser.ParseWithClaims(token, claims, m.keys)
@@ -227,7 +241,8 @@ func (m *Middleware) parse(token string) *Claims {
 	return claims
 }
 
-// bearerToken extracts a bearerToken token from the Authorization header value.
+// bearerToken extracts a bearerToken token from the Authorization
+// header value.
 func bearerToken(header string) (string, bool) {
 	if header == "" {
 		return "", false
@@ -239,7 +254,8 @@ func bearerToken(header string) (string, bool) {
 	return parts[1], true
 }
 
-// database returns the name of the target database by decoding the first non-empty segment of the given URL path.
+// database returns the name of the target database by decoding the first
+// non-empty segment of the given URL path.
 func database(path string) string {
 	if path == "" {
 		return ""
@@ -259,19 +275,16 @@ func database(path string) string {
 	return s
 }
 
-// isURL determines if a string is a valid HTTP URL.
-func isURL(s string) bool {
-	u, err := url.Parse(s)
-	if err != nil {
-		return false
-	}
-	return u.Scheme == "http" || u.Scheme == "https"
-}
-
-// proxyToken outputs HEX(HMAC-SHA1(secret, "username,roles,expires")).
-func proxyToken(secret []byte, username, roles string, expires int64) string {
+// createProxyToken outputs HEX(HMAC-SHA1(secret, "username,roles,expires")).
+func createProxyToken(
+	secret []byte,
+	username, roles string,
+	expires int64,
+) string {
 	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(username + "," + roles + "," + strconv.FormatInt(expires, 10)))
+	_, _ = mac.Write([]byte(
+		username + "," + roles + "," + strconv.FormatInt(expires, 10),
+	))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -282,53 +295,49 @@ func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
 	case string:
 		s := strings.TrimSpace(t)
 		if s == "" {
-			return nil, errors.New("empty jwks string")
+			return nil, errors.New("empty jwks")
 		}
-		if isURL(s) {
+		if _, err := url.Parse(s); err == nil {
 			jwks, err := keyfunc.NewDefaultCtx(ctx, []string{s})
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("load remote jwks: %w", err)
 			}
 			return jwks.Keyfunc, nil
 		}
 		jwks, err := keyfunc.NewJWKSetJSON([]byte(s))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse jwks: %w", err)
 		}
 		return jwks.Keyfunc, nil
-
 	case []byte:
-		if len(t) == 0 {
-			return nil, errors.New("empty jwks bytes")
+		if strings.TrimSpace(string(t)) == "" {
+			return nil, errors.New("empty jwks")
 		}
 		jwks, err := keyfunc.NewJWKSetJSON(t)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse jwks: %w", err)
 		}
 		return jwks.Keyfunc, nil
-
 	case json.RawMessage:
-		if len(t) == 0 {
-			return nil, errors.New("empty jwks raw message")
+		if strings.TrimSpace(string(t)) == "" {
+			return nil, errors.New("empty jwks")
 		}
 		jwks, err := keyfunc.NewJWKSetJSON(t)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse jwks: %w", err)
 		}
 		return jwks.Keyfunc, nil
-
 	default:
-		// Marshal arbitrary object/array to JSON and treat as JWKS.
-		b, err := json.Marshal(v)
+		b, err := json.Marshal(t)
 		if err != nil {
 			return nil, fmt.Errorf("marshal jwks object: %w", err)
 		}
-		if len(b) == 0 {
-			return nil, errors.New("empty jwks object")
+		if strings.TrimSpace(string(b)) == "" {
+			return nil, errors.New("empty jwks")
 		}
 		jwks, err := keyfunc.NewJWKSetJSON(b)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse jwks: %w", err)
 		}
 		return jwks.Keyfunc, nil
 	}
