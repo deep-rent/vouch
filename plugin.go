@@ -45,6 +45,9 @@ type Config struct {
 
 	// Allowed clock skew for temporal validity of tokens (in seconds). Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
+
+	// Allowed signature JWAs. Defaults to the RS*, ES*, and PS* families.
+	Algorithms []string `json:"algorithms,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -56,6 +59,7 @@ func CreateConfig() *Config {
 		Issuer:      "",
 		Audience:    []string{},
 		Leeway:      0,
+		Algorithms:  []string{},
 	}
 }
 
@@ -103,6 +107,15 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}
 	leeway := max(time.Duration(config.Leeway)*time.Second, 0)
 
+	algs := config.Algorithms
+	if len(algs) == 0 {
+		algs = []string{
+			"RS256", "RS384", "RS512",
+			"ES256", "ES384", "ES512",
+			"PS256", "PS384", "PS512",
+		}
+	}
+
 	mw := &Middleware{
 		next:   next,
 		name:   name,
@@ -118,11 +131,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		jwt.WithLeeway(leeway),
 		// Bind to mw.now so tests can override the clock.
 		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
-		jwt.WithValidMethods([]string{
-			"RS256", "RS384", "RS512",
-			"ES256", "ES384", "ES512",
-			"PS256", "PS384", "PS512",
-		}),
+		jwt.WithValidMethods(algs),
 	}
 	if len(config.Audience) > 0 {
 		opts = append(opts, jwt.WithAudience(config.Audience...))
