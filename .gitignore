@@ -21,3 +21,4 @@ UserInterfaceState.xcuserstate
 
 # Go
 *.coverprofile
+vendor/
