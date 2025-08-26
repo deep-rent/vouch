@@ -29,6 +29,7 @@ import (
 	"time"
 
 	keyfunc "github.com/MicahParks/keyfunc/v3"
+	"github.com/deep-rent/traefik-plugin-couchdb/auth"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -64,7 +65,7 @@ type Config struct {
 	Algorithms []string `json:"algorithms,omitempty"`
 
 	// An ordered list of authorization rules. The first matching rule decides.
-	Rules []Rule `json:"rules"`
+	Rules []auth.Rule `json:"rules"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -92,86 +93,11 @@ type Middleware struct {
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
-	auth   *Authorizer
+	auth   *auth.Authorizer
 }
 
 // Ensure Middleware implements http.Handler.
 var _ http.Handler = (*Middleware)(nil)
-
-// New creates a new Middleware based on the provided configuration.
-func New(
-	ctx context.Context,
-	next http.Handler,
-	config *Config,
-	name string,
-) (http.Handler, error) {
-	if config == nil {
-		config = CreateConfig()
-	}
-	if config.JWKS == nil {
-		return nil, errors.New("jwks is required")
-	}
-	if len(config.Rules) == 0 {
-		return nil, errors.New("rules are required (non-empty)")
-	}
-
-	keys, err := resolve(ctx, config.JWKS)
-	if err != nil {
-		return nil, fmt.Errorf("load jwks: %w", err)
-	}
-
-	ttl := time.Duration(config.Lifetime) * time.Second
-	if ttl <= 0 {
-		ttl = 300 * time.Second
-	}
-	leeway := time.Duration(config.Leeway) * time.Second
-	if leeway < 0 {
-		leeway = 0
-	}
-
-	algs := config.Algorithms
-	if len(algs) == 0 {
-		algs = []string{
-			"RS256", "RS384", "RS512",
-			"ES256", "ES384", "ES512",
-			"PS256", "PS384", "PS512",
-		}
-	}
-
-	authorizer, err := NewAuthorizer(config.Rules)
-	if err != nil {
-		return nil, fmt.Errorf("build authorizer: %w", err)
-	}
-
-	mw := &Middleware{
-		next:   next,
-		name:   name,
-		config: config,
-		keys:   keys,
-		secret: []byte(config.ProxySecret),
-		ttl:    ttl,
-		now:    time.Now,
-		auth:   authorizer,
-	}
-
-	opts := []jwt.ParserOption{
-		jwt.WithLeeway(leeway),
-		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
-		jwt.WithValidMethods(algs),
-	}
-	if config.ExpirationRequired {
-		opts = append(opts, jwt.WithExpirationRequired())
-	}
-	if len(config.Audience) > 0 {
-		opts = append(opts, jwt.WithAudience(config.Audience...))
-	}
-	if iss := strings.TrimSpace(config.Issuer); iss != "" {
-		opts = append(opts, jwt.WithIssuer(iss))
-	}
-
-	mw.parser = jwt.NewParser(opts...)
-	return mw, nil
-}
 
 func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Allow CORS preflight through without authentication.
@@ -180,7 +106,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	token, ok := bearerToken(req.Header.Get("Authorization"))
+	token, ok := token(req.Header.Get("Authorization"))
 	if !ok || token == "" {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
 		http.Error(res, "missing or invalid authorization header", http.StatusUnauthorized)
@@ -195,14 +121,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// Authorization with rules (first match wins).
-	db := database(req.URL.Path)
-	env := Environment{
-		Claims: claims,
-		C:      claims,
-		Method: req.Method,
-		Path:   req.URL.Path,
-		DB:     db,
-	}
+	env := auth.NewEnvironment(claims, req)
 	pass, user, role, err := m.auth.Authorize(req.Context(), env)
 	if err != nil {
 		http.Error(res, "insufficient permissions", http.StatusForbidden)
@@ -244,43 +163,76 @@ func (m *Middleware) parse(token string) map[string]any {
 	return claims
 }
 
-// bearerToken extracts a bearer token from the Authorization header value.
-func bearerToken(header string) (string, bool) {
-	if header == "" {
-		return "", false
+// New creates a new HTTP handler based on the provided configuration.
+func New(
+	ctx context.Context,
+	next http.Handler,
+	config *Config,
+	name string,
+) (http.Handler, error) {
+	if config == nil {
+		config = CreateConfig()
 	}
-	parts := strings.Fields(header)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return "", false
+	if config.JWKS == nil {
+		return nil, errors.New("jwks is required")
 	}
-	return parts[1], true
-}
+	if len(config.Rules) == 0 {
+		return nil, errors.New("rules are required (non-empty)")
+	}
 
-// database returns the name of the target database from the URL path.
-func database(path string) string {
-	if path == "" {
-		return ""
-	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	segments := strings.SplitN(path, "/", 3)
-	if len(segments) < 2 {
-		return ""
-	}
-	first := segments[1]
-	s, err := url.PathUnescape(first)
+	keys, err := resolve(ctx, config.JWKS)
 	if err != nil {
-		return first
+		return nil, fmt.Errorf("load jwks: %w", err)
 	}
-	return s
-}
 
-// proxyToken outputs HEX(HMAC-SHA1(secret, "user,role,expires")).
-func proxyToken(secret []byte, user, role string, expires int64) string {
-	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(user + "," + role + "," + strconv.FormatInt(expires, 10)))
-	return hex.EncodeToString(mac.Sum(nil))
+	ttl := time.Duration(config.Lifetime) * time.Second
+	if ttl <= 0 {
+		ttl = 300 * time.Second
+	}
+	leeway := max(time.Duration(config.Leeway)*time.Second, 0)
+
+	algs := config.Algorithms
+	if len(algs) == 0 {
+		algs = []string{
+			"RS256", "RS384", "RS512",
+			"ES256", "ES384", "ES512",
+			"PS256", "PS384", "PS512",
+		}
+	}
+
+	authorizer, err := auth.NewAuthorizer(config.Rules)
+	if err != nil {
+		return nil, fmt.Errorf("build authorizer: %w", err)
+	}
+
+	mw := &Middleware{
+		next:   next,
+		name:   name,
+		config: config,
+		keys:   keys,
+		secret: []byte(config.ProxySecret),
+		ttl:    ttl,
+		now:    time.Now,
+		auth:   authorizer,
+	}
+
+	opts := []jwt.ParserOption{
+		jwt.WithLeeway(leeway),
+		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
+		jwt.WithValidMethods(algs),
+	}
+	if config.ExpirationRequired {
+		opts = append(opts, jwt.WithExpirationRequired())
+	}
+	if len(config.Audience) > 0 {
+		opts = append(opts, jwt.WithAudience(config.Audience...))
+	}
+	if iss := strings.TrimSpace(config.Issuer); iss != "" {
+		opts = append(opts, jwt.WithIssuer(iss))
+	}
+
+	mw.parser = jwt.NewParser(opts...)
+	return mw, nil
 }
 
 // resolve returns a key provider from a JWKS value that can be a
@@ -336,4 +288,23 @@ func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
 		}
 		return jwks.Keyfunc, nil
 	}
+}
+
+// token extracts a bearer token from the Authorization header, if present.
+func token(header string) (string, bool) {
+	if header == "" {
+		return "", false
+	}
+	parts := strings.Fields(header)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return "", false
+	}
+	return parts[1], true
+}
+
+// proxyToken outputs HEX(HMAC-SHA1(secret, "user,role,expires")).
+func proxyToken(secret []byte, user, role string, expires int64) string {
+	mac := hmac.New(sha1.New, secret)
+	_, _ = mac.Write([]byte(user + "," + role + "," + strconv.FormatInt(expires, 10)))
+	return hex.EncodeToString(mac.Sum(nil))
 }

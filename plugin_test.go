@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deep-rent/traefik-plugin-couchdb/auth"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -179,7 +180,7 @@ type MiddlewareBuilder struct {
 	lifetime int
 	leeway   int
 	now      *time.Time
-	rules    []Rule
+	rules    []auth.Rule
 }
 
 func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
@@ -196,7 +197,10 @@ func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder { b.a
 func (b *MiddlewareBuilder) WithLifetime(sec int) *MiddlewareBuilder       { b.lifetime = sec; return b }
 func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder         { b.leeway = sec; return b }
 func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder      { b.now = &now; return b }
-func (b *MiddlewareBuilder) WithRules(rules ...Rule) *MiddlewareBuilder    { b.rules = rules; return b }
+func (b *MiddlewareBuilder) WithRules(rules ...auth.Rule) *MiddlewareBuilder {
+	b.rules = rules
+	return b
+}
 
 func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	t.Helper()
@@ -234,7 +238,7 @@ func TestOptionsBypass(t *testing.T) {
 	next := trap(&seen, &called)
 
 	// Rules won't be used for OPTIONS; still provide a minimal allow to satisfy config.
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow", When: "true", User: `"anon"`, Role: `""`},
 	}
 
@@ -280,8 +284,7 @@ func TestAdminAccess(t *testing.T) {
 	var called bool
 	next := trap(&seen, &called)
 
-	rules := []Rule{
-		// Admin rule first; first match wins.
+	rules := []auth.Rule{
 		{Mode: "allow", When: `C["adm"] == true`, User: `C["sub"]`, Role: `"_admin"`},
 	}
 
@@ -351,7 +354,7 @@ func TestUserAccessAllowed(t *testing.T) {
 	var called bool
 	next := trap(&seen, &called)
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow",
 			When: `DB == "user_"+C["sub"]`,
 			User: `C["sub"]`,
@@ -409,7 +412,7 @@ func TestUserAccessDenied(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow",
 			When: `DB == "user_"+C["sub"]`,
 			User: `C["sub"]`,
@@ -458,7 +461,7 @@ func TestURLWithoutDatabase(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow",
 			When: `DB == "user_"+C["sub"]`,
 			User: `C["sub"]`,
@@ -507,7 +510,7 @@ func TestProxySecretSigning(t *testing.T) {
 	var called bool
 	next := trap(&seen, &called)
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow", When: `DB == "user_"+C["sub"]`, User: `C["sub"]`, Role: `""`},
 	}
 
@@ -570,7 +573,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		res.WriteHeader(http.StatusOK)
 	})
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
 	}
 
@@ -611,7 +614,7 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
 	}
 
@@ -650,7 +653,7 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	rules := []Rule{
+	rules := []auth.Rule{
 		{Mode: "allow", When: `true`, User: `"anonymous"`, Role: `""`},
 	}
 
