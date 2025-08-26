@@ -53,33 +53,33 @@ type Config struct {
 	// Allowed audiences for JWT validation hardening (optional).
 	Audience []string `json:"audience,omitempty"`
 
+	// When enabled, makes the 'exp' claims required.
+	ExpirationRequired bool `json:"expirationRequired,omitempty"`
+
 	// Allowed clock skew for temporal validity of tokens (in seconds).
 	// Defaults to 0.
 	Leeway int `json:"leeway,omitempty"`
 
 	// Allowed signature JWAs. Defaults to the RS*, ES*, and PS* families.
 	Algorithms []string `json:"algorithms,omitempty"`
+
+	// An ordered list of authorization rules. The first matching rule decides.
+	Rules []Rule `json:"rules"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		JWKS:        nil,
-		ProxySecret: "",
-		Lifetime:    300,
-		Issuer:      "",
-		Audience:    []string{},
-		Leeway:      0,
-		Algorithms:  []string{},
+		JWKS:               nil,
+		ProxySecret:        "",
+		Lifetime:           300,
+		Issuer:             "",
+		Audience:           []string{},
+		ExpirationRequired: false,
+		Leeway:             0,
+		Algorithms:         []string{},
+		Rules:              nil,
 	}
-}
-
-// Claims represents the expected JWT claims.
-type Claims struct {
-	UserID string `json:"uid"`           // required
-	TeamID string `json:"tid,omitempty"` // optional
-	Admin  bool   `json:"adm,omitempty"` // optional
-	jwt.RegisteredClaims
 }
 
 // Middleware is the HTTP middleware.
@@ -92,6 +92,7 @@ type Middleware struct {
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
+	auth   *Authorizer
 }
 
 // Ensure Middleware implements http.Handler.
@@ -110,8 +111,10 @@ func New(
 	if config.JWKS == nil {
 		return nil, errors.New("jwks is required")
 	}
+	if len(config.Rules) == 0 {
+		return nil, errors.New("rules are required (non-empty)")
+	}
 
-	// Build the Keyfunc from URL/string/object.
 	keys, err := resolve(ctx, config.JWKS)
 	if err != nil {
 		return nil, fmt.Errorf("load jwks: %w", err)
@@ -121,7 +124,10 @@ func New(
 	if ttl <= 0 {
 		ttl = 300 * time.Second
 	}
-	leeway := max(time.Duration(config.Leeway)*time.Second, 0)
+	leeway := time.Duration(config.Leeway) * time.Second
+	if leeway < 0 {
+		leeway = 0
+	}
 
 	algs := config.Algorithms
 	if len(algs) == 0 {
@@ -132,6 +138,11 @@ func New(
 		}
 	}
 
+	authorizer, err := NewAuthorizer(config.Rules)
+	if err != nil {
+		return nil, fmt.Errorf("build authorizer: %w", err)
+	}
+
 	mw := &Middleware{
 		next:   next,
 		name:   name,
@@ -140,14 +151,16 @@ func New(
 		secret: []byte(config.ProxySecret),
 		ttl:    ttl,
 		now:    time.Now,
+		auth:   authorizer,
 	}
 
 	opts := []jwt.ParserOption{
-		jwt.WithExpirationRequired(),
 		jwt.WithLeeway(leeway),
-		// Bind to mw.now so tests can override the clock.
 		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
 		jwt.WithValidMethods(algs),
+	}
+	if config.ExpirationRequired {
+		opts = append(opts, jwt.WithExpirationRequired())
 	}
 	if len(config.Audience) > 0 {
 		opts = append(opts, jwt.WithAudience(config.Audience...))
@@ -170,59 +183,49 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	token, ok := bearerToken(req.Header.Get("Authorization"))
 	if !ok || token == "" {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
-		msg := "missing or invalid authorization header"
-		http.Error(res, msg, http.StatusUnauthorized)
+		http.Error(res, "missing or invalid authorization header", http.StatusUnauthorized)
 		return
 	}
 
 	claims := m.parse(token)
-	if claims == nil || claims.UserID == "" {
+	if claims == nil {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
-		msg := "invalid token"
-		http.Error(res, msg, http.StatusUnauthorized)
+		http.Error(res, "invalid token", http.StatusUnauthorized)
 		return
 	}
 
-	// Authorization against requested database path.
-	if !claims.Admin {
-		db := database(req.URL.Path)
-		if db == "" {
-			msg := "insufficient permissions"
-			http.Error(res, msg, http.StatusForbidden)
-			return
-		}
-		allowed := map[string]struct{}{
-			"user_" + claims.UserID: {},
-			"team_" + claims.UserID: {},
-		}
-		if claims.TeamID != "" {
-			allowed["team_"+claims.TeamID] = struct{}{}
-		}
-		if _, ok := allowed[db]; !ok {
-			msg := "insufficient permissions"
-			http.Error(res, msg, http.StatusForbidden)
-			return
-		}
+	// Authorization with rules (first match wins).
+	db := database(req.URL.Path)
+	env := Environment{
+		Claims: claims,
+		C:      claims,
+		Method: req.Method,
+		Path:   req.URL.Path,
+		DB:     db,
+	}
+	pass, user, role, err := m.auth.Authorize(req.Context(), env)
+	if err != nil {
+		http.Error(res, "insufficient permissions", http.StatusForbidden)
+		return
+	}
+	if !pass {
+		http.Error(res, "insufficient permissions", http.StatusForbidden)
+		return
 	}
 
 	// Always strip the Authorization header.
 	req.Header.Del("Authorization")
 
 	// Set CouchDB proxy auth headers (trusted proxy mode).
-	username := claims.UserID
-	roles := ""
-	if claims.Admin {
-		roles = "_admin"
-	}
-	req.Header.Set("X-Auth-CouchDB-UserName", username)
-	req.Header.Set("X-Auth-CouchDB-Roles", roles)
+	req.Header.Set("X-Auth-CouchDB-UserName", user)
+	req.Header.Set("X-Auth-CouchDB-Roles", role)
 
 	// If a proxy secret is configured, also sign Expires/Token for CouchDB.
 	if len(m.secret) > 0 {
 		expires := m.now().Add(m.ttl).Unix()
 		req.Header.Set("X-Auth-CouchDB-Expires", strconv.FormatInt(expires, 10))
 
-		hash := createProxyToken(m.secret, username, roles, expires)
+		hash := proxyToken(m.secret, user, role, expires)
 		req.Header.Set("X-Auth-CouchDB-Token", hash)
 	}
 
@@ -230,10 +233,10 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	m.next.ServeHTTP(res, req)
 }
 
-// parse parses and validates the JWT using the JWKS keyfunc and
-// allowed algorithms.
-func (m *Middleware) parse(token string) *Claims {
-	claims := &Claims{}
+// parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
+// Returns all claims as a map.
+func (m *Middleware) parse(token string) map[string]any {
+	claims := jwt.MapClaims{}
 	result, err := m.parser.ParseWithClaims(token, claims, m.keys)
 	if err != nil || result == nil || !result.Valid {
 		return nil
@@ -241,8 +244,7 @@ func (m *Middleware) parse(token string) *Claims {
 	return claims
 }
 
-// bearerToken extracts a bearerToken token from the Authorization
-// header value.
+// bearerToken extracts a bearer token from the Authorization header value.
 func bearerToken(header string) (string, bool) {
 	if header == "" {
 		return "", false
@@ -254,8 +256,7 @@ func bearerToken(header string) (string, bool) {
 	return parts[1], true
 }
 
-// database returns the name of the target database by decoding the first
-// non-empty segment of the given URL path.
+// database returns the name of the target database from the URL path.
 func database(path string) string {
 	if path == "" {
 		return ""
@@ -275,16 +276,10 @@ func database(path string) string {
 	return s
 }
 
-// createProxyToken outputs HEX(HMAC-SHA1(secret, "username,roles,expires")).
-func createProxyToken(
-	secret []byte,
-	username, roles string,
-	expires int64,
-) string {
+// proxyToken outputs HEX(HMAC-SHA1(secret, "user,role,expires")).
+func proxyToken(secret []byte, user, role string, expires int64) string {
 	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(
-		username + "," + roles + "," + strconv.FormatInt(expires, 10),
-	))
+	_, _ = mac.Write([]byte(user + "," + role + "," + strconv.FormatInt(expires, 10)))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -297,7 +292,7 @@ func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
 		if s == "" {
 			return nil, errors.New("empty jwks")
 		}
-		if _, err := url.Parse(s); err == nil {
+		if u, err := url.Parse(s); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
 			jwks, err := keyfunc.NewDefaultCtx(ctx, []string{s})
 			if err != nil {
 				return nil, fmt.Errorf("load remote jwks: %w", err)

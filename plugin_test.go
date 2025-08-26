@@ -131,8 +131,7 @@ type TokenBuilder struct {
 	now time.Time
 	iss string
 	aud string
-	uid string
-	tid string
+	sub string
 	adm bool
 }
 
@@ -144,50 +143,24 @@ func NewTokenBuilder(key *rsa.PrivateKey, kid string) *TokenBuilder {
 	}
 }
 
-func (b *TokenBuilder) At(t time.Time) *TokenBuilder {
-	b.now = t
-	return b
-}
-
-func (b *TokenBuilder) Issuer(iss string) *TokenBuilder {
-	b.iss = iss
-	return b
-}
-
-func (b *TokenBuilder) Audience(aud string) *TokenBuilder {
-	b.aud = aud
-	return b
-}
-
-func (b *TokenBuilder) User(uid string) *TokenBuilder {
-	b.uid = uid
-	return b
-}
-
-func (b *TokenBuilder) Team(tid string) *TokenBuilder {
-	b.tid = tid
-	return b
-}
-
-func (b *TokenBuilder) Admin() *TokenBuilder {
-	b.adm = true
-	return b
-}
+func (b *TokenBuilder) At(now time.Time) *TokenBuilder    { b.now = now; return b }
+func (b *TokenBuilder) Issuer(iss string) *TokenBuilder   { b.iss = iss; return b }
+func (b *TokenBuilder) Audience(aud string) *TokenBuilder { b.aud = aud; return b }
+func (b *TokenBuilder) Subject(sub string) *TokenBuilder  { b.sub = sub; return b }
+func (b *TokenBuilder) Admin() *TokenBuilder              { b.adm = true; return b }
 
 func (b *TokenBuilder) Sign(t *testing.T) string {
 	t.Helper()
-	claims := &Claims{
-		UserID: b.uid,
-		TeamID: b.tid,
-		Admin:  b.adm,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    b.iss,
-			Audience:  []string{b.aud},
-			IssuedAt:  jwt.NewNumericDate(b.now),
-			ExpiresAt: jwt.NewNumericDate(b.now.Add(time.Hour)),
-			NotBefore: jwt.NewNumericDate(b.now.Add(-time.Minute)),
-			Subject:   b.uid,
-		},
+	claims := jwt.MapClaims{
+		"iss": b.iss,
+		"aud": b.aud,
+		"sub": b.sub,
+		"iat": jwt.NewNumericDate(b.now),
+		"exp": jwt.NewNumericDate(b.now.Add(time.Hour)),
+		"nbf": jwt.NewNumericDate(b.now.Add(-time.Minute)),
+	}
+	if b.adm {
+		claims["adm"] = true
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = b.kid
@@ -201,11 +174,12 @@ func (b *TokenBuilder) Sign(t *testing.T) string {
 type MiddlewareBuilder struct {
 	jwks     any
 	secret   string
-	issuer   string
-	audience []string
+	iss      string
+	aud      []string
 	lifetime int
 	leeway   int
 	now      *time.Time
+	rules    []Rule
 }
 
 func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
@@ -216,35 +190,13 @@ func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
 	}
 }
 
-func (b *MiddlewareBuilder) WithProxySecret(secret string) *MiddlewareBuilder {
-	b.secret = secret
-	return b
-}
-
-func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder {
-	b.issuer = iss
-	return b
-}
-
-func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder {
-	b.audience = aud
-	return b
-}
-
-func (b *MiddlewareBuilder) WithLifetime(sec int) *MiddlewareBuilder {
-	b.lifetime = sec
-	return b
-}
-
-func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder {
-	b.leeway = sec
-	return b
-}
-
-func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder {
-	b.now = &now
-	return b
-}
+func (b *MiddlewareBuilder) WithSecret(secret string) *MiddlewareBuilder   { b.secret = secret; return b }
+func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder      { b.iss = iss; return b }
+func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder { b.aud = aud; return b }
+func (b *MiddlewareBuilder) WithLifetime(sec int) *MiddlewareBuilder       { b.lifetime = sec; return b }
+func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder         { b.leeway = sec; return b }
+func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder      { b.now = &now; return b }
+func (b *MiddlewareBuilder) WithRules(rules ...Rule) *MiddlewareBuilder    { b.rules = rules; return b }
 
 func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	t.Helper()
@@ -252,9 +204,10 @@ func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 		JWKS:        b.jwks,
 		ProxySecret: b.secret,
 		Lifetime:    b.lifetime,
-		Issuer:      b.issuer,
-		Audience:    b.audience,
+		Issuer:      b.iss,
+		Audience:    b.aud,
 		Leeway:      b.leeway,
+		Rules:       b.rules,
 	}
 	h, err := New(context.Background(), next, config, "test")
 	if err != nil {
@@ -280,7 +233,13 @@ func TestOptionsBypass(t *testing.T) {
 	var called bool
 	next := trap(&seen, &called)
 
+	// Rules won't be used for OPTIONS; still provide a minimal allow to satisfy config.
+	rules := []Rule{
+		{Mode: "allow", When: "true", User: `"anon"`, Role: `""`},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithLeeway(60).
 		WithLifetime(300).
 		WithNow(now).
@@ -313,7 +272,7 @@ func TestAdminAccess(t *testing.T) {
 		At(now).
 		Issuer("iss").
 		Audience("aud").
-		User("jon").
+		Subject("bob").
 		Admin().
 		Sign(t)
 
@@ -321,7 +280,13 @@ func TestAdminAccess(t *testing.T) {
 	var called bool
 	next := trap(&seen, &called)
 
+	rules := []Rule{
+		// Admin rule first; first match wins.
+		{Mode: "allow", When: `C["adm"] == true`, User: `C["sub"]`, Role: `"_admin"`},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -351,7 +316,7 @@ func TestAdminAccess(t *testing.T) {
 	}
 
 	header = "X-Auth-CouchDB-UserName"
-	if got := seen.Get(header); got != "jon" {
+	if got := seen.Get(header); got != "bob" {
 		t.Fatalf("%s header = %q", header, got)
 	}
 
@@ -362,12 +327,12 @@ func TestAdminAccess(t *testing.T) {
 
 	header = "X-Auth-CouchDB-Expires"
 	if got := seen.Get(header); got != "" {
-		t.Fatalf("%s header was not stripped", header)
+		t.Fatalf("%s header was not set only when proxy secret is enabled", header)
 	}
 
 	header = "X-Auth-CouchDB-Token"
 	if got := seen.Get(header); got != "" {
-		t.Fatalf("%s header was not stripped", header)
+		t.Fatalf("%s header was not set only when proxy secret is enabled", header)
 	}
 }
 
@@ -379,15 +344,23 @@ func TestUserAccessAllowed(t *testing.T) {
 		At(now).
 		Issuer("iss").
 		Audience("aud").
-		User("jon").
-		Team("doe").
+		Subject("bob").
 		Sign(t)
 
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := trap(&seen, &called)
 
+	rules := []Rule{
+		{Mode: "allow",
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
+		},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -395,7 +368,7 @@ func TestUserAccessAllowed(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	url := "http://couch.example.com/user_jon/_all_docs"
+	url := "http://couch.example.com/user_bob/_all_docs"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -409,7 +382,7 @@ func TestUserAccessAllowed(t *testing.T) {
 	var header string
 
 	header = "X-Auth-CouchDB-UserName"
-	if got := seen.Get(header); got != "jon" {
+	if got := seen.Get(header); got != "bob" {
 		t.Fatalf("%s header = %q", header, got)
 	}
 
@@ -427,8 +400,7 @@ func TestUserAccessDenied(t *testing.T) {
 		At(now).
 		Issuer("iss").
 		Audience("aud").
-		User("jon").
-		Team("doe").
+		Subject("bob").
 		Sign(t)
 
 	var called bool
@@ -437,7 +409,16 @@ func TestUserAccessDenied(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	rules := []Rule{
+		{Mode: "allow",
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
+		},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -468,8 +449,7 @@ func TestURLWithoutDatabase(t *testing.T) {
 		At(now).
 		Issuer("iss").
 		Audience("aud").
-		User("jon").
-		Team("doe").
+		Subject("bob").
 		Sign(t)
 
 	var called bool
@@ -478,7 +458,16 @@ func TestURLWithoutDatabase(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	rules := []Rule{
+		{Mode: "allow",
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
+		},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
 		WithLeeway(60).
@@ -511,23 +500,28 @@ func TestProxySecretSigning(t *testing.T) {
 		At(now).
 		Issuer("iss").
 		Audience("aud").
-		User("jon").
+		Subject("bob").
 		Sign(t)
 
 	var seen http.Header = make(http.Header)
 	var called bool
 	next := trap(&seen, &called)
 
+	rules := []Rule{
+		{Mode: "allow", When: `DB == "user_"+C["sub"]`, User: `C["sub"]`, Role: `""`},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithProxySecret(secret).
+		WithSecret(secret).
 		WithLifetime(lifetime).
 		WithLeeway(60).
 		WithNow(now).
 		Build(t, next)
 
-	url := "http://couch.example.com/user_jon/_all_docs"
+	url := "http://couch.example.com/user_bob/_all_docs"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -553,7 +547,7 @@ func TestProxySecretSigning(t *testing.T) {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
 
-	expTok := createProxyToken([]byte(secret), "jon", "", expExp)
+	expTok := proxyToken([]byte(secret), "bob", "", expExp)
 	if actTok != expTok {
 		t.Fatalf("got token = %s, want %s", actTok, expTok)
 	}
@@ -567,7 +561,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		At(now).
 		Issuer("valid").
 		Audience("valid").
-		User("jon").
+		Subject("bob").
 		Sign(t)
 
 	var called bool
@@ -576,7 +570,12 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		res.WriteHeader(http.StatusOK)
 	})
 
+	rules := []Rule{
+		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("valid").
 		WithAudience("valid").
 		WithLeeway(60).
@@ -584,7 +583,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	url := "http://couch.example.com/user_jon/_all_docs"
+	url := "http://couch.example.com/user_bob/_all_docs"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+valid)
 	rec := httptest.NewRecorder()
@@ -603,7 +602,7 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		At(now).
 		Issuer("valid").
 		Audience("invalid").
-		User("jon").
+		Subject("bob").
 		Sign(t)
 
 	var called bool
@@ -612,7 +611,12 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	rules := []Rule{
+		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
+	}
+
 	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithRules(rules...).
 		WithIssuer("valid").
 		WithAudience("valid").
 		WithLeeway(60).
@@ -620,7 +624,7 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	url := "http://couch.example.com/user_jon/_all_docs"
+	url := "http://couch.example.com/user_bob/_all_docs"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+invalid)
 	rec := httptest.NewRecorder()
@@ -646,12 +650,17 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	rules := []Rule{
+		{Mode: "allow", When: `true`, User: `"anonymous"`, Role: `""`},
+	}
+
 	mw := NewMiddlewareBuilder(generate(t).JWKS()).
+		WithRules(rules...).
 		WithLeeway(60).
 		WithLifetime(300).
 		Build(t, next)
 
-	url := "http://couch.example.com/user_jon/_all_docs"
+	url := "http://couch.example.com/user_bob/_all_docs"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 
