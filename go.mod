@@ -4,11 +4,11 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.6.1
+	github.com/expr-lang/expr v1.17.6
 	github.com/golang-jwt/jwt/v5 v5.3.0
 )
 
 require (
 	github.com/MicahParks/jwkset v0.8.0 // indirect
-	github.com/expr-lang/expr v1.17.6 // indirect
 	golang.org/x/time v0.9.0 // indirect
 )
