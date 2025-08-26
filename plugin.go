@@ -79,7 +79,7 @@ func CreateConfig() *Config {
 		ExpirationRequired: false,
 		Leeway:             0,
 		Algorithms:         []string{},
-		Rules:              nil,
+		Rules:              []auth.Rule{},
 	}
 }
 
