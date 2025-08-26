@@ -1,9 +1,7 @@
 displayName: CouchDB
-summary: Provides bearer token authentication and authorization for the CouchDB cluster behind Protocol
-
+summary: A middleware that authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via CouchDB Proxy Authentication headers
 type: middleware
 import: github.com/deep-rent/traefik-plugin-couchdb
-
 testData:
   jwks:
     keys:
