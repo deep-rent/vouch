@@ -24,21 +24,34 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// Rule defines one authorization rule.
-// Rules are evaluated in order; the first matching rule decides.
+// Rule defines a single authorization policy. The expressions within the rule
+// are evaluated against the incoming request and the authenticated user's
+// session data.
+//
+// The `When` expression is always evaluated first. If it returns true, the
+// rule is considered applicable to the request.
+//
+// If the rule's `Mode` is "deny", and the `When` condition is met, the request
+// is immediately denied.
+//
+// If the `Mode` is "allow", and the `When` condition is met, then access is
+// granted by invoking the `User` and `Role` expressions to determine the
+// user's identity and permissions.
 type Rule struct {
-	// Mode is "allow" or "deny".
+	// Mode specifies the rule's behavior, either "allow" or "deny".
 	Mode string `json:"mode"`
 
-	// When is a boolean expression that decides if the rule matches.
-	// Environment exposes: claims (alias c), method, path, db.
+	// When is a required expression that determines if the rule applies to the
+	// current request.
 	When string `json:"when"`
 
-	// User is a string expression for CouchDB username (required for allow).
+	// User is a string expression that returns the CouchDB username.
+	// It is required for "allow" mode and must be omiutted in "deny" mode.
 	User string `json:"user,omitempty"`
 
-	// Role is an expression producing a single string (optional).
-	// You can return either a single role or a comma-separated list.
+	// Role is an expression producing a either a single CouchDB role name
+	// or a comma-separated list of roles. It can only be used with
+	// "allow" mode rules.
 	Role string `json:"role,omitempty"`
 }
 
