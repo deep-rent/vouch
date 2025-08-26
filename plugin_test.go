@@ -111,9 +111,9 @@ func generate(t *testing.T) *GeneratedKey {
 	}
 }
 
-// captureNext captures the headers from the incoming request and
+// trap captures the headers from the incoming request and
 // marks the handler as called.
-func captureNext(headers *http.Header, called *bool) http.HandlerFunc {
+func trap(headers *http.Header, called *bool) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		*called = true
 		for k := range req.Header {
@@ -278,7 +278,7 @@ func TestOptionsBypass(t *testing.T) {
 
 	var seen http.Header = make(http.Header)
 	var called bool
-	next := captureNext(&seen, &called)
+	next := trap(&seen, &called)
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithLeeway(60).
@@ -319,7 +319,7 @@ func TestAdminAccess(t *testing.T) {
 
 	var seen http.Header = make(http.Header)
 	var called bool
-	next := captureNext(&seen, &called)
+	next := trap(&seen, &called)
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
@@ -385,7 +385,7 @@ func TestUserAccessAllowed(t *testing.T) {
 
 	var seen http.Header = make(http.Header)
 	var called bool
-	next := captureNext(&seen, &called)
+	next := trap(&seen, &called)
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
@@ -516,7 +516,7 @@ func TestProxySecretSigning(t *testing.T) {
 
 	var seen http.Header = make(http.Header)
 	var called bool
-	next := captureNext(&seen, &called)
+	next := trap(&seen, &called)
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithIssuer("iss").
