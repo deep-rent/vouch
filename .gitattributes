@@ -3,6 +3,7 @@
 *.json   text
 *.md     text diff=markdown
 *.svg    text
+*.yml    text
 *.yaml   text
 AUTHORS  text
 go.mod   text
