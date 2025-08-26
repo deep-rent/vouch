@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -159,7 +160,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	token, ok := bearer(req.Header.Get("Authorization"))
+	token, ok := bearerToken(req.Header.Get("Authorization"))
 	if !ok || token == "" {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_request"`)
 		http.Error(res, "missing or invalid authorization header", http.StatusUnauthorized)
@@ -208,12 +209,8 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// If a proxy secret is configured, also sign Expires/Token for CouchDB.
 	if len(m.secret) > 0 {
 		expires := m.now().Add(m.ttl).Unix()
-		req.Header.Set("X-Auth-CouchDB-Expires", fmt.Sprintf("%d", expires))
-
-		// Token = hex(HMAC-SHA1(secret, "username,roles,expires"))
-		mac := hmac.New(sha1.New, m.secret)
-		_, _ = mac.Write([]byte(username + "," + roles + "," + fmt.Sprintf("%d", expires)))
-		req.Header.Set("X-Auth-CouchDB-Token", hex.EncodeToString(mac.Sum(nil)))
+		req.Header.Set("X-Auth-CouchDB-Expires", strconv.FormatInt(expires, 10))
+		req.Header.Set("X-Auth-CouchDB-Token", proxyToken(m.secret, username, roles, expires))
 	}
 
 	// Forward request.
@@ -230,8 +227,8 @@ func (m *Middleware) parse(token string) *Claims {
 	return claims
 }
 
-// bearer extracts a bearer token from the Authorization header value.
-func bearer(header string) (string, bool) {
+// bearerToken extracts a bearerToken token from the Authorization header value.
+func bearerToken(header string) (string, bool) {
 	if header == "" {
 		return "", false
 	}
@@ -269,6 +266,13 @@ func isURL(s string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+// proxyToken outputs HEX(HMAC-SHA1(secret, "username,roles,expires")).
+func proxyToken(secret []byte, username, roles string, expires int64) string {
+	mac := hmac.New(sha1.New, secret)
+	_, _ = mac.Write([]byte(username + "," + roles + "," + strconv.FormatInt(expires, 10)))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // resolve returns a key provider from a JWKS value that can be a

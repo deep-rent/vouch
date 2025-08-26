@@ -16,7 +16,6 @@ package traefikplugincouchdb
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -31,6 +30,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// --- HELPERS ---
+
+// JWK represents an RSA JSON Web Key.
 type JWK struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
@@ -40,45 +42,53 @@ type JWK struct {
 	E   string `json:"e,omitempty"`
 }
 
+// JWKS represents a JSON Web Key Set.
 type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
+// base64url encodes a byte slice in Base64URL.
 func base64url(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func encode(n int64) []byte {
+// bytes converts an integer to a big-endian byte slice without
+// leading zero bytes.
+func bytes(n int64) []byte {
 	if n == 0 {
 		return []byte{0}
 	}
-	out := make([]byte, 0, 8)
+	b := make([]byte, 0, 8)
 	for n > 0 {
-		out = append([]byte{byte(n & 0xff)}, out...)
+		b = append([]byte{byte(n & 0xff)}, b...)
 		n >>= 8
 	}
-	return out
+	return b
 }
 
+// thumbprint computes a SHA-1 thumbprint of the public key.
 func thumbprint(pub *rsa.PublicKey) string {
 	h := sha1.New()
 	_, _ = h.Write(pub.N.Bytes())
-	_, _ = h.Write(encode(int64(pub.E)))
+	_, _ = h.Write(bytes(int64(pub.E)))
 	return hex.EncodeToString(h.Sum(nil)[:8])
 }
 
+// GeneratedKey represents a generated RSA key pair.
 type GeneratedKey struct {
 	Key *rsa.PrivateKey
 	Kid string
 	JWK JWK
 }
 
+// JWKS produces a JWKS that contains this key as the only element.
 func (t *GeneratedKey) JWKS() JWKS {
 	return JWKS{
 		Keys: []JWK{t.JWK},
 	}
 }
 
+// generate creates a new RSA key pair and returns it.
 func generate(t *testing.T) *GeneratedKey {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -96,10 +106,24 @@ func generate(t *testing.T) *GeneratedKey {
 			Use: "sig",
 			Alg: "RS256",
 			N:   base64url(pub.N.Bytes()),
-			E:   base64url(encode(int64(pub.E))),
+			E:   base64url(bytes(int64(pub.E))),
 		},
 	}
 }
+
+// captureNext captures the headers from the incoming request and
+// marks the handler as called.
+func captureNext(headers *http.Header, called *bool) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		*called = true
+		for k := range req.Header {
+			headers.Set(k, req.Header.Get(k))
+		}
+		res.WriteHeader(http.StatusOK)
+	}
+}
+
+// --- BUILDERS ---
 
 type TokenBuilder struct {
 	key *rsa.PrivateKey
@@ -246,21 +270,7 @@ func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	return mw
 }
 
-func captureNext(headers *http.Header, called *bool) http.HandlerFunc {
-	return func(res http.ResponseWriter, req *http.Request) {
-		*called = true
-		for k := range req.Header {
-			headers.Set(k, req.Header.Get(k))
-		}
-		res.WriteHeader(http.StatusOK)
-	}
-}
-
-func proxyToken(secret []byte, username, roles string, expires int64) string {
-	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(username + "," + roles + "," + strconv.FormatInt(expires, 10)))
-	return hex.EncodeToString(mac.Sum(nil))
-}
+// --- TESTS ---
 
 func TestOptionsBypass(t *testing.T) {
 	gen := generate(t)
