@@ -1,5 +1,5 @@
 displayName: CouchDB
-summary: A middleware that authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via CouchDB Proxy Authentication headers
+summary: Authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via proxy authentication headers
 type: middleware
 import: github.com/deep-rent/traefik-plugin-couchdb
 testData:
@@ -18,8 +18,8 @@ testData:
         alg: RS256
         n: s3GCmurZR4HUil2EwrrP75efzlGSyXKt_VrTiOXDyOLI_LIxdIv58ro_VXfhNdZc4N0rYU9YFgfEgjxvSXmZXt0DB_yPCKotDIXnmfbjsrU3e1rFpkam25CZCdZ-oPU72DCnEaY-Q4zl1X6_0O_3eYJOx9QFHIr8OrjrYBvWfyBNdO77qe3ZD5guJNwHQKznnsg0yq_Qr9z6KTI_hBqk_azzOn1NJuulMc2aPXNe9_WkUURN7eA_6rYi_vUrG2UctinS7RF38ks6zU1OOXs3PLOVrXzNG5G-b5KbcrRk8nz_Ms2WGer8JV4WwppjLOM5vTfirirH1YrgsWF_BpTpzQ
         e: AQAB
-  proxySecret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
-  lifetime: 600
   issuer: https://auth.example.com/
   audience: [couchdb]
   leeway: 60
+  proxySecret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
+  lifetime: 600

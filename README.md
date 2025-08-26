@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  A Traefik middleware that authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via CouchDB Proxy Authentication headers.
+  A Traefik middleware that authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via proxy authentication headers.
 </p>
 
 <p align="center">
