@@ -9,5 +9,6 @@ require (
 
 require (
 	github.com/MicahParks/jwkset v0.8.0 // indirect
+	github.com/expr-lang/expr v1.17.6 // indirect
 	golang.org/x/time v0.9.0 // indirect
 )
