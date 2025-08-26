@@ -286,7 +286,8 @@ func TestOptionsBypass(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodOptions, "http://couch.example.com/db/_all_docs", nil)
+	url := "http://couch.example.com/db/_all_docs"
+	req := httptest.NewRequest(http.MethodOptions, url, nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
@@ -328,7 +329,8 @@ func TestAdminAccess(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/db/_all_docs", nil)
+	url := "http://couch.example.com/db/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -393,7 +395,8 @@ func TestUserAccessAllowed(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
+	url := "http://couch.example.com/user_jon/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -442,7 +445,49 @@ func TestUserAccessDenied(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/any/_all_docs", nil)
+	url := "http://couch.example.com/any/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	if called {
+		t.Fatalf("next should not be called for forbidden")
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestURLWithoutDatabase(t *testing.T) {
+	gen := generate(t)
+	now := time.Unix(1_000_000_000, 0)
+
+	token := NewTokenBuilder(gen.Key, gen.Kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		User("jon").
+		Team("doe").
+		Sign(t)
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw := NewMiddlewareBuilder(gen.JWKS()).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithLeeway(60).
+		WithLifetime(300).
+		WithNow(now).
+		Build(t, next)
+
+	url := "http://couch.example.com/"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -482,7 +527,8 @@ func TestProxySecretSigning(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
+	url := "http://couch.example.com/user_jon/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -538,7 +584,8 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
+	url := "http://couch.example.com/user_jon/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+valid)
 	rec := httptest.NewRecorder()
 
@@ -573,7 +620,8 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
+	url := "http://couch.example.com/user_jon/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", "Bearer "+invalid)
 	rec := httptest.NewRecorder()
 
@@ -603,7 +651,8 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		WithLifetime(300).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
+	url := "http://couch.example.com/user_jon/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
