@@ -276,7 +276,7 @@ func TestOptionsBypass(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodOptions, "http://host.domain/db/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodOptions, "http://couch.example.com/db/_all_docs", nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
@@ -318,7 +318,7 @@ func TestAdminAccess(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/db/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/db/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -383,7 +383,7 @@ func TestUserAccessAllowed(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -432,7 +432,7 @@ func TestUserAccessDenied(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/any/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/any/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -472,7 +472,7 @@ func TestProxySecretSigning(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -528,7 +528,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+valid)
 	rec := httptest.NewRecorder()
 
@@ -563,7 +563,7 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		WithNow(now).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
 	req.Header.Set("Authorization", "Bearer "+invalid)
 	rec := httptest.NewRecorder()
 
@@ -593,7 +593,7 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 		WithLifetime(300).
 		Build(t, next)
 
-	req := httptest.NewRequest(http.MethodGet, "http://host.domain/user_jon/_all_docs", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://couch.example.com/user_jon/_all_docs", nil)
 	rec := httptest.NewRecorder()
 
 	mw.ServeHTTP(rec, req)
