@@ -101,6 +101,13 @@ type Middleware struct {
 // Ensure Middleware implements http.Handler.
 var _ http.Handler = (*Middleware)(nil)
 
+const (
+	proxyHeaderUser    = "X-Auth-CouchDB-UserName"
+	proxyHeaderRole    = "X-Auth-CouchDB-Roles"
+	proxyHeaderExpires = "X-Auth-CouchDB-Expires"
+	proxyHeaderToken   = "X-Auth-CouchDB-Token"
+)
+
 func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Allow CORS preflight through without authentication.
 	if req.Method == http.MethodOptions {
@@ -138,16 +145,16 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	req.Header.Del("Authorization")
 
 	// Set CouchDB proxy auth headers (trusted proxy mode).
-	req.Header.Set("X-Auth-CouchDB-UserName", user)
-	req.Header.Set("X-Auth-CouchDB-Roles", role)
+	req.Header.Set(proxyHeaderUser, user)
+	req.Header.Set(proxyHeaderRole, role)
 
 	// If a proxy secret is configured, also sign Expires/Token for CouchDB.
 	if len(m.secret) > 0 {
 		expires := m.now().Add(m.ttl).Unix()
-		req.Header.Set("X-Auth-CouchDB-Expires", strconv.FormatInt(expires, 10))
+		req.Header.Set(proxyHeaderExpires, strconv.FormatInt(expires, 10))
 
 		hash := proxyToken(m.secret, user, role, expires)
-		req.Header.Set("X-Auth-CouchDB-Token", hash)
+		req.Header.Set(proxyHeaderToken, hash)
 	}
 
 	// Forward request.
