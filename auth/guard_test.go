@@ -29,14 +29,14 @@ func env(claims map[string]any, db string) Environment {
 	}
 }
 
-func TestNewAuthorizer_Errors(t *testing.T) {
+func TestNewGuard_Errors(t *testing.T) {
 	// Empty rules
-	if _, err := NewAuthorizer(nil); err == nil {
+	if _, err := NewGuard(nil); err == nil {
 		t.Fatalf("expected error for empty rules")
 	}
 
 	// Invalid mode
-	_, err := NewAuthorizer([]Rule{
+	_, err := NewGuard([]Rule{
 		{Mode: "block", When: "true", User: `"u"`},
 	})
 	if err == nil {
@@ -44,7 +44,7 @@ func TestNewAuthorizer_Errors(t *testing.T) {
 	}
 
 	// Missing when
-	_, err = NewAuthorizer([]Rule{
+	_, err = NewGuard([]Rule{
 		{Mode: "allow", When: "", User: `"u"`},
 	})
 	if err == nil {
@@ -52,7 +52,7 @@ func TestNewAuthorizer_Errors(t *testing.T) {
 	}
 
 	// Deny must not define user
-	_, err = NewAuthorizer([]Rule{
+	_, err = NewGuard([]Rule{
 		{Mode: "deny", When: "true", User: `"u"`},
 	})
 	if err == nil {
@@ -60,7 +60,7 @@ func TestNewAuthorizer_Errors(t *testing.T) {
 	}
 
 	// Deny must not define role
-	_, err = NewAuthorizer([]Rule{
+	_, err = NewGuard([]Rule{
 		{Mode: "deny", When: "true", Role: `"_admin"`},
 	})
 	if err == nil {
@@ -68,7 +68,7 @@ func TestNewAuthorizer_Errors(t *testing.T) {
 	}
 
 	// Allow must define user
-	_, err = NewAuthorizer([]Rule{
+	_, err = NewGuard([]Rule{
 		{Mode: "allow", When: "true"},
 	})
 	if err == nil {
@@ -77,7 +77,7 @@ func TestNewAuthorizer_Errors(t *testing.T) {
 }
 
 func TestAuthorize_FirstMatchDeny(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		{Mode: "deny", When: `DB == "secret"`},
 		{Mode: "allow", When: `true`, User: `"u"`, Role: `""`},
 	})
@@ -95,7 +95,7 @@ func TestAuthorize_FirstMatchDeny(t *testing.T) {
 }
 
 func TestAuthorize_AllowUsernameAndRole(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		{Mode: "allow", When: `true`, User: `"alice"`, Role: `"_admin,writer"`},
 	})
 	if err != nil {
@@ -111,7 +111,7 @@ func TestAuthorize_AllowUsernameAndRole(t *testing.T) {
 }
 
 func TestAuthorize_OrderingFirstMatchWins(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		// Admin first
 		{Mode: "allow", When: `C["role"] == "admin"`, User: `C["user"]`, Role: `"_admin"`},
 		// Fallback
@@ -132,7 +132,7 @@ func TestAuthorize_OrderingFirstMatchWins(t *testing.T) {
 }
 
 func TestAuthorize_WhenNotBoolError(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		{Mode: "allow", When: `"not_bool"`, User: `"u"`},
 	})
 	if err != nil {
@@ -146,7 +146,7 @@ func TestAuthorize_WhenNotBoolError(t *testing.T) {
 
 func TestAuthorize_UserNotStringOrEmptyError(t *testing.T) {
 	// Not a string
-	auth1, err := NewAuthorizer([]Rule{
+	auth1, err := NewGuard([]Rule{
 		{Mode: "allow", When: `true`, User: `123`},
 	})
 	if err != nil {
@@ -157,7 +157,7 @@ func TestAuthorize_UserNotStringOrEmptyError(t *testing.T) {
 	}
 
 	// Empty/whitespace string
-	auth2, err := NewAuthorizer([]Rule{
+	auth2, err := NewGuard([]Rule{
 		{Mode: "allow", When: `true`, User: `"   "`},
 	})
 	if err != nil {
@@ -169,7 +169,7 @@ func TestAuthorize_UserNotStringOrEmptyError(t *testing.T) {
 }
 
 func TestAuthorize_RoleNotStringError(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		{Mode: "allow", When: `true`, User: `"u"`, Role: `123`},
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func TestAuthorize_RoleNotStringError(t *testing.T) {
 }
 
 func TestAuthorize_NoRuleMatches(t *testing.T) {
-	auth, err := NewAuthorizer([]Rule{
+	auth, err := NewGuard([]Rule{
 		{Mode: "deny", When: `false`},
 		{Mode: "allow", When: `false`, User: `"u"`},
 	})

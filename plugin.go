@@ -95,7 +95,7 @@ type Middleware struct {
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
-	auth   *auth.Authorizer
+	guard  *auth.Guard
 }
 
 // Ensure Middleware implements http.Handler.
@@ -131,7 +131,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	// Authorization with rules (first match wins).
 	env := auth.NewEnvironment(claims, req)
-	pass, user, role, err := m.auth.Authorize(req.Context(), env)
+	pass, user, role, err := m.guard.Authorize(req.Context(), env)
 	if err != nil {
 		http.Error(res, "insufficient permissions", http.StatusForbidden)
 		return
@@ -209,9 +209,9 @@ func New(
 		}
 	}
 
-	authorizer, err := auth.NewAuthorizer(config.Rules)
+	guard, err := auth.NewGuard(config.Rules)
 	if err != nil {
-		return nil, fmt.Errorf("build authorizer: %w", err)
+		return nil, fmt.Errorf("build guard: %w", err)
 	}
 
 	mw := &Middleware{
@@ -222,7 +222,7 @@ func New(
 		secret: []byte(config.ProxySecret),
 		ttl:    ttl,
 		now:    time.Now,
-		auth:   authorizer,
+		guard:  guard,
 	}
 
 	opts := []jwt.ParserOption{

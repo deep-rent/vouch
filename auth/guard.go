@@ -26,13 +26,13 @@ import (
 	"github.com/expr-lang/expr"
 )
 
-// Authorizer compiles and evaluates authorization rules.
-type Authorizer struct {
+// Guard compiles and evaluates authorization rules.
+type Guard struct {
 	rules []CompiledRule
 }
 
-// NewAuthorizer compiles the provided rules.
-func NewAuthorizer(rules []Rule) (*Authorizer, error) {
+// NewGuard compiles the provided rules.
+func NewGuard(rules []Rule) (*Guard, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("at least one rule is required")
 	}
@@ -40,17 +40,17 @@ func NewAuthorizer(rules []Rule) (*Authorizer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Authorizer{rules: compiled}, nil
+	return &Guard{rules: compiled}, nil
 }
 
 // Authorize evaluates rules in order and returns whether access is granted,
 // and if so, the username and roles to forward to CouchDB. If no rule
 // matches, access is denied.
-func (a *Authorizer) Authorize(
+func (g *Guard) Authorize(
 	ctx context.Context,
 	env Environment,
 ) (bool, string, string, error) {
-	for _, r := range a.rules {
+	for _, r := range g.rules {
 		whenRes, err := expr.Run(r.when, env)
 		if err != nil {
 			return false, "", "", fmt.Errorf("eval when: %w", err)
