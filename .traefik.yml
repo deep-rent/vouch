@@ -30,7 +30,7 @@ testData:
     - when: 'C["adm"] == true'
       mode: allow
       userName: 'C["sub"]'
-      roles: '"_admin"'
+      roles: '["_admin"]'
     - when: 'DB == "user_"+C["sub"]'
       mode: allow
       userName: 'C["sub"]'
