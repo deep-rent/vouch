@@ -54,29 +54,31 @@ type Config struct {
 	// endpoints will be continuously polled for changes.
 	JWKS any `json:"jwks"`
 
-	// Secret enables CouchDB proxy secret signing when set (recommended).
+	// Secret enables CouchDB proxy secret signing when set (optional).
 	Secret string `json:"secret,omitempty"`
 
 	// Expected issuer for JWT validation hardening (optional).
 	Issuer string `json:"issuer,omitempty"`
 
-	// Allowed audiences for JWT validation hardening (optional).
+	// Valid audiences for JWT validation hardening (optional).
 	Audience []string `json:"audience,omitempty"`
 
-	// When enabled, makes the 'exp' claims required.
+	// When enabled, tokens without the "exp" claim will be rejected.
+	// Defaults to false.
 	Strict bool `json:"strict,omitempty"`
 
-	// Allowed clock skew for temporal validity of tokens (in seconds).
-	// Defaults to 0.
+	// Allowed clock skew during validation of "nbf" and "exp" claims.
+	// Defaults to 0 (no leeway).
 	Leeway int `json:"leeway,omitempty"`
 
-	// Allowed signature JWAs. Defaults to the RS*, ES*, and PS* families.
+	// Supported signature algorithms. Defaults to the RS*, ES*, and
+	// PS* families.
 	Algorithms []string `json:"algorithms,omitempty"`
 
 	// An ordered list of authorization rules. The first matching rule decides.
 	Rules []auth.Rule `json:"rules"`
 
-	// Header names for CouchDB trusted proxy. Optional; defaults applied.
+	// Custom header names for CouchDB trusted proxy (optional).
 	Headers Headers `json:"headers"`
 }
 
