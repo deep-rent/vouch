@@ -80,7 +80,7 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.file.filename=/etc/traefik/dynamic.yml"
-      - "--entrypoints.websecure.address=:443
+      - "--entrypoints.websecure.address=:443"
       - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.modulename=github.com/deep-rent/traefik-plugin-couchdb"
       - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.version=vX.Y.Z" # use latest version
     ports:
