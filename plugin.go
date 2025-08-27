@@ -35,6 +35,18 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Headers configures the CouchDB trusted proxy header names.
+type Headers struct {
+	// User defaults to "X-Auth-CouchDB-UserName".
+	User string `json:"user,omitempty"`
+
+	// Role defaults to "X-Auth-CouchDB-Roles".
+	Role string `json:"role,omitempty"`
+
+	// Token defaults to "X-Auth-CouchDB-Token".
+	Token string `json:"token,omitempty"`
+}
+
 // Config holds the plugin configuration.
 type Config struct {
 	// JWKS can be either a single string or any array of URLs of remote JWKS
@@ -63,6 +75,9 @@ type Config struct {
 
 	// An ordered list of authorization rules. The first matching rule decides.
 	Rules []auth.Rule `json:"rules"`
+
+	// Header names for CouchDB trusted proxy. Optional; defaults applied.
+	Headers Headers `json:"headers"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -76,29 +91,25 @@ func CreateConfig() *Config {
 		Leeway:     0,
 		Algorithms: []string{},
 		Rules:      []auth.Rule{},
+		Headers:    Headers{},
 	}
 }
 
 // Middleware is the HTTP middleware.
 type Middleware struct {
-	next   http.Handler
-	name   string
-	config *Config
-	keys   jwt.Keyfunc
-	parser *jwt.Parser
-	secret []byte
-	now    func() time.Time
-	guard  *auth.Guard
+	next    http.Handler
+	name    string
+	config  *Config
+	keys    jwt.Keyfunc
+	parser  *jwt.Parser
+	secret  []byte
+	now     func() time.Time
+	guard   *auth.Guard
+	headers Headers
 }
 
 // Ensure Middleware implements http.Handler.
 var _ http.Handler = (*Middleware)(nil)
-
-const (
-	proxyHeaderUser  = "X-Auth-CouchDB-UserName"
-	proxyHeaderRole  = "X-Auth-CouchDB-Roles"
-	proxyHeaderToken = "X-Auth-CouchDB-Token"
-)
 
 func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Allow CORS preflight through without authentication.
@@ -136,12 +147,11 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Strip the authorization header from the forwarded request.
 	req.Header.Del("Authorization")
 
-	req.Header.Set(proxyHeaderUser, user)
-	req.Header.Set(proxyHeaderRole, role)
+	req.Header.Set(m.headers.User, user)
+	req.Header.Set(m.headers.Role, role)
 
 	if len(m.secret) > 0 {
-		hash := m.sign(user)
-		req.Header.Set(proxyHeaderToken, hash)
+		req.Header.Set(m.headers.Token, m.sign(user))
 	}
 
 	// Forward request.
@@ -180,7 +190,17 @@ func New(
 		return nil, errors.New("jwks is required")
 	}
 	if len(config.Rules) == 0 {
-		return nil, errors.New("rules are required (non-empty)")
+		return nil, errors.New("rules must be specified")
+	}
+
+	if strings.TrimSpace(config.Headers.User) == "" {
+		config.Headers.User = "X-Auth-CouchDB-UserName"
+	}
+	if strings.TrimSpace(config.Headers.Role) == "" {
+		config.Headers.Role = "X-Auth-CouchDB-Roles"
+	}
+	if strings.TrimSpace(config.Headers.Token) == "" {
+		config.Headers.Token = "X-Auth-CouchDB-Token"
 	}
 
 	keys, err := resolve(ctx, config.JWKS)
@@ -204,13 +224,14 @@ func New(
 	}
 
 	mw := &Middleware{
-		next:   next,
-		name:   name,
-		config: config,
-		keys:   keys,
-		secret: []byte(config.Secret),
-		now:    time.Now,
-		guard:  guard,
+		next:    next,
+		name:    name,
+		config:  config,
+		keys:    keys,
+		secret:  []byte(config.Secret),
+		now:     time.Now,
+		guard:   guard,
+		headers: config.Headers,
 	}
 
 	opts := []jwt.ParserOption{
