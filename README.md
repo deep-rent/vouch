@@ -49,11 +49,11 @@ The middleware processes requests in three stages. If authentication or authoriz
 
 ## Prerequisites
 
-- **Traefik v3.0** or later with plugin support enabled.
-- **Apache CouchDB v3.3.1** or later configured for proxy authentication.
-- An **Authorization Server** that issues JWTs and exposes a JWKS endpoint.
+- **Traefik v2.5.5 or later** with plugin support enabled.
+- **Apache CouchDB v3.3.1 or later** configured for proxy authentication.
+- An **Identity Provider** that issues JWTs and exposes a JWKS endpoint.
 
-Your CouchDB `local.ini` (or equivalent configuration) must enable the proxy authentication handler:
+Your CouchDB `local.ini` (or equivalent configuration) must enable the proxy authentication handler for the proxying to work:
 
 ```ini
 [chttpd_auth]
