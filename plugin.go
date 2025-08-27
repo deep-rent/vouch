@@ -27,22 +27,20 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	keyfunc "github.com/MicahParks/keyfunc/v3"
+	keys "github.com/MicahParks/keyfunc/v3"
 	"github.com/deep-rent/traefik-plugin-couchdb/auth"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 // Config holds the plugin configuration.
 type Config struct {
-	// JWKS can be:
-	// - a string containing a URL (http/https) to a remote JWKS
-	// - a string containing raw JWKS JSON
-	// - any JSON object/array representing a JWKS (will be marshaled)
+	// JWKS can be either a single string or any array of URLs of remote JWKS
+	// endpoints, or a JSON object representing a static JWKS. Remote JWKS
+	// endpoints will be continuously polled for changes.
 	JWKS any `json:"jwks"`
 
 	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
@@ -239,59 +237,38 @@ func New(
 	return mw, nil
 }
 
-// resolve returns a key provider from a JWKS value that can be a
-// string (URL or raw JSON) or any JSON object/array.
+// resolve creates a verification key provider from a JWKS configuration value.
 func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
 	switch t := v.(type) {
 	case string:
-		s := strings.TrimSpace(t)
-		if s == "" {
-			return nil, errors.New("empty jwks")
-		}
-		if u, err := url.Parse(s); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
-			jwks, err := keyfunc.NewDefaultCtx(ctx, []string{s})
-			if err != nil {
-				return nil, fmt.Errorf("load remote jwks: %w", err)
-			}
-			return jwks.Keyfunc, nil
-		}
-		jwks, err := keyfunc.NewJWKSetJSON([]byte(s))
-		if err != nil {
-			return nil, fmt.Errorf("parse jwks: %w", err)
-		}
-		return jwks.Keyfunc, nil
-	case []byte:
-		if strings.TrimSpace(string(t)) == "" {
-			return nil, errors.New("empty jwks")
-		}
-		jwks, err := keyfunc.NewJWKSetJSON(t)
-		if err != nil {
-			return nil, fmt.Errorf("parse jwks: %w", err)
-		}
-		return jwks.Keyfunc, nil
-	case json.RawMessage:
-		if strings.TrimSpace(string(t)) == "" {
-			return nil, errors.New("empty jwks")
-		}
-		jwks, err := keyfunc.NewJWKSetJSON(t)
-		if err != nil {
-			return nil, fmt.Errorf("parse jwks: %w", err)
-		}
-		return jwks.Keyfunc, nil
+		return resolveRemote(ctx, []string{t})
+	case []string:
+		return resolveRemote(ctx, t)
 	default:
-		b, err := json.Marshal(t)
-		if err != nil {
-			return nil, fmt.Errorf("marshal jwks object: %w", err)
-		}
-		if strings.TrimSpace(string(b)) == "" {
-			return nil, errors.New("empty jwks")
-		}
-		jwks, err := keyfunc.NewJWKSetJSON(b)
-		if err != nil {
-			return nil, fmt.Errorf("parse jwks: %w", err)
-		}
-		return jwks.Keyfunc, nil
+		return resolveStatic(t)
 	}
+}
+
+// resolveRemote loads a JWKS from the given URLs.
+func resolveRemote(ctx context.Context, urls []string) (jwt.Keyfunc, error) {
+	k, err := keys.NewDefaultCtx(ctx, urls)
+	if err != nil {
+		return nil, fmt.Errorf("fetch remote: %w", err)
+	}
+	return k.Keyfunc, nil
+}
+
+// resolveStatic parses a JWKS from raw JSON.
+func resolveStatic(data any) (jwt.Keyfunc, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("marshal json object: %w", err)
+	}
+	k, err := keys.NewJWKSetJSON(b)
+	if err != nil {
+		return nil, fmt.Errorf("parse static: %w", err)
+	}
+	return k.Keyfunc, nil
 }
 
 // token extracts a bearer token from the Authorization header, if present.
