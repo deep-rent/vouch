@@ -10,6 +10,17 @@
   <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/>
 </p>
 
+## Contents
+
+- [Overview](#overview)
+- [How it Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Security Considerations](#security-considerations)
+- [Legal Notice](#legal-notice)
+
 ## Overview
 
 This middleware validates incoming JWTs against a JWKS, evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
@@ -19,6 +30,7 @@ In practice, this lets you:
 - **Create Dynamic Policies:** Implement per-user databases and role-based access without touching CouchDB design documents.
 - **Simplify Your Stack:** Remove bearer tokens before traffic reaches CouchDB.
 
+<a name="how-it-works"></a>
 ## How it Works
 
 The middleware processes requests in three stages. If authentication or authorization fails, the processing stops immediately, and an appropriate HTTP status code is returned.
@@ -27,6 +39,7 @@ The middleware processes requests in three stages. If authentication or authoriz
 2. **Authorization:** It builds an environment containing the token claims and request details, then evaluates your rules in order. The first rule that matches determines whether to allow or deny the request.
 3. **Forwarding:** On success, it strips the Authorization header and adds the X-Auth-CouchDB-* headers before proxying the request to CouchDB. OPTIONS requests are passed through untouched to support CORS pre-flight checks.
 
+<a name="prerequisites"></a>
 ## Prerequisites
 
 - **Traefik v3.0** or later with plugin support enabled.
@@ -41,6 +54,7 @@ authentication_handlers = {chttpd_auth, cookie_authentication_handler}, {chttpd_
 require_valid_user = true
 ```
 
+<a name="quick-start"></a>
 ## Quick Start
 
 1) Enable the plugin in Traefik’s static configuration.
@@ -113,9 +127,27 @@ http:
           - url: 'http://couchdb:5984'
 ```
 
+<a name="configuration"></a>
 ## Configuration
 
-### `jwks`
+### Summary
+
+| Option                                 | Required | Description                             |
+|----------------------------------------|----------|-----------------------------------------|
+| [ `jwks` ]( #option-jwks )             | yes      | JWKS used for signature verification    |
+| [ `rules` ]( #option-rules )           | yes      | Authorization rules                     |
+| [ `secret` ]( #option-secret )         | no       | CouchDB proxy signing secret            |
+| [ `issuer` ]( #option-issuer )         | no       | Token issuer to match                   |
+| [ `audience` ]( #option-audience )     | no       | Acceptable token audiences              |
+| [ `leeway` ]( #option-leeway )         | no       | Clock skew tolerance for token lifespan |
+| [ `strict` ]( #option-strict )         | no       | Prohibit non-expiring tokens            |
+| [ `algorithms` ]( #option-algorithms ) | no       | Allowed signature algorithms            |
+| [ `headers` ]( #option-headers )       | no       | Custom CouchDB proxy header names       |
+
+### Details
+
+<a name="option-jwks"></a>
+#### `jwks`
 
 **Required.** Specifies either a single JWKS endpoint, a list of such endpoints, or an inline JWKS object. If one or more URLs are specified, the plugin fetches keys from these endpoints and refreshes them continuously. A static JWKS can be defined as shown below. Also note the nesting of the `keys` array beneath `jwks` when providing a static JWKS.
 
@@ -137,7 +169,8 @@ jwks:
       e: AQAB
 ```
 
-### `rules`
+<a name="option-rules"></a>
+#### `rules`
 
 **Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The roles list must be non-empty, or else an error will be raised during startup.
 
@@ -171,7 +204,8 @@ Expressions adhere to the [expr](https://github.com/expr-lang/expr) syntax. The 
 - `HasPrefix(s, prefix)`: indicates whether `s` starts with `prefix`.
 - `HasSuffix(s, suffix)`: indicates whether `s` ends with `suffix`.
 
-### `secret`
+<a name="option-secret"></a>
+#### `secret`
 
 **Optional.** The shared secret used to sign proxy tokens sent to CouchDB. Enabling this in CouchDB is highly recommended for production.
 
@@ -183,27 +217,33 @@ proxy_use_secret = true
 secret = your-proxy-secret
 ```
 
-### `issuer`
+<a name="option-issuer"></a>
+#### `issuer`
 
 **Optional.** The expected value of the `iss` (issuer) claim in the JWT. If omitted, any value is accepted.
 
-### `audience`
+<a name="option-audience"></a>
+#### `audience`
 
 **Optional.** An array of acceptable values for the `aud` (audience) claim. If provided, at least one value must match. If omitted, any value is accepted.
 
-### `leeway`
+<a name="option-leeway"></a>
+#### `leeway`
 
 **Optional.** The allowed time drift (in seconds) to account for clock skew between the token issuer and Traefik when validating the `nbf` (not before) and `exp` (expires at) claims.
 
-### `strict`
+<a name="option-strict"></a>
+#### `strict`
 
 **Optional.** If enabled, all tokens must contain an `exp` claim. Non-expiring tokens will be rejected. Disabled by default.
 
-### `algorithms`
+<a name="option-algorithms"></a>
+#### `algorithms`
 
-**Optional.** Narrows down the supported JSON Web Algorithms (JWA) for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
+**Optional.** Narrows down the supported JWAs for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
 
-### `headers`
+<a name="option-headers"></a>
+#### `headers`
 
 **Optional.** Customizes the names of the CouchDB proxy headers. Only change these if you have customized the corresponding `x_auth_*` settings in your CouchDB config.
 
@@ -215,10 +255,19 @@ roles: X-Auth-CouchDB-Roles
 token: X-Auth-CouchDB-Token
 ```
 
+<a name="usage"></a>
 ## Usage
 
 Below are some common policy examples for the `rules` configuration.
 
+**Use Cases:**
+
+* [Admin Full Access](#use-case-admin-full-access)
+* [Per-User Private Databases](#use-case-per-user-private-databases)
+* [Role-based Access](#use-case-role-based-access)
+* [Append-Only Databases](#use-case-append-only-databases)
+
+<a name="use-case-admin-full-access"></a>
 ### Admin Full Access
 
 Grant a user with an `adm: true` claim the `_admin` role in CouchDB.
@@ -231,6 +280,7 @@ rules:
     roles: '_admin' # CouchDB's special admin role
 ```
 
+<a name="use-case-per-user-private-databases"></a>
 ### Per-User Private Databases
 
 Grant users read/write access only to a database named after their unique user identifier (given by the `sub` claim).
@@ -243,6 +293,7 @@ rules:
     roles: ['reader', 'writer'] # These roles must exist in the database's _security document
 ```
 
+<a name="use-case-role-based-access"></a>
 ### Role-based Access
 
 Map JWT roles to CouchDB roles for a shared database.
@@ -268,6 +319,7 @@ rules:
     roles: ['reader']
 ```
 
+<a name="use-case-append-only-databases"></a>
 ### Append-Only Databases
 
 Prevent updates and deletions to certain databases, making them append-only. This is ideal for audit logs or historical records where existing data must not be changed.
@@ -283,6 +335,7 @@ rules:
     userName: 'C["sub"]'
 ```
 
+<a name="security-considerations"></a>
 ## Security Considerations
 
 - Always use HTTPS for JWKS endpoints.
@@ -291,6 +344,7 @@ rules:
 - Restrict Traefik access to CouchDB; CouchDB should not be publicly reachable.
 - Limit accepted algorithms, issuer, and audience to the necessary minimum.
 
+<a name="legal-notice"></a>
 ## Legal Notice
 
 Licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
