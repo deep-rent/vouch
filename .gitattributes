@@ -2,9 +2,10 @@
 *.go     text
 *.json   text
 *.md     text diff=markdown
+*.png    binary
 *.svg    text
-*.yml    text
 *.yaml   text
+*.yml    text
 AUTHORS  text
 go.mod   text
 go.sum   text
