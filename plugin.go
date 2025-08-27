@@ -46,8 +46,8 @@ type Config struct {
 	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
 	ProxySecret string `json:"proxySecret,omitempty"`
 
-	// Lifetime controls the expiration time offset (in seconds) of the
-	// CouchDB proxy token. Defaults to 300.
+	// Lifetime controls the time span (in seconds) after which a CouchDB proxy
+	// token expires.
 	Lifetime int `json:"lifetime,omitempty"`
 
 	// Expected issuer for JWT validation hardening (optional).
