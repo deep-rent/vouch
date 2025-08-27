@@ -3,15 +3,296 @@
 </h1>
 
 <p align="center">
-  A Traefik middleware that authenticates requests with JWTs and authorizes access to CouchDB databases, forwarding credentials via proxy authentication headers.
+  A Traefik middleware that authenticates requests with JWTs, authorizes them with rules, and forwards CouchDB proxy headers.
 </p>
 
 <p align="center">
   <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/>
 </p>
 
+## Overview
+
+This middleware validates incoming JWTs against a JWKS, evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
+
+In practice, this lets you:
+- **Centralize Access Control:** Keep CouchDB anonymous and let Traefik enforce authentication and authorization at the edge.
+- **Create Dynamic Policies:** Implement per-user databases and role-based access without touching CouchDB design documents.
+- **Simplify Your Stack:** Remove bearer tokens before traffic reaches CouchDB.
+
+## How it Works
+
+The middleware processes requests in three stages. If authentication or authorization fails, the processing stops immediately, and an appropriate HTTP status code is returned.
+
+1. **Authentication:** The plugin extracts the bearer token from the Authorization header and verifies its signature and claims against the configured JWKS.
+2. **Authorization:** It builds an environment containing the token claims and request details, then evaluates your rules in order. The first rule that matches determines whether to allow or deny the request.
+3. **Forwarding:** On success, it strips the Authorization header and adds the X-Auth-CouchDB-* headers before proxying the request to CouchDB. OPTIONS requests are passed through untouched to support CORS pre-flight checks.
+
+## Prerequisites
+
+- **Traefik v3.0** or later with plugin support enabled.
+- **Apache CouchDB v3.3.1** or later configured for proxy authentication.
+- An **Authorization Server** that issues JWTs and exposes a JWKS endpoint.
+
+Your CouchDB `local.ini` (or equivalent configuration) must enable the proxy authentication handler:
+
+```ini
+[chttpd_auth]
+authentication_handlers = {chttpd_auth, cookie_authentication_handler}, {chttpd_auth, proxy_authentication_handler}
+require_valid_user = true
+```
+
+## Quick Start
+
+1) Enable the plugin in Traefik’s static configuration.
+2) Add a middleware instance with your JWKS and rules.
+3) Attach the middleware to the router that fronts CouchDB.
+
+Here is a complete, runnable example using Docker Compose:
+
+```yaml
+# docker-compose.yml
+services:
+  traefik:
+    image: traefik:v3
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--entrypoints.websecure.address=:443
+      - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.modulename=github.com/deep-rent/traefik-plugin-couchdb"
+      - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.version=vX.Y.Z" # use latest version
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+
+  couchdb:
+    image: couchdb:3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=password
+```
+
+```yaml
+# traefik-dynamic.yml
+http:
+  middlewares:
+    couchdb-auth:
+      plugin:
+        github.com/deep-rent/traefik-plugin-couchdb:
+          jwks: https://auth.example.com/.well-known/jwks.json
+          secret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
+          issuer: https://auth.example.com/
+          audience: ['couchdb-api']
+          strict: true
+          leeway: 60
+          algorithms: [ES256, ES384, ES512]
+          rules:
+            - when: 'C["sub"] == "bob"'
+              mode: deny
+            - when: 'true'
+              mode: allow
+          headers:
+            userName: X-Auth-CouchDB-UserName
+            roles: X-Auth-CouchDB-Roles
+            token: X-Auth-CouchDB-Token
+  routers:
+    couchdb:
+      rule: 'Host(`couch.example.com`)'
+      entryPoints: ['websecure']
+      service: 'couchdb'
+      middlewares: ['couchdb-auth']
+      tls:
+        certResolver: letsencrypt
+  services:
+    couchdb:
+      loadBalancer:
+        servers:
+          - url: 'http://couchdb:5984'
+```
+
+## Configuration
+
+### `jwks`
+
+**Required.** Specifies either a single JWKS endpoint, a list of such endpoints, or an inline JWKS object. If one or more URLs are specified, the plugin fetches keys from these endpoints and refreshes them continuously. A static JWKS can be defined as shown below. Also note the nesting of the `keys` array beneath `jwks` when providing a static JWKS.
+
+```yaml
+jwks:
+  keys:
+    - kty: EC
+      use: sig
+      kid: Is1uskkAi3KCrz14riT82BwtWqMYPPCCshvmb4A8hvE
+      alg: ES256
+      crv: P-256
+      x: yxKwnD25UKgQiRi1md_mYUZzw0AjCgF88RCTvX6lihQ
+      y: 2XAQO8F8266bk2jCrefbiy-eFCTJLLofQpZKn0PSHpE
+    - kty: RSA
+      use: sig
+      kid: Bg1SKFhYebULc1qrJoL0lPqGoEtn8AqoUsxfTFPkJb0
+      alg: RS256
+      n: s3GCmurZR4HUil2EwrrP75efzlGSyXKt_VrTiOXDyOLI_LIxdIv58ro_VXfhNdZc4N0rYU9YFgfEgjxvSXmZXt0DB_yPCKotDIXnmfbjsrU3e1rFpkam25CZCdZ-oPU72DCnEaY-Q4zl1X6_0O_3eYJOx9QFHIr8OrjrYBvWfyBNdO77qe3ZD5guJNwHQKznnsg0yq_Qr9z6KTI_hBqk_azzOn1NJuulMc2aPXNe9_WkUURN7eA_6rYi_vUrG2UctinS7RF38ks6zU1OOXs3PLOVrXzNG5G-b5KbcrRk8nz_Ms2WGer8JV4WwppjLOM5vTfirirH1YrgsWF_BpTpzQ
+      e: AQAB
+```
+
+### `rules`
+
+**Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The roles list must be non-empty, or else an error will be raised during startup.
+
+Rules in `allow` mode must specify a `userName` expression that evaluates to a string, which is the username forwarded to CouchDB via a proxy header. Optionally, the rule can also specify `roles`. This expression may return:
+- a single role name as a string,
+- a comma-separated list of roles as a string, or
+- an array of role strings.
+
+These roles are forwarded in a proxy header.
+
+```yaml
+rules:
+  - when: 'C["adm"] == true'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: '"_admin"'
+  - when: 'Method in ["PUT", "DELETE"] && HasPrefix(DB, "logs_")'
+    mode: deny
+  - when: 'DB == "user_" + C["sub"]'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: '["reader", "writer"]'
+```
+
+Expressions adhere to the [expr](https://github.com/expr-lang/expr) syntax. The expression environment provides the following variables and utility functions:
+
+- `Claims` (alias `C`): the mapping of claim values by name (e.g., `C["sub"]`).
+- `Method`: the HTTP request method (`GET`, `POST`, ...).
+- `Path`: the HTTP request path (for example, `/db/_all_docs`).
+- `DB`: the database name (first segment of `Path`).
+- `HasPrefix(s, prefix)`: indicates whether `s` starts with `prefix`.
+- `HasSuffix(s, suffix)`: indicates whether `s` ends with `suffix`.
+
+### `secret`
+
+**Optional.** The shared secret used to sign proxy tokens sent to CouchDB. Enabling this in CouchDB is highly recommended for production.
+
+It must match the secret in your CouchDB configuration:
+
+```ini
+[chttpd_auth]
+proxy_use_secret = true
+secret = your-proxy-secret
+```
+
+### `issuer`
+
+**Optional.** The expected value of the `iss` (issuer) claim in the JWT. If omitted, any value is accepted.
+
+### `audience`
+
+**Optional.** An array of acceptable values for the `aud` (audience) claim. If provided, at least one value must match. If omitted, any value is accepted.
+
+### `leeway`
+
+**Optional.** The allowed time drift (in seconds) to account for clock skew between the token issuer and Traefik when validating the `nbf` (not before) and `exp` (expires at) claims.
+
+### `strict`
+
+**Optional.** If enabled, all tokens must contain an `exp` claim. Non-expiring tokens will be rejected. Disabled by default.
+
+### `algorithms`
+
+**Optional.** Narrows down the supported JSON Web Algorithms (JWA) for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
+
+### `headers`
+
+**Optional.** Customizes the names of the CouchDB proxy headers. Only change these if you have customized the corresponding `x_auth_*` settings in your CouchDB config.
+
+Default values:
+
+```yaml
+userName: X-Auth-CouchDB-UserName
+roles: X-Auth-CouchDB-Roles
+token: X-Auth-CouchDB-Token
+```
+
+## Usage
+
+Below are some common policy examples for the `rules` configuration.
+
+### Admin Full Access
+
+Grant a user with an `adm: true` claim the `_admin` role in CouchDB.
+
+```yaml
+rules:
+  - when: 'C["adm"] == true'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: '_admin' # CouchDB's special admin role
+```
+
+### Per-User Private Databases
+
+Grant users read/write access only to a database named after their unique user identifier (given by the `sub` claim).
+
+```yaml
+rules:
+  - when: 'DB == "user_" + C["sub"]'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: ['reader', 'writer'] # These roles must exist in the database's _security document
+```
+
+### Role-based Access
+
+Map JWT roles to CouchDB roles for a shared database.
+
+```yaml
+rules:
+  # Admins can do anything in the "shared" database
+  - when: 'DB == "shared" && "admin" in C["roles"]'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: ['editor', 'reader']
+
+  # Editors can write to the "shared" database
+  - when: 'DB == "shared" && "editor" in C["roles"]'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: ['editor']
+
+  # Everyone else gets read-only access to "shared"
+  - when: 'DB == "shared"'
+    mode: allow
+    userName: 'C["sub"]'
+    roles: ['reader']
+```
+
+### Append-Only Databases
+
+Prevent updates and deletions to certain databases, making them append-only. This is ideal for audit logs or historical records where existing data must not be changed.
+
+```yaml
+rules:
+  # Documents in databases prefixed with "logs_" cannot be altered.
+  # New documents are still allowed.
+  - when: 'Method in ["PUT", "DELETE"] && HasPrefix(DB, "logs_")'
+    mode: deny
+  - when: 'true'
+    mode: allow
+    userName: 'C["sub"]'
+```
+
+## Security Considerations
+
+- Always use HTTPS for JWKS endpoints.
+- Prefer TLS (or mTLS) between Traefik and CouchDB. Make it mandatory when traffic crosses hosts or untrusted networks.
+- Keep the proxy secret strong and rotate it periodically.
+- Restrict Traefik access to CouchDB; CouchDB should not be publicly reachable.
+- Limit accepted algorithms, issuer, and audience to the necessary minimum.
+
 ## Legal Notice
 
 Licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
 
-Apache®, Apache CouchDB™ and the CouchDB logo are trademarks of The Apache Software Foundation. This project is not endorsed by or affiliated with The Apache Software Foundation.
+Apache, Apache CouchDB and the CouchDB logo are trademarks of The Apache Software Foundation. This project is not endorsed by or affiliated with The Apache Software Foundation.
