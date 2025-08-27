@@ -270,7 +270,7 @@ Below are some common policy examples for the `rules` configuration.
 <a name="use-case-admin-full-access"></a>
 ### Admin Full Access
 
-Grant a user with an `adm: true` claim the `_admin` role in CouchDB.
+Grant a user with an `"adm": true` claim the `_admin` role in CouchDB.
 
 ```yaml
 rules:
@@ -326,8 +326,8 @@ Prevent updates and deletions to certain databases, making them append-only. Thi
 
 ```yaml
 rules:
-  # Documents in databases prefixed with "logs_" cannot be altered.
-  # New documents are still allowed.
+  # Documents in databases prefixed with "logs_" cannot be altered
+  # New documents are still allowed
   - when: 'Method in ["PUT", "DELETE"] && HasPrefix(DB, "logs_")'
     mode: deny
   - when: 'true'
