@@ -23,6 +23,8 @@
 - [Usage](#usage)
 - [Security Considerations](#security-considerations)
 - [Legal Notice](#legal-notice)
+- [Maintenance](#maintenance)
+- [Development](#development)
 
 ## Overview
 
@@ -373,6 +375,14 @@ rules:
 Licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
 
 Apache, Apache CouchDB and the CouchDB logo are trademarks of The Apache Software Foundation. This project is not endorsed by or affiliated with The Apache Software Foundation.
+
+<a name="maintenance"></a>
+
+## Maintenance
+
+If you discover a security vulnerability, please report it privately to support@deep.rent instead of opening a public GitHub issue. Public issue reports can disclose vulnerabilities and increase the risk of exploitation before a fix is available.
+
+<a name="development"></a>
 
 ## Development
 
