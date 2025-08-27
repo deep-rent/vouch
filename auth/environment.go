@@ -41,13 +41,13 @@ func NewEnvironment(claims map[string]any, req *http.Request) Environment {
 		C:      claims,
 		Method: method,
 		Path:   path,
-		DB:     TargetDatabase(path),
+		DB:     Database(path),
 	}
 }
 
-// TargetDatabase returns the name of the target database from the URL path.
+// Database returns the name of the target database from the URL path.
 // This is the first segment after the leading slash.
-func TargetDatabase(path string) string {
+func Database(path string) string {
 	if path == "" {
 		return ""
 	}
