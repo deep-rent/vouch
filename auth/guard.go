@@ -49,42 +49,42 @@ func (g *Guard) Authorize(
 	ctx context.Context,
 	env Environment,
 ) (bool, string, string, error) {
-	for _, r := range g.rules {
-		when_, err := expr.Run(r.when, env)
+	for _, rule := range g.rules {
+		w, err := expr.Run(rule.when, env)
 		if err != nil {
 			return false, "", "", fmt.Errorf("eval when: %w", err)
 		}
-		pass, ok := when_.(bool)
+		pass, ok := w.(bool)
 		if !ok {
-			return false, "", "", fmt.Errorf("when must evaluate to bool, got %T", when_)
+			return false, "", "", fmt.Errorf("when must evaluate to bool, got %T", w)
 		}
 		if !pass {
 			continue
 		}
 
-		if r.mode == ModeDeny {
+		if rule.mode == ModeDeny {
 			return false, "", "", nil
 		}
 
-		user_, err := expr.Run(r.user, env)
+		u, err := expr.Run(rule.userName, env)
 		if err != nil {
-			return false, "", "", fmt.Errorf("eval user: %w", err)
+			return false, "", "", fmt.Errorf("eval userName: %w", err)
 		}
-		user, ok := user_.(string)
+		userName, ok := u.(string)
 		if !ok {
-			return false, "", "", fmt.Errorf("user must evaluate to string, got %T", user_)
+			return false, "", "", fmt.Errorf("userName must evaluate to string, got %T", u)
 		}
 
-		role_, err := expr.Run(r.role, env)
+		r, err := expr.Run(rule.roles, env)
 		if err != nil {
-			return false, "", "", fmt.Errorf("eval role: %w", err)
+			return false, "", "", fmt.Errorf("eval roles: %w", err)
 		}
-		role, ok := role_.(string)
+		roles, ok := r.(string)
 		if !ok {
-			return false, "", "", fmt.Errorf("role must evaluate to string, got %T", role_)
+			return false, "", "", fmt.Errorf("roles must evaluate to string, got %T", r)
 		}
 
-		return true, user, role, nil
+		return true, userName, roles, nil
 	}
 	return false, "", "", nil
 }

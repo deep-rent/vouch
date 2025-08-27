@@ -25,10 +25,10 @@ import (
 // CompiledRule represents an authorization rule whose expressions have
 // been compiled into executable programs.
 type CompiledRule struct {
-	mode string
-	when *vm.Program
-	user *vm.Program
-	role *vm.Program
+	mode     string
+	when     *vm.Program
+	userName *vm.Program
+	roles    *vm.Program
 }
 
 // Compiler encapsulates rule compilation details.
@@ -64,63 +64,63 @@ func (c *Compiler) compile(i int, r Rule) (CompiledRule, error) {
 		)
 	}
 
-	when := strings.TrimSpace(r.When)
-	if when == "" {
+	w := strings.TrimSpace(r.When)
+	if w == "" {
 		return CompiledRule{}, fmt.Errorf(
 			"rules[%d].when is required", i,
 		)
 	}
-	whenProg, err := expr.Compile(when, c.opts...)
+	when, err := expr.Compile(w, c.opts...)
 	if err != nil {
 		return CompiledRule{}, fmt.Errorf(
 			"compile rules[%d].when: %w", i, err,
 		)
 	}
 
-	var userProg, roleProg *vm.Program
+	var userName, roles *vm.Program
 	if mode == ModeDeny {
-		if strings.TrimSpace(r.User) != "" {
+		if strings.TrimSpace(r.UserName) != "" {
 			return CompiledRule{}, fmt.Errorf(
-				"rules[%d]: user must not be set for %s mode",
+				"rules[%d]: userName must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
-		if strings.TrimSpace(r.Role) != "" {
+		if strings.TrimSpace(r.Roles) != "" {
 			return CompiledRule{}, fmt.Errorf(
-				"rules[%d]: role must not be set for %s mode",
+				"rules[%d]: roles must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
 	} else {
-		u := strings.TrimSpace(r.User)
+		u := strings.TrimSpace(r.UserName)
 		if u == "" {
 			return CompiledRule{}, fmt.Errorf(
 				"rules[%d].user is required in %s mode",
 				i, ModeAllow,
 			)
 		}
-		userProg, err = expr.Compile(u, c.opts...)
+		userName, err = expr.Compile(u, c.opts...)
 		if err != nil {
 			return CompiledRule{}, fmt.Errorf(
-				"compile rules[%d].user: %w", i, err,
+				"compile rules[%d].userName: %w", i, err,
 			)
 		}
-		r := strings.TrimSpace(r.Role)
+		r := strings.TrimSpace(r.Roles)
 		if r == "" {
 			r = "\"\""
 		}
-		roleProg, err = expr.Compile(r, c.opts...)
+		roles, err = expr.Compile(r, c.opts...)
 		if err != nil {
 			return CompiledRule{}, fmt.Errorf(
-				"compile rules[%d].role: %w", i, err,
+				"compile rules[%d].roles: %w", i, err,
 			)
 		}
 	}
 
 	return CompiledRule{
-		mode: mode,
-		when: whenProg,
-		user: userProg,
-		role: roleProg,
+		mode:     mode,
+		when:     when,
+		userName: userName,
+		roles:    roles,
 	}, nil
 }

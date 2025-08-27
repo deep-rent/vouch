@@ -29,9 +29,9 @@ testData:
   rules:
     - when: 'C["adm"] == true'
       mode: allow
-      user: 'C["sub"]'
-      role: '"_admin"'
+      userName: 'C["sub"]'
+      roles: '"_admin"'
     - when: 'DB == "user_"+C["sub"]'
       mode: allow
-      user: 'C["sub"]'
-      role: '""'
+      userName: 'C["sub"]'
+      roles: '""'
