@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -45,10 +44,6 @@ type Config struct {
 
 	// Secret enables CouchDB proxy secret signing when set (recommended).
 	Secret string `json:"secret,omitempty"`
-
-	// Lifetime controls the time span (in seconds) after which a CouchDB proxy
-	// token expires.
-	Lifetime int `json:"lifetime,omitempty"`
 
 	// Expected issuer for JWT validation hardening (optional).
 	Issuer string `json:"issuer,omitempty"`
@@ -75,7 +70,6 @@ func CreateConfig() *Config {
 	return &Config{
 		JWKS:       nil,
 		Secret:     "",
-		Lifetime:   300,
 		Issuer:     "",
 		Audience:   []string{},
 		Strict:     false,
@@ -93,7 +87,6 @@ type Middleware struct {
 	keys   jwt.Keyfunc
 	parser *jwt.Parser
 	secret []byte
-	ttl    time.Duration
 	now    func() time.Time
 	guard  *auth.Guard
 }
@@ -102,10 +95,9 @@ type Middleware struct {
 var _ http.Handler = (*Middleware)(nil)
 
 const (
-	proxyHeaderUser    = "X-Auth-CouchDB-UserName"
-	proxyHeaderRole    = "X-Auth-CouchDB-Roles"
-	proxyHeaderExpires = "X-Auth-CouchDB-Expires"
-	proxyHeaderToken   = "X-Auth-CouchDB-Token"
+	proxyHeaderUser  = "X-Auth-CouchDB-UserName"
+	proxyHeaderRole  = "X-Auth-CouchDB-Roles"
+	proxyHeaderToken = "X-Auth-CouchDB-Token"
 )
 
 func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -122,7 +114,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	claims := m.parse(token)
+	claims := m.verify(token)
 	if claims == nil {
 		res.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		http.Error(res, "invalid token", http.StatusUnauthorized)
@@ -141,19 +133,14 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Always strip the Authorization header.
+	// Strip the authorization header from the forwarded request.
 	req.Header.Del("Authorization")
 
-	// Set CouchDB proxy auth headers (trusted proxy mode).
 	req.Header.Set(proxyHeaderUser, user)
 	req.Header.Set(proxyHeaderRole, role)
 
-	// If a proxy secret is configured, also sign Expires/Token for CouchDB.
 	if len(m.secret) > 0 {
-		expires := m.now().Add(m.ttl).Unix()
-		req.Header.Set(proxyHeaderExpires, strconv.FormatInt(expires, 10))
-
-		hash := proxyToken(m.secret, user, role, expires)
+		hash := m.sign(user)
 		req.Header.Set(proxyHeaderToken, hash)
 	}
 
@@ -161,9 +148,16 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	m.next.ServeHTTP(res, req)
 }
 
-// parse parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
-// Returns all claims as a map.
-func (m *Middleware) parse(token string) map[string]any {
+// sign computes the proxy token as HEX(HMAC-SHA1(secret, user)).
+func (m *Middleware) sign(user string) string {
+	mac := hmac.New(sha1.New, m.secret)
+	_, _ = mac.Write([]byte(user))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// verify parses and validates the JWT using the JWKS keyfunc and allowed algorithms.
+// It returns the payload claims if valid, or nil if invalid.
+func (m *Middleware) verify(token string) map[string]any {
 	claims := jwt.MapClaims{}
 	result, err := m.parser.ParseWithClaims(token, claims, m.keys)
 	if err != nil || result == nil || !result.Valid {
@@ -194,12 +188,7 @@ func New(
 		return nil, fmt.Errorf("load jwks: %w", err)
 	}
 
-	ttl := time.Duration(config.Lifetime) * time.Second
-	if ttl <= 0 {
-		ttl = 300 * time.Second
-	}
 	leeway := max(time.Duration(config.Leeway)*time.Second, 0)
-
 	algs := config.Algorithms
 	if len(algs) == 0 {
 		algs = []string{
@@ -220,7 +209,6 @@ func New(
 		config: config,
 		keys:   keys,
 		secret: []byte(config.Secret),
-		ttl:    ttl,
 		now:    time.Now,
 		guard:  guard,
 	}
@@ -288,11 +276,4 @@ func token(header string) (string, bool) {
 		return "", false
 	}
 	return parts[1], true
-}
-
-// proxyToken outputs HEX(HMAC-SHA1(secret, "user,role,expires")).
-func proxyToken(secret []byte, user, role string, expires int64) string {
-	mac := hmac.New(sha1.New, secret)
-	_, _ = mac.Write([]byte(user + "," + role + "," + strconv.FormatInt(expires, 10)))
-	return hex.EncodeToString(mac.Sum(nil))
 }

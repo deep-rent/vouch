@@ -18,12 +18,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -67,9 +66,9 @@ func bytes(n int64) []byte {
 	return b
 }
 
-// thumbprint computes a SHA-1 thumbprint of the public key.
+// thumbprint calculates a SHA-256 thumbprint of the public key.
 func thumbprint(pub *rsa.PublicKey) string {
-	h := sha1.New()
+	h := sha256.New()
 	_, _ = h.Write(pub.N.Bytes())
 	_, _ = h.Write(bytes(int64(pub.E)))
 	return hex.EncodeToString(h.Sum(nil)[:8])
@@ -173,28 +172,25 @@ func (b *TokenBuilder) Sign(t *testing.T) string {
 }
 
 type MiddlewareBuilder struct {
-	jwks     any
-	secret   string
-	iss      string
-	aud      []string
-	lifetime int
-	leeway   int
-	now      *time.Time
-	rules    []auth.Rule
+	jwks   any
+	secret string
+	iss    string
+	aud    []string
+	leeway int
+	now    *time.Time
+	rules  []auth.Rule
 }
 
 func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
 	return &MiddlewareBuilder{
-		jwks:     jwks,
-		lifetime: 300,
-		leeway:   60,
+		jwks:   jwks,
+		leeway: 60,
 	}
 }
 
 func (b *MiddlewareBuilder) WithSecret(secret string) *MiddlewareBuilder   { b.secret = secret; return b }
 func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder      { b.iss = iss; return b }
 func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder { b.aud = aud; return b }
-func (b *MiddlewareBuilder) WithLifetime(sec int) *MiddlewareBuilder       { b.lifetime = sec; return b }
 func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder         { b.leeway = sec; return b }
 func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder      { b.now = &now; return b }
 func (b *MiddlewareBuilder) WithRules(rules ...auth.Rule) *MiddlewareBuilder {
@@ -207,7 +203,6 @@ func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	config := &Config{
 		JWKS:     b.jwks,
 		Secret:   b.secret,
-		Lifetime: b.lifetime,
 		Issuer:   b.iss,
 		Audience: b.aud,
 		Leeway:   b.leeway,
@@ -245,7 +240,6 @@ func TestOptionsBypass(t *testing.T) {
 	mw := NewMiddlewareBuilder(gen.JWKS()).
 		WithRules(rules...).
 		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -292,8 +286,6 @@ func TestAdminAccess(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -366,8 +358,6 @@ func TestUserAccessAllowed(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -424,8 +414,6 @@ func TestUserAccessDenied(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -473,8 +461,6 @@ func TestURLWithoutDatabase(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -496,8 +482,6 @@ func TestURLWithoutDatabase(t *testing.T) {
 func TestProxySecretSigning(t *testing.T) {
 	gen := generate(t)
 	now := time.Unix(1_000_000_000, 0)
-	secret := "12345"
-	lifetime := 300
 
 	token := NewTokenBuilder(gen.Key, gen.Kid).
 		At(now).
@@ -518,9 +502,7 @@ func TestProxySecretSigning(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("iss").
 		WithAudience("aud").
-		WithSecret(secret).
-		WithLifetime(lifetime).
-		WithLeeway(60).
+		WithSecret("12345").
 		WithNow(now).
 		Build(t, next)
 
@@ -535,24 +517,14 @@ func TestProxySecretSigning(t *testing.T) {
 		t.Fatalf("expected 200 and next called")
 	}
 
-	actExp := seen.Get("X-Auth-CouchDB-Expires")
-	if actExp == "" {
-		t.Fatalf("missing X-Auth-CouchDB-Expires")
-	}
-
-	expExp := now.Add(time.Duration(lifetime) * time.Second).Unix()
-	if actExp != strconv.FormatInt(expExp, 10) {
-		t.Fatalf("got expires = %s, want %d", actExp, expExp)
-	}
-
-	actTok := seen.Get("X-Auth-CouchDB-Token")
-	if actTok == "" {
+	act := seen.Get("X-Auth-CouchDB-Token")
+	if act == "" {
 		t.Fatalf("missing X-Auth-CouchDB-Token")
 	}
 
-	expTok := proxyToken([]byte(secret), "bob", "", expExp)
-	if actTok != expTok {
-		t.Fatalf("got token = %s, want %s", actTok, expTok)
+	exp := mw.sign("bob")
+	if act != exp {
+		t.Fatalf("got token = %s, want %s", act, exp)
 	}
 }
 
@@ -581,8 +553,6 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("valid").
 		WithAudience("valid").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -622,8 +592,6 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 		WithRules(rules...).
 		WithIssuer("valid").
 		WithAudience("valid").
-		WithLeeway(60).
-		WithLifetime(300).
 		WithNow(now).
 		Build(t, next)
 
@@ -659,8 +627,6 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 
 	mw := NewMiddlewareBuilder(generate(t).JWKS()).
 		WithRules(rules...).
-		WithLeeway(60).
-		WithLifetime(300).
 		Build(t, next)
 
 	url := "http://couch.example.com/user_bob/_all_docs"
