@@ -57,7 +57,7 @@ type Config struct {
 	Audience []string `json:"audience,omitempty"`
 
 	// When enabled, makes the 'exp' claims required.
-	ExpirationRequired bool `json:"expirationRequired,omitempty"`
+	Strict bool `json:"strict,omitempty"`
 
 	// Allowed clock skew for temporal validity of tokens (in seconds).
 	// Defaults to 0.
@@ -73,15 +73,15 @@ type Config struct {
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		JWKS:               nil,
-		ProxySecret:        "",
-		Lifetime:           300,
-		Issuer:             "",
-		Audience:           []string{},
-		ExpirationRequired: false,
-		Leeway:             0,
-		Algorithms:         []string{},
-		Rules:              []auth.Rule{},
+		JWKS:        nil,
+		ProxySecret: "",
+		Lifetime:    300,
+		Issuer:      "",
+		Audience:    []string{},
+		Strict:      false,
+		Leeway:      0,
+		Algorithms:  []string{},
+		Rules:       []auth.Rule{},
 	}
 }
 
@@ -230,7 +230,7 @@ func New(
 		jwt.WithTimeFunc(func() time.Time { return mw.now() }),
 		jwt.WithValidMethods(algs),
 	}
-	if config.ExpirationRequired {
+	if config.Strict {
 		opts = append(opts, jwt.WithExpirationRequired())
 	}
 	if len(config.Audience) > 0 {
