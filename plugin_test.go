@@ -205,13 +205,13 @@ func (b *MiddlewareBuilder) WithRules(rules ...auth.Rule) *MiddlewareBuilder {
 func (b *MiddlewareBuilder) Build(t *testing.T, next http.Handler) *Middleware {
 	t.Helper()
 	config := &Config{
-		JWKS:        b.jwks,
-		ProxySecret: b.secret,
-		Lifetime:    b.lifetime,
-		Issuer:      b.iss,
-		Audience:    b.aud,
-		Leeway:      b.leeway,
-		Rules:       b.rules,
+		JWKS:     b.jwks,
+		Secret:   b.secret,
+		Lifetime: b.lifetime,
+		Issuer:   b.iss,
+		Audience: b.aud,
+		Leeway:   b.leeway,
+		Rules:    b.rules,
 	}
 	h, err := New(context.Background(), next, config, "test")
 	if err != nil {

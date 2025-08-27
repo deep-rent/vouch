@@ -43,8 +43,8 @@ type Config struct {
 	// endpoints will be continuously polled for changes.
 	JWKS any `json:"jwks"`
 
-	// ProxySecret enables CouchDB proxy secret signing when set (recommended).
-	ProxySecret string `json:"proxySecret,omitempty"`
+	// Secret enables CouchDB proxy secret signing when set (recommended).
+	Secret string `json:"secret,omitempty"`
 
 	// Lifetime controls the time span (in seconds) after which a CouchDB proxy
 	// token expires.
@@ -73,15 +73,15 @@ type Config struct {
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		JWKS:        nil,
-		ProxySecret: "",
-		Lifetime:    300,
-		Issuer:      "",
-		Audience:    []string{},
-		Strict:      false,
-		Leeway:      0,
-		Algorithms:  []string{},
-		Rules:       []auth.Rule{},
+		JWKS:       nil,
+		Secret:     "",
+		Lifetime:   300,
+		Issuer:     "",
+		Audience:   []string{},
+		Strict:     false,
+		Leeway:     0,
+		Algorithms: []string{},
+		Rules:      []auth.Rule{},
 	}
 }
 
@@ -219,7 +219,7 @@ func New(
 		name:   name,
 		config: config,
 		keys:   keys,
-		secret: []byte(config.ProxySecret),
+		secret: []byte(config.Secret),
 		ttl:    ttl,
 		now:    time.Now,
 		guard:  guard,
