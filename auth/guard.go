@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/expr-lang/expr"
 )
@@ -79,9 +80,24 @@ func (g *Guard) Authorize(
 		if err != nil {
 			return false, "", "", fmt.Errorf("eval roles: %w", err)
 		}
-		roles, ok := r.(string)
-		if !ok {
-			return false, "", "", fmt.Errorf("roles must evaluate to string, got %T", r)
+		var roles string
+		switch v := r.(type) {
+		case string:
+			roles = v
+		case []string:
+			roles = strings.Join(v, ",")
+		case []any:
+			items := make([]string, len(v))
+			for i, e := range v {
+				if s, ok := e.(string); ok {
+					items[i] = s
+				} else {
+					return false, "", "", fmt.Errorf("roles must be string or []string; element at %d is %T", i, e)
+				}
+			}
+			roles = strings.Join(items, ",")
+		default:
+			return false, "", "", fmt.Errorf("roles must evaluate to string or []string, got %T", r)
 		}
 
 		return true, userName, roles, nil

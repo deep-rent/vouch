@@ -26,7 +26,7 @@ package auth
 //
 // If the `Mode` is "allow", and the `When` condition is met, then access is
 // granted by invoking the `User` and `Role` expressions to determine the
-// user's identity and permissions.
+// user's identity and permissions in CouchDB.
 type Rule struct {
 	// Mode specifies the rule's behavior, either "allow" or "deny".
 	Mode string `json:"mode"`
@@ -35,13 +35,13 @@ type Rule struct {
 	// current request.
 	When string `json:"when"`
 
-	// UserName is a string expression that returns the CouchDB username.
-	// It is required for "allow" mode and must be omiutted in "deny" mode.
+	// UserName is a string expression that returns the CouchDB username. It is
+	// required for "allow" mode and must be omitted in "deny" mode.
 	UserName string `json:"userName,omitempty"`
 
-	// Roles is an expression producing a either a single CouchDB role name
-	// or a comma-separated list of roles. It can only be used with
-	// "allow" mode rules.
+	// Roles is an expression producing a either a single CouchDB role name, a
+	// comma-separated list of roles, or a slice of roles. It can only be used
+	// with "allow" mode.
 	Roles string `json:"roles,omitempty"`
 }
 
