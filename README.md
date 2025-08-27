@@ -7,8 +7,9 @@
 </p>
 
 <p align="center">
-  <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/><br />
-  Developed by <a href="https://www.deep.rent/">deep.rent</a>
+  <a href="https://couchdb.apache.org">
+    <img src="./.github/assets/icon.png" width="64" height="64" alt="deep.rent GmbH"/>
+  </a>
 </p>
 
 
@@ -33,6 +34,7 @@ In practice, this lets you:
 - **Simplify Your Stack:** Remove bearer tokens before traffic reaches CouchDB.
 
 <a name="how-it-works"></a>
+
 ## How it Works
 
 The middleware processes requests in three stages. If authentication or authorization fails, the processing stops immediately, and an appropriate HTTP status code is returned.
@@ -42,6 +44,7 @@ The middleware processes requests in three stages. If authentication or authoriz
 3. **Forwarding:** On success, it strips the Authorization header and adds the X-Auth-CouchDB-* headers before proxying the request to CouchDB. OPTIONS requests are passed through untouched to support CORS pre-flight checks.
 
 <a name="prerequisites"></a>
+
 ## Prerequisites
 
 - **Traefik v3.0** or later with plugin support enabled.
@@ -57,6 +60,7 @@ require_valid_user = true
 ```
 
 <a name="quick-start"></a>
+
 ## Quick Start
 
 1) Enable the plugin in Traefik’s static configuration.
@@ -130,6 +134,7 @@ http:
 ```
 
 <a name="configuration"></a>
+
 ## Configuration
 
 ### Summary
@@ -149,6 +154,7 @@ http:
 ### Details
 
 <a name="option-jwks"></a>
+
 #### `jwks`
 
 **Required.** Specifies either a single JWKS endpoint, a list of such endpoints, or an inline JWKS object. If one or more URLs are specified, the plugin fetches keys from these endpoints and refreshes them continuously. A static JWKS can be defined as shown below. Also note the nesting of the `keys` array beneath `jwks` when providing a static JWKS.
@@ -172,6 +178,7 @@ jwks:
 ```
 
 <a name="option-rules"></a>
+
 #### `rules`
 
 **Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The roles list must be non-empty, or else an error will be raised during startup.
@@ -207,6 +214,7 @@ Expressions adhere to the [expr](https://github.com/expr-lang/expr) syntax. The 
 - `HasSuffix(s, suffix)`: indicates whether `s` ends with `suffix`.
 
 <a name="option-secret"></a>
+
 #### `secret`
 
 **Optional.** The shared secret used to sign proxy tokens sent to CouchDB. Enabling this in CouchDB is highly recommended for production.
@@ -220,31 +228,37 @@ secret = your-proxy-secret
 ```
 
 <a name="option-issuer"></a>
+
 #### `issuer`
 
 **Optional.** The expected value of the `iss` (issuer) claim in the JWT. If omitted, any value is accepted.
 
 <a name="option-audience"></a>
+
 #### `audience`
 
 **Optional.** An array of acceptable values for the `aud` (audience) claim. If provided, at least one value must match. If omitted, any value is accepted.
 
 <a name="option-leeway"></a>
+
 #### `leeway`
 
 **Optional.** The allowed time drift (in seconds) to account for clock skew between the token issuer and Traefik when validating the `nbf` (not before) and `exp` (expires at) claims.
 
 <a name="option-strict"></a>
+
 #### `strict`
 
 **Optional.** If enabled, all tokens must contain an `exp` claim. Non-expiring tokens will be rejected. Disabled by default.
 
 <a name="option-algorithms"></a>
+
 #### `algorithms`
 
 **Optional.** Narrows down the supported JWAs for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
 
 <a name="option-headers"></a>
+
 #### `headers`
 
 **Optional.** Customizes the names of the CouchDB proxy headers. Only change these if you have customized the corresponding `x_auth_*` settings in your CouchDB config.
@@ -258,6 +272,7 @@ token: X-Auth-CouchDB-Token
 ```
 
 <a name="usage"></a>
+
 ## Usage
 
 Below are some common policy examples for the `rules` configuration.
@@ -270,6 +285,7 @@ Below are some common policy examples for the `rules` configuration.
 * [Append-Only Databases](#use-case-append-only-databases)
 
 <a name="use-case-admin-full-access"></a>
+
 ### Admin Full Access
 
 Grant a user with an `"adm": true` claim the `_admin` role in CouchDB.
@@ -283,6 +299,7 @@ rules:
 ```
 
 <a name="use-case-per-user-private-databases"></a>
+
 ### Per-User Private Databases
 
 Grant users read/write access only to a database named after their unique user identifier (given by the `sub` claim).
@@ -296,6 +313,7 @@ rules:
 ```
 
 <a name="use-case-role-based-access"></a>
+
 ### Role-based Access
 
 Map JWT roles to CouchDB roles for a shared database.
@@ -322,6 +340,7 @@ rules:
 ```
 
 <a name="use-case-append-only-databases"></a>
+
 ### Append-Only Databases
 
 Prevent updates and deletions to certain databases, making them append-only. This is ideal for audit logs or historical records where existing data must not be changed.
@@ -338,6 +357,7 @@ rules:
 ```
 
 <a name="security-considerations"></a>
+
 ## Security Considerations
 
 - Always use HTTPS for JWKS endpoints.
@@ -347,8 +367,19 @@ rules:
 - Limit accepted algorithms, issuer, and audience to the necessary minimum.
 
 <a name="legal-notice"></a>
+
 ## Legal Notice
 
 Licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
 
 Apache, Apache CouchDB and the CouchDB logo are trademarks of The Apache Software Foundation. This project is not endorsed by or affiliated with The Apache Software Foundation.
+
+## Development
+
+This plugin was developed by deep.rent GmbH and was originally created for company-internal use. It is currently feature-frozen and will not receive major new features. Security fixes may be provided as needed.
+
+<p align="center">
+  <a href="https://www.deep.rent">
+    <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/>
+  </a>
+</p>
