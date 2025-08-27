@@ -27,8 +27,8 @@ import (
 type CompiledRule struct {
 	mode string
 	when *vm.Program
-	user *vm.Program // only for "allow"
-	role *vm.Program // optional
+	user *vm.Program
+	role *vm.Program
 }
 
 // Compiler encapsulates rule compilation details.
@@ -105,13 +105,15 @@ func (c *Compiler) compile(i int, r Rule) (CompiledRule, error) {
 				"compile rules[%d].user: %w", i, err,
 			)
 		}
-		if s := strings.TrimSpace(r.Role); s != "" {
-			roleProg, err = expr.Compile(s, c.opts...)
-			if err != nil {
-				return CompiledRule{}, fmt.Errorf(
-					"compile rules[%d].role: %w", i, err,
-				)
-			}
+		r := strings.TrimSpace(r.Role)
+		if r == "" {
+			r = "\"\""
+		}
+		roleProg, err = expr.Compile(r, c.opts...)
+		if err != nil {
+			return CompiledRule{}, fmt.Errorf(
+				"compile rules[%d].role: %w", i, err,
+			)
 		}
 	}
 

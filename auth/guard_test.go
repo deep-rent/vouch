@@ -144,27 +144,15 @@ func TestAuthorize_WhenNotBoolError(t *testing.T) {
 	}
 }
 
-func TestAuthorize_UserNotStringOrEmptyError(t *testing.T) {
-	// Not a string
-	auth1, err := NewGuard([]Rule{
+func TestAuthorize_UserNotStringError(t *testing.T) {
+	auth, err := NewGuard([]Rule{
 		{Mode: "allow", When: `true`, User: `123`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	if _, _, _, runErr := auth1.Authorize(context.Background(), env(nil, "db")); runErr == nil {
+	if _, _, _, runErr := auth.Authorize(context.Background(), env(nil, "db")); runErr == nil {
 		t.Fatalf("expected error for non-string user")
-	}
-
-	// Empty/whitespace string
-	auth2, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, User: `"   "`},
-	})
-	if err != nil {
-		t.Fatalf("compile: %v", err)
-	}
-	if _, _, _, runErr := auth2.Authorize(context.Background(), env(nil, "db")); runErr == nil {
-		t.Fatalf("expected error for empty user")
 	}
 }
 
@@ -177,6 +165,23 @@ func TestAuthorize_RoleNotStringError(t *testing.T) {
 	}
 	if _, _, _, runErr := auth.Authorize(context.Background(), env(nil, "db")); runErr == nil {
 		t.Fatalf("expected error for non-string role")
+	}
+}
+
+func TestAuthorize_UndefinedRole(t *testing.T) {
+	auth, err := NewGuard([]Rule{
+		{Mode: "allow", When: `true`, User: `"u"`},
+	})
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+
+	_, _, role, runErr := auth.Authorize(context.Background(), env(nil, "db"))
+	if runErr != nil {
+		t.Fatalf("authorize error: %v", runErr)
+	}
+	if role != "" {
+		t.Fatalf("expected empty role; got %q", role)
 	}
 }
 

@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/expr-lang/expr"
 )
@@ -51,15 +50,15 @@ func (g *Guard) Authorize(
 	env Environment,
 ) (bool, string, string, error) {
 	for _, r := range g.rules {
-		whenRes, err := expr.Run(r.when, env)
+		when_, err := expr.Run(r.when, env)
 		if err != nil {
 			return false, "", "", fmt.Errorf("eval when: %w", err)
 		}
-		ok, isBool := whenRes.(bool)
-		if !isBool {
-			return false, "", "", fmt.Errorf("when must evaluate to bool, got %T", whenRes)
-		}
+		pass, ok := when_.(bool)
 		if !ok {
+			return false, "", "", fmt.Errorf("when must evaluate to bool, got %T", when_)
+		}
+		if !pass {
 			continue
 		}
 
@@ -67,29 +66,22 @@ func (g *Guard) Authorize(
 			return false, "", "", nil
 		}
 
-		userRes, err := expr.Run(r.user, env)
+		user_, err := expr.Run(r.user, env)
 		if err != nil {
 			return false, "", "", fmt.Errorf("eval user: %w", err)
 		}
-		user, isStr := userRes.(string)
-		if !isStr || strings.TrimSpace(user) == "" {
-			return false, "", "", fmt.Errorf("user must evaluate to non-empty string")
+		user, ok := user_.(string)
+		if !ok {
+			return false, "", "", fmt.Errorf("user must evaluate to string, got %T", user_)
 		}
 
-		var role string
-		if r.role != nil {
-			val, err := expr.Run(r.role, env)
-			if err != nil {
-				return false, "", "", fmt.Errorf("eval role: %w", err)
-			}
-			switch v := val.(type) {
-			case string:
-				role = v
-			case nil:
-				role = ""
-			default:
-				return false, "", "", fmt.Errorf("role must evaluate to string, got %T", val)
-			}
+		role_, err := expr.Run(r.role, env)
+		if err != nil {
+			return false, "", "", fmt.Errorf("eval role: %w", err)
+		}
+		role, ok := role_.(string)
+		if !ok {
+			return false, "", "", fmt.Errorf("role must evaluate to string, got %T", role_)
 		}
 
 		return true, user, role, nil
