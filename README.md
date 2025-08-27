@@ -7,8 +7,10 @@
 </p>
 
 <p align="center">
-  <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/>
+  <img src="./.github/assets/logo.svg" width="64" height="64" alt="deep.rent GmbH"/><br />
+  Developed by <a href="https://www.deep.rent/">deep.rent</a>
 </p>
+
 
 ## Contents
 
