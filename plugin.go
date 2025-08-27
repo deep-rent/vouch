@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package traefikplugincouchdb provides a Traefik middleware that validates
+// JWTs against a JWKS and authorizes requests using ordered rules evaluated
+// with expr. When authorized, it sets CouchDB "trusted proxy" headers
+// (X-Auth-CouchDB-*) and can optionally sign them with a proxy secret.
 package traefikplugincouchdb
 
 import (

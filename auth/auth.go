@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package auth contains the rule model and authorizer used by the middleware.
+// It compiles expr expressions and evaluates ordered rules to decide whether
+// a request is allowed and which CouchDB user/roles to forward.
 package auth
 
 import (
