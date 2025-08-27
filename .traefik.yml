@@ -4,34 +4,16 @@ iconPath: .github/assets/icon.png
 type: middleware
 import: github.com/deep-rent/traefik-plugin-couchdb
 testData:
-  jwks:
-    keys:
-      - kty: EC
-        use: sig
-        kid: Is1uskkAi3KCrz14riT82BwtWqMYPPCCshvmb4A8hvE
-        alg: ES256
-        crv: P-256
-        x: yxKwnD25UKgQiRi1md_mYUZzw0AjCgF88RCTvX6lihQ
-        y: 2XAQO8F8266bk2jCrefbiy-eFCTJLLofQpZKn0PSHpE
-      - kty: RSA
-        use: sig
-        kid: Bg1SKFhYebULc1qrJoL0lPqGoEtn8AqoUsxfTFPkJb0
-        alg: RS256
-        n: s3GCmurZR4HUil2EwrrP75efzlGSyXKt_VrTiOXDyOLI_LIxdIv58ro_VXfhNdZc4N0rYU9YFgfEgjxvSXmZXt0DB_yPCKotDIXnmfbjsrU3e1rFpkam25CZCdZ-oPU72DCnEaY-Q4zl1X6_0O_3eYJOx9QFHIr8OrjrYBvWfyBNdO77qe3ZD5guJNwHQKznnsg0yq_Qr9z6KTI_hBqk_azzOn1NJuulMc2aPXNe9_WkUURN7eA_6rYi_vUrG2UctinS7RF38ks6zU1OOXs3PLOVrXzNG5G-b5KbcrRk8nz_Ms2WGer8JV4WwppjLOM5vTfirirH1YrgsWF_BpTpzQ
-        e: AQAB
+  jwks: https://auth.example.com/.well-known/jwks.json
   secret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
   lifetime: 600
   issuer: https://auth.example.com/
-  audience: [couchdb]
+  audience: ['couchdb-api']
   strict: true
   leeway: 60
-  algorithms: [RS256, ES256]
+  algorithms: [ES256, ES384, ES512]
   rules:
-    - when: 'C["adm"] == true'
+    - when: 'C["sub"] == "bob"'
+      mode: deny
+    - when: 'true'
       mode: allow
-      userName: 'C["sub"]'
-      roles: '["_admin"]'
-    - when: 'DB == "user_"+C["sub"]'
-      mode: allow
-      userName: 'C["sub"]'
-      roles: '""'
