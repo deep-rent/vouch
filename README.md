@@ -382,7 +382,7 @@ Apache, Apache CouchDB and the CouchDB logo are trademarks of The Apache Softwar
 
 ## Maintenance
 
-If you discover a security vulnerability, please report it privately to support@deep.rent instead of opening a public GitHub issue. Public issue reports can disclose vulnerabilities and increase the risk of exploitation before a fix is available.
+If you discover a security vulnerability, please report it privately to [support@deep.rent](mailto:support@deep.rent) instead of opening a public GitHub issue. Public issue reports can disclose vulnerabilities and increase the risk of exploitation before a fix is available.
 
 <a name="development"></a>
 
