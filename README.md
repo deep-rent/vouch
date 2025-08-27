@@ -28,7 +28,7 @@
 
 ## Overview
 
-This middleware validates incoming JWTs against a JWKS, evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
+This middleware validates incoming JSON Web Tokens (JWTs) against a JSON Web Key Set (JWKS), evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
 
 In practice, this lets you:
 - **Centralize Access Control:** Keep CouchDB anonymous and let Traefik enforce authentication and authorization at the edge.
@@ -53,13 +53,15 @@ The middleware processes requests in three stages. If authentication or authoriz
 - **Apache CouchDB v3.3.1 or later** configured for proxy authentication.
 - An **Identity Provider** that issues JWTs and exposes a JWKS endpoint.
 
-Your CouchDB `local.ini` (or equivalent configuration) must enable the proxy authentication handler for the proxying to work:
+In the CouchDB `local.ini` (or equivalent configuration) you must enable the proxy authentication handler for the integration to work:
 
 ```ini
 [chttpd_auth]
 authentication_handlers = {chttpd_auth, cookie_authentication_handler}, {chttpd_auth, proxy_authentication_handler}
 require_valid_user = true
 ```
+
+Please refer to the [CouchDB documentation](https://docs.couchdb.org/en/stable/api/server/authn.html#proxy-authentication) for more information.
 
 <a name="quick-start"></a>
 
@@ -206,7 +208,7 @@ rules:
     roles: '["reader", "writer"]'
 ```
 
-Expressions adhere to the [expr](https://github.com/expr-lang/expr) syntax. The expression environment provides the following variables and utility functions:
+Expressions adhere to the [Expr](https://expr-lang.org/docs/language-definition) syntax. The expression environment provides the following variables and utility functions:
 
 - `Claims` (alias `C`): the mapping of claim values by name (e.g., `C["sub"]`).
 - `Method`: the HTTP request method (`GET`, `POST`, ...).
@@ -257,7 +259,7 @@ secret = your-proxy-secret
 
 #### `algorithms`
 
-**Optional.** Narrows down the supported JWAs for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
+**Optional.** Narrows down the supported JSON Web Algorithms (JWAs) for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
 
 <a name="option-headers"></a>
 
@@ -372,7 +374,7 @@ rules:
 
 ## Legal Notice
 
-Licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
+Licensed under the Apache License, Version 2.0. See the `LICENSE` file for further details.
 
 Apache, Apache CouchDB and the CouchDB logo are trademarks of The Apache Software Foundation. This project is not endorsed by or affiliated with The Apache Software Foundation.
 
