@@ -32,16 +32,22 @@ type Environment struct {
 	Path string
 	// DB is the name of the target CouchDB database.
 	DB string
+
+	// Functions
+	HasPrefix func(s, prefix string) bool
+	HasSuffix func(s, suffix string) bool
 }
 
 func NewEnvironment(claims map[string]any, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
 	return Environment{
-		Claims: claims,
-		C:      claims,
-		Method: method,
-		Path:   path,
-		DB:     Database(path),
+		Claims:    claims,
+		C:         claims,
+		Method:    method,
+		Path:      path,
+		DB:        Database(path),
+		HasPrefix: strings.HasPrefix,
+		HasSuffix: strings.HasSuffix,
 	}
 }
 
