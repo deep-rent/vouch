@@ -44,11 +44,11 @@ In practice, this lets you:
 
 ## How it Works
 
-The middleware processes requests in three stages. If authentication or authorization fails, the processing stops immediately, and an appropriate HTTP status code is returned.
+The middleware processes requests in three stages. If authentication or authorization fails, the processing stops immediately, and an appropriate HTTP status code is returned (401 or 403).
 
 1. **Authentication:** The plugin extracts the bearer token from the Authorization header and verifies its signature and claims against the configured JWKS.
-2. **Authorization:** It builds an environment containing the token claims and request details, then evaluates your rules in order. The first rule that matches determines whether to allow or deny the request.
-3. **Forwarding:** On success, it strips the Authorization header and adds the X-Auth-CouchDB-* headers before proxying the request to CouchDB. OPTIONS requests are passed through untouched to support CORS pre-flight checks.
+2. **Authorization:** It builds an evaluation context containing the token claims and request details, then evaluates your rule expressions in order. The first rule that matches determines whether to allow or deny the request.
+3. **Forwarding:** On success, it strips the Authorization header and adds the X-Auth-CouchDB-* headers before proxying the request to CouchDB. OPTIONS requests are passed through without modifications to support CORS pre-flight checks.
 
 <a name="prerequisites"></a>
 
