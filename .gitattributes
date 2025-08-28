@@ -13,7 +13,6 @@
 *.yml     text
 *.zip     binary
 /.husky/* text eol=lf
-AUTHORS   text
 go.mod    text
 go.sum    text
 LICENSE   text
