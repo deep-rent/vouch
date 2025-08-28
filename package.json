@@ -1,0 +1,4 @@
+{
+  "name": "@deep-rent/traefik-plugin-couchdb",
+  "packageManager": "yarn@4.9.2"
+}
