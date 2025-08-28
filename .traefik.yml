@@ -1,5 +1,5 @@
 displayName: CouchDB Proxy
-summary: Authenticates requests with JWTs, enforces authorization rules, and forwards CouchDB proxy headers
+summary: Offloads token-based authentication and authorization from Apache CouchDB to Traefik
 iconPath: .github/assets/icon.png
 type: middleware
 import: github.com/deep-rent/traefik-plugin-couchdb
