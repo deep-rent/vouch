@@ -15,7 +15,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 )
 
@@ -37,7 +36,7 @@ func TestNewGuard_Errors(t *testing.T) {
 
 	// Invalid mode
 	_, err := NewGuard([]Rule{
-		{Mode: "block", When: "true", UserName: `"u"`},
+		{Mode: "block", When: "true", User: `"u"`},
 	})
 	if err == nil {
 		t.Fatalf("expected error for invalid mode")
@@ -45,7 +44,7 @@ func TestNewGuard_Errors(t *testing.T) {
 
 	// Missing when
 	_, err = NewGuard([]Rule{
-		{Mode: "allow", When: "", UserName: `"u"`},
+		{Mode: "allow", When: "", User: `"u"`},
 	})
 	if err == nil {
 		t.Fatalf("expected error for missing when")
@@ -53,7 +52,7 @@ func TestNewGuard_Errors(t *testing.T) {
 
 	// Deny must not define user
 	_, err = NewGuard([]Rule{
-		{Mode: "deny", When: "true", UserName: `"u"`},
+		{Mode: "deny", When: "true", User: `"u"`},
 	})
 	if err == nil {
 		t.Fatalf("expected error: deny rule with user")
@@ -61,7 +60,7 @@ func TestNewGuard_Errors(t *testing.T) {
 
 	// Deny must not define role
 	_, err = NewGuard([]Rule{
-		{Mode: "deny", When: "true", Roles: `"_admin"`},
+		{Mode: "deny", When: "true", Role: `"_admin"`},
 	})
 	if err == nil {
 		t.Fatalf("expected error: deny rule with role")
@@ -79,13 +78,13 @@ func TestNewGuard_Errors(t *testing.T) {
 func TestAuthorize_FirstMatchDeny(t *testing.T) {
 	g, err := NewGuard([]Rule{
 		{Mode: "deny", When: `DB == "secret"`},
-		{Mode: "allow", When: `true`, UserName: `"u"`, Roles: `""`},
+		{Mode: "allow", When: `true`, User: `"u"`, Role: `""`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
 
-	p, u, ro, err := g.Authorize(context.Background(), env(nil, "secret"))
+	p, u, ro, err := g.Authorize(env(nil, "secret"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -94,14 +93,14 @@ func TestAuthorize_FirstMatchDeny(t *testing.T) {
 	}
 }
 
-func TestAuthorize_AllowUsernameAndRole(t *testing.T) {
+func TestAuthorize_AllowUserAndRole(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, UserName: `"alice"`, Roles: `"_admin,writer"`},
+		{Mode: "allow", When: `true`, User: `"alice"`, Role: `"_admin,writer"`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	p, u, ro, err := g.Authorize(context.Background(), env(nil, "db"))
+	p, u, ro, err := g.Authorize(env(nil, "db"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -112,12 +111,12 @@ func TestAuthorize_AllowUsernameAndRole(t *testing.T) {
 
 func TestAuthorize_RolesArray(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, UserName: `"u"`, Roles: `["writer","_admin"]`},
+		{Mode: "allow", When: `true`, User: `"u"`, Role: `["writer","_admin"]`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	p, u, ro, err := g.Authorize(context.Background(), env(nil, "db"))
+	p, u, ro, err := g.Authorize(env(nil, "db"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -129,16 +128,16 @@ func TestAuthorize_RolesArray(t *testing.T) {
 func TestAuthorize_OrderingFirstMatchWins(t *testing.T) {
 	g, err := NewGuard([]Rule{
 		// Admin first
-		{Mode: "allow", When: `C["role"] == "admin"`, UserName: `C["user"]`, Roles: `"_admin"`},
+		{Mode: "allow", When: `C["role"] == "admin"`, User: `C["user"]`, Role: `"_admin"`},
 		// Fallback
-		{Mode: "allow", When: `true`, UserName: `C["user"]`, Roles: `"writer"`},
+		{Mode: "allow", When: `true`, User: `C["user"]`, Role: `"writer"`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
 	claims := map[string]any{"user": "bob", "role": "admin"}
 
-	p, u, ro, err := g.Authorize(context.Background(), env(claims, "db"))
+	p, u, ro, err := g.Authorize(env(claims, "db"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -149,49 +148,49 @@ func TestAuthorize_OrderingFirstMatchWins(t *testing.T) {
 
 func TestAuthorize_WhenNotBoolError(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `"not_bool"`, UserName: `"u"`},
+		{Mode: "allow", When: `"not_bool"`, User: `"u"`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	if _, _, _, err := g.Authorize(context.Background(), env(nil, "db")); err == nil {
+	if _, _, _, err := g.Authorize(env(nil, "db")); err == nil {
 		t.Fatalf("expected error when 'when' is not bool")
 	}
 }
 
 func TestAuthorize_UserNotStringError(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, UserName: `123`},
+		{Mode: "allow", When: `true`, User: `123`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	if _, _, _, err := g.Authorize(context.Background(), env(nil, "db")); err == nil {
+	if _, _, _, err := g.Authorize(env(nil, "db")); err == nil {
 		t.Fatalf("expected error for non-string user")
 	}
 }
 
 func TestAuthorize_RoleNotStringError(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, UserName: `"u"`, Roles: `123`},
+		{Mode: "allow", When: `true`, User: `"u"`, Role: `123`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	if _, _, _, err := g.Authorize(context.Background(), env(nil, "db")); err == nil {
+	if _, _, _, err := g.Authorize(env(nil, "db")); err == nil {
 		t.Fatalf("expected error for non-string role")
 	}
 }
 
 func TestAuthorize_UndefinedRole(t *testing.T) {
 	g, err := NewGuard([]Rule{
-		{Mode: "allow", When: `true`, UserName: `"u"`},
+		{Mode: "allow", When: `true`, User: `"u"`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
 
-	_, _, ro, err := g.Authorize(context.Background(), env(nil, "db"))
+	_, _, ro, err := g.Authorize(env(nil, "db"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -203,12 +202,12 @@ func TestAuthorize_UndefinedRole(t *testing.T) {
 func TestAuthorize_NoRuleMatches(t *testing.T) {
 	g, err := NewGuard([]Rule{
 		{Mode: "deny", When: `false`},
-		{Mode: "allow", When: `false`, UserName: `"u"`},
+		{Mode: "allow", When: `false`, User: `"u"`},
 	})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	p, u, ro, err := g.Authorize(context.Background(), env(nil, "db"))
+	p, u, ro, err := g.Authorize(env(nil, "db"))
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}

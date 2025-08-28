@@ -17,3 +17,4 @@ testData:
       mode: deny
     - when: 'true'
       mode: allow
+      user: 'C["sub"]'

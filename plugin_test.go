@@ -234,7 +234,7 @@ func TestOptionsBypass(t *testing.T) {
 
 	// Rules won't be used for OPTIONS; still provide a minimal allow to satisfy config.
 	rules := []auth.Rule{
-		{Mode: "allow", When: "true", UserName: `"anon"`, Roles: `""`},
+		{Mode: "allow", When: "true", User: `"anon"`, Role: `""`},
 	}
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
@@ -279,7 +279,7 @@ func TestAdminAccess(t *testing.T) {
 	next := trap(&seen, &called)
 
 	rules := []auth.Rule{
-		{Mode: "allow", When: `C["adm"] == true`, UserName: `C["sub"]`, Roles: `"_admin"`},
+		{Mode: "allow", When: `C["adm"] == true`, User: `C["sub"]`, Role: `"_admin"`},
 	}
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
@@ -348,9 +348,9 @@ func TestUserAccessAllowed(t *testing.T) {
 
 	rules := []auth.Rule{
 		{Mode: "allow",
-			When:     `DB == "user_"+C["sub"]`,
-			UserName: `C["sub"]`,
-			Roles:    `""`,
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
 		},
 	}
 
@@ -404,9 +404,9 @@ func TestUserAccessDenied(t *testing.T) {
 
 	rules := []auth.Rule{
 		{Mode: "allow",
-			When:     `DB == "user_"+C["sub"]`,
-			UserName: `C["sub"]`,
-			Roles:    `""`,
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
 		},
 	}
 
@@ -451,9 +451,9 @@ func TestURLWithoutDatabase(t *testing.T) {
 
 	rules := []auth.Rule{
 		{Mode: "allow",
-			When:     `DB == "user_"+C["sub"]`,
-			UserName: `C["sub"]`,
-			Roles:    `""`,
+			When: `DB == "user_"+C["sub"]`,
+			User: `C["sub"]`,
+			Role: `""`,
 		},
 	}
 
@@ -495,7 +495,7 @@ func TestProxySecretSigning(t *testing.T) {
 	next := trap(&seen, &called)
 
 	rules := []auth.Rule{
-		{Mode: "allow", When: `DB == "user_"+C["sub"]`, UserName: `C["sub"]`, Roles: `""`},
+		{Mode: "allow", When: `DB == "user_"+C["sub"]`, User: `C["sub"]`, Role: `""`},
 	}
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
@@ -546,7 +546,7 @@ func TestIssuerAudienceValidationSuccess(t *testing.T) {
 	})
 
 	rules := []auth.Rule{
-		{Mode: "allow", When: `true`, UserName: `C["sub"]`, Roles: `""`},
+		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
 	}
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
@@ -585,7 +585,7 @@ func TestIssuerAudienceValidationFailure(t *testing.T) {
 	})
 
 	rules := []auth.Rule{
-		{Mode: "allow", When: `true`, UserName: `C["sub"]`, Roles: `""`},
+		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
 	}
 
 	mw := NewMiddlewareBuilder(gen.JWKS()).
@@ -622,7 +622,7 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 	})
 
 	rules := []auth.Rule{
-		{Mode: "allow", When: `true`, UserName: `"anonymous"`, Roles: `""`},
+		{Mode: "allow", When: `true`, User: `"anonymous"`, Role: `""`},
 	}
 
 	mw := NewMiddlewareBuilder(generate(t).JWKS()).

@@ -25,10 +25,91 @@ import (
 // CompiledRule represents an authorization rule whose expressions have
 // been compiled into executable programs.
 type CompiledRule struct {
-	mode     string
-	when     *vm.Program
-	userName *vm.Program
-	roles    *vm.Program
+	mode string
+	when *vm.Program
+	user *vm.Program
+	role *vm.Program
+}
+
+// evalWhen evaluates the compiled `when` program and returns a bool.
+func (c *CompiledRule) evalWhen(env Environment) (bool, error) {
+	v, err := expr.Run(c.when, env)
+	if err != nil {
+		return false, fmt.Errorf("eval when: %w", err)
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("when must evaluate to bool, got %T", v)
+	}
+	return b, nil
+}
+
+// evalUser evaluates the compiled `user` program and returns a string.
+func (c *CompiledRule) evalUser(env Environment) (string, error) {
+	v, err := expr.Run(c.user, env)
+	if err != nil {
+		return "", fmt.Errorf("eval user: %w", err)
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("user must evaluate to string, got %T", v)
+	}
+	return s, nil
+}
+
+// evalRole evaluates the compiled `role` program and returns a comma-joined string.
+func (c *CompiledRule) evalRole(env Environment) (string, error) {
+	v, err := expr.Run(c.role, env)
+	if err != nil {
+		return "", fmt.Errorf("eval role: %w", err)
+	}
+	switch t := v.(type) {
+	case string:
+		return t, nil
+	case []string:
+		return strings.Join(t, ","), nil
+	case []any:
+		items := make([]string, len(t))
+		for i, e := range t {
+			s, ok := e.(string)
+			if !ok {
+				return "", fmt.Errorf("role at %d must be string, was %T", i, e)
+			}
+			items[i] = s
+		}
+		return strings.Join(items, ","), nil
+	default:
+		return "", fmt.Errorf("role must evaluate to string or []string, got %T", v)
+	}
+}
+
+// Evaluate executes the compiled expressions for a rule against the provided
+// environment.
+func (c *CompiledRule) Evaluate(env Environment) (
+	skip bool, deny bool, user string, role string, err error,
+) {
+	pass, err := c.evalWhen(env)
+	if err != nil {
+		return
+	}
+	if !pass {
+		skip = true
+		return
+	}
+	if c.mode == ModeDeny {
+		deny = true
+		return
+	}
+	user, err = c.evalUser(env)
+	if err != nil {
+		return
+	}
+	role, err = c.evalRole(env)
+	if err != nil {
+		user = ""
+		return
+	}
+	return
 }
 
 // Compiler encapsulates rule compilation details.
@@ -44,12 +125,12 @@ func NewCompiler() *Compiler {
 // Compile compiles the provided rules into a set of executable programs.
 func (c *Compiler) Compile(rules []Rule) ([]CompiledRule, error) {
 	out := make([]CompiledRule, 0, len(rules))
-	for i, rr := range rules {
-		cr, err := c.compile(i, rr)
+	for i, r := range rules {
+		compiled, err := c.compile(i, r)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, cr)
+		out = append(out, compiled)
 	}
 	return out, nil
 }
@@ -77,50 +158,50 @@ func (c *Compiler) compile(i int, r Rule) (CompiledRule, error) {
 		)
 	}
 
-	var userName, roles *vm.Program
+	var user, role *vm.Program
 	if mode == ModeDeny {
-		if strings.TrimSpace(r.UserName) != "" {
+		if strings.TrimSpace(r.User) != "" {
 			return CompiledRule{}, fmt.Errorf(
-				"rules[%d]: userName must not be set for %s mode",
+				"rules[%d]: user must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
-		if strings.TrimSpace(r.Roles) != "" {
+		if strings.TrimSpace(r.Role) != "" {
 			return CompiledRule{}, fmt.Errorf(
-				"rules[%d]: roles must not be set for %s mode",
+				"rules[%d]: role must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
 	} else {
-		u := strings.TrimSpace(r.UserName)
+		u := strings.TrimSpace(r.User)
 		if u == "" {
 			return CompiledRule{}, fmt.Errorf(
 				"rules[%d].user is required in %s mode",
 				i, ModeAllow,
 			)
 		}
-		userName, err = expr.Compile(u, c.opts...)
+		user, err = expr.Compile(u, c.opts...)
 		if err != nil {
 			return CompiledRule{}, fmt.Errorf(
-				"compile rules[%d].userName: %w", i, err,
+				"compile rules[%d].user: %w", i, err,
 			)
 		}
-		r := strings.TrimSpace(r.Roles)
+		r := strings.TrimSpace(r.Role)
 		if r == "" {
 			r = "\"\""
 		}
-		roles, err = expr.Compile(r, c.opts...)
+		role, err = expr.Compile(r, c.opts...)
 		if err != nil {
 			return CompiledRule{}, fmt.Errorf(
-				"compile rules[%d].roles: %w", i, err,
+				"compile rules[%d].role: %w", i, err,
 			)
 		}
 	}
 
 	return CompiledRule{
-		mode:     mode,
-		when:     when,
-		userName: userName,
-		roles:    roles,
+		mode: mode,
+		when: when,
+		user: user,
+		role: role,
 	}, nil
 }

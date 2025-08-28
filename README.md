@@ -103,7 +103,7 @@ experimental:
   plugins:
     github-com-deep-rent-traefik-plugin-couchdb:
       modulename: github.com/deep-rent/traefik-plugin-couchdb
-      version: vX.Y.Z
+      version: v0.2.0
 ```
 
 **Step 2: Define the Middleware**
@@ -131,8 +131,8 @@ http:
             - when: 'true'
               mode: allow
           headers:
-            userName: X-Auth-CouchDB-UserName
-            roles: X-Auth-CouchDB-Roles
+            user: X-Auth-CouchDB-UserName
+            role: X-Auth-CouchDB-Roles
             token: X-Auth-CouchDB-Token
 
   routers:
@@ -254,12 +254,12 @@ jwks:
 
 #### `rules`
 
-**Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The roles list must be non-empty, or else an error will be raised during startup.
+**Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The role list must be non-empty, or else an error will be raised during startup.
 
-Rules in `allow` mode must specify a `userName` expression that evaluates to a string, which is the username forwarded to CouchDB via a proxy header. Optionally, the rule can also specify `roles`. This expression may return:
+Rules in `allow` mode must specify a `user` expression that evaluates to a string, which is the username forwarded to CouchDB via a proxy header. Optionally, the rule can also specify `role`. This expression may return:
 - a single role name as a string,
-- a comma-separated list of roles as a string, or
-- an array of role strings.
+- a comma-separated list of role names as a string, or
+- an array of role names.
 
 These roles are forwarded in a proxy header.
 
@@ -267,14 +267,14 @@ These roles are forwarded in a proxy header.
 rules:
   - when: 'C["adm"] == true'
     mode: allow
-    userName: 'C["sub"]'
-    roles: '"_admin"'
+    user: 'C["sub"]'
+    role: '"_admin"'
   - when: 'Method in ["PUT", "DELETE"] && HasPrefix(DB, "logs_")'
     mode: deny
   - when: 'DB == "user_" + C["sub"]'
     mode: allow
-    userName: 'C["sub"]'
-    roles: '["reader", "writer"]'
+    user: 'C["sub"]'
+    role: '["reader", "writer"]'
 ```
 
 Expressions adhere to the [Expr](https://expr-lang.org/docs/language-definition) syntax. The expression environment provides the following variables and utility functions:
@@ -339,8 +339,8 @@ secret = your-proxy-secret
 Default values:
 
 ```yaml
-userName: X-Auth-CouchDB-UserName
-roles: X-Auth-CouchDB-Roles
+user: X-Auth-CouchDB-UserName
+role: X-Auth-CouchDB-Roles
 token: X-Auth-CouchDB-Token
 ```
 
@@ -367,8 +367,8 @@ Grant a user with an `"adm": true` claim the `_admin` role in CouchDB.
 rules:
   - when: 'C["adm"] == true'
     mode: allow
-    userName: 'C["sub"]'
-    roles: '_admin' # CouchDB's special admin role
+    user: 'C["sub"]'
+    role: '"_admin"' # CouchDB's special admin role
 ```
 
 <a name="use-case-per-user-private-databases"></a>
@@ -381,8 +381,8 @@ Grant users read/write access only to a database named after their unique user i
 rules:
   - when: 'DB == "user_" + C["sub"]'
     mode: allow
-    userName: 'C["sub"]'
-    roles: ['reader', 'writer'] # These roles must exist in the database's _security document
+    user: 'C["sub"]'
+    rike: '["reader", "writer"]' # These roles must exist in the database's _security document
 ```
 
 <a name="use-case-role-based-access"></a>
@@ -394,22 +394,22 @@ Map JWT roles to CouchDB roles for a shared database.
 ```yaml
 rules:
   # Admins can do anything in the "shared" database
-  - when: 'DB == "shared" && "admin" in C["roles"]'
+  - when: 'DB == "shared" && "admin" in C["rol"]'
     mode: allow
-    userName: 'C["sub"]'
-    roles: ['editor', 'reader']
+    user: 'C["sub"]'
+    role: '["editor", "reader"]'
 
   # Editors can write to the "shared" database
-  - when: 'DB == "shared" && "editor" in C["roles"]'
+  - when: 'DB == "shared" && "editor" in C["rol"]'
     mode: allow
-    userName: 'C["sub"]'
-    roles: ['editor']
+    user: 'C["sub"]'
+    role: '"editor"'
 
   # Everyone else gets read-only access to "shared"
   - when: 'DB == "shared"'
     mode: allow
-    userName: 'C["sub"]'
-    roles: ['reader']
+    user: 'C["sub"]'
+    role: '"reader"'
 ```
 
 <a name="use-case-append-only-databases"></a>
@@ -426,7 +426,7 @@ rules:
     mode: deny
   - when: 'true'
     mode: allow
-    userName: 'C["sub"]'
+    user: 'C["sub"]'
 ```
 
 <a name="security-considerations"></a>

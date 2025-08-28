@@ -33,11 +33,13 @@ type Environment struct {
 	// DB is the name of the target CouchDB database.
 	DB string
 
-	// Functions
+	// Utilities
 	HasPrefix func(s, prefix string) bool
 	HasSuffix func(s, suffix string) bool
 }
 
+// NewEnvironment creates an evaluation environment from JWT claims and
+// the HTTP request.
 func NewEnvironment(claims map[string]any, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
 	return Environment{

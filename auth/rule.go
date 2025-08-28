@@ -35,18 +35,20 @@ type Rule struct {
 	// current request.
 	When string `json:"when"`
 
-	// UserName is a string expression that returns the CouchDB username. It is
+	// User is a string expression that returns the CouchDB username. It is
 	// required for "allow" mode and must be omitted in "deny" mode.
-	UserName string `json:"userName,omitempty"`
+	User string `json:"user,omitempty"`
 
-	// Roles is an expression producing a either a single CouchDB role name, a
+	// Role is an expression producing a either a single CouchDB role name, a
 	// comma-separated list of roles, or a slice of roles. It can only be used
 	// with "allow" mode.
-	Roles string `json:"roles,omitempty"`
+	Role string `json:"role,omitempty"`
 }
 
 // Defines the possible rule modes.
 const (
+	// ModeAllow implies that a rule grants access when matched.
 	ModeAllow = "allow"
-	ModeDeny  = "deny"
+	// ModeDeny implies that a rule denies access when matched.
+	ModeDeny = "deny"
 )
