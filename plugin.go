@@ -273,6 +273,9 @@ func resolve(ctx context.Context, v any) (jwt.Keyfunc, error) {
 
 // resolveRemote loads a JWKS from the given URLs.
 func resolveRemote(ctx context.Context, urls []string) (jwt.Keyfunc, error) {
+	if len(urls) == 0 {
+		return nil, errors.New("no endpoints provided")
+	}
 	k, err := keys.NewDefaultCtx(ctx, urls)
 	if err != nil {
 		return nil, fmt.Errorf("fetch remote: %w", err)
