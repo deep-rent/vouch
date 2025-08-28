@@ -158,11 +158,11 @@ To launch the full example, create a `docker-compose.yml` file. This file will o
 ```yaml
 # docker-compose.yml
 
-version: '3.8'
+version: '3.9'
 
 services:
   traefik:
-    image: traefik:v2.9
+    image: traefik:v3
     restart: unless-stopped
     ports:
       - '80:80'
@@ -176,7 +176,7 @@ services:
       - traefik
 
   couchdb:
-    image: couchdb:3.3.1
+    image: couchdb:3
     restart: unless-stopped
     environment:
       COUCHDB_USER: admin
