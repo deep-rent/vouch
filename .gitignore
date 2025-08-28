@@ -21,7 +21,7 @@ UserInterfaceState.xcuserstate
 
 # Go
 *.coverprofile
-vendor/
+# vendor/
 
 # Yarn
 .yarn/*
