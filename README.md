@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  A Traefik middleware that authenticates requests with JWTs, authorizes them with rules, and forwards CouchDB proxy headers.
+  A Traefik middleware that authenticates requests with JWTs, enforces authorization rules, and forwards CouchDB proxy headers.
 </p>
 
 <p align="center">
@@ -49,6 +49,8 @@ The middleware processes requests in three stages. If authentication or authoriz
 
 ## Prerequisites
 
+Before getting started, ensure that your setup meets the minimum requirements:
+
 - **Traefik v2.5.5 or later** with plugin support enabled.
 - **Apache CouchDB v3.3.1 or later** configured for proxy authentication.
 - An **Identity Provider** that issues JWTs and exposes a JWKS endpoint.
@@ -67,14 +69,15 @@ Please refer to the [CouchDB documentation](https://docs.couchdb.org/en/stable/a
 
 ## Quick Start
 
-1) Enable the plugin in Traefik’s static configuration.
-2) Add a middleware instance with your JWKS and rules.
-3) Attach the middleware to the router that fronts CouchDB.
+This guide will walk you through setting up the plugin using a complete, runnable example with **Docker Compose**. You'll enable the plugin, configure it with a JWKS and authorization rules, and attach it to your CouchDB router.
 
-Add a file `traefik.yml` (or adapt your startup flags) with the experimental plugin registration and a file provider that points to `dynamic.yml`.
+**Step 1: Configure Traefik**
+
+First, you'll need a static Traefik configuration file (`traefik.yml`). This file tells Traefik how to load the plugin and where to find your dynamic configuration.
 
 ```yaml
 # traefik.yml
+
 log:
   level: INFO
 
@@ -97,6 +100,10 @@ experimental:
       modulename: github.com/deep-rent/traefik-plugin-couchdb
       version: vX.Y.Z
 ```
+
+**Step 2: Define the Middleware**
+
+Next, create a dynamic configuration file (`dynamic.yml`). This is where you'll define the plugin middleware, add your authorization rules, and set up the Traefik router and service for CouchDB.
 
 ```yaml
 # dynamic.yml
@@ -139,7 +146,9 @@ http:
           - url: 'http://couchdb:5984'
 ```
 
-Here is a complete, runnable example using Docker Compose:
+**Step 3: Run with Docker Compose**
+
+To launch the full example, create a `docker-compose.yml` file. This file will orchestrate Traefik, CouchDB, and an optional mock JWKS server for local testing. Place the configuration files from the previous steps in the same directory. Observe that the `local.ini` and `jwks.json` files will be mounted as well, although they are optional.
 
 ```yaml
 # docker-compose.yml
@@ -168,18 +177,15 @@ services:
       COUCHDB_USER: admin
       COUCHDB_PASSWORD: password
     volumes:
-      # Provide a local.ini config file in ./couchdb
-      - ./couchdb/local.ini:/opt/couchdb/etc/local.d:ro
+      - ./local.ini:/opt/couchdb/etc/local.d:ro
       - couchdb-data:/opt/couchdb/data
     networks:
       - traefik
 
   jwks:
-    # Mock JWKS host for local testing
     image: nginx:alpine
     restart: unless-stopped
     volumes:
-      # Place a jwks.json at ./jwks.json to serve it at /.well-known/jwks.json
       - ./jwks.json:/usr/share/nginx/html/.well-known/jwks.json:ro
     ports:
       - "8080:80"
