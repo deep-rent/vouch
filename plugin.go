@@ -149,8 +149,12 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Strip the authorization header from the forwarded request.
 	req.Header.Del("Authorization")
 
-	req.Header.Set(m.headers.User, user)
-	req.Header.Set(m.headers.Role, role)
+	if user != "" {
+		req.Header.Set(m.headers.User, user)
+	}
+	if role != "" {
+		req.Header.Set(m.headers.Role, role)
+	}
 
 	if len(m.secret) > 0 {
 		req.Header.Set(m.headers.Token, m.sign(user))
