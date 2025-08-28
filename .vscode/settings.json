@@ -9,5 +9,8 @@
   },
   "go.formatTool": "goimports",
   "go.lintTool": "golangci-lint",
-  "go.toolsManagement.autoUpdate": true
+  "go.toolsManagement.autoUpdate": true,
+  "search.exclude": {
+    "**/.yarn": true,
+  },
 }
