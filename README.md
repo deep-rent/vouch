@@ -71,36 +71,36 @@ Please refer to the [CouchDB documentation](https://docs.couchdb.org/en/stable/a
 2) Add a middleware instance with your JWKS and rules.
 3) Attach the middleware to the router that fronts CouchDB.
 
-Here is a complete, runnable example using Docker Compose:
+Add a file `traefik.yml` (or adapt your startup flags) with the experimental plugin registration and a file provider that points to `dynamic.yml`.
 
 ```yaml
-# docker-compose.yml
-services:
-  traefik:
-    image: traefik:v3
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.file.filename=/etc/traefik/dynamic.yml"
-      - "--entrypoints.websecure.address=:443"
-      - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.modulename=github.com/deep-rent/traefik-plugin-couchdb"
-      - "--experimental.plugins.github-com-deep-rent-traefik-plugin-couchdb.version=vX.Y.Z" # use latest version
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+# traefik.yml
+log:
+  level: INFO
 
-  couchdb:
-    image: couchdb:3
-    environment:
-      - COUCHDB_USER=admin
-      - COUCHDB_PASSWORD=password
+api:
+  insecure: true
+
+entryPoints:
+  websecure:
+    address: ':443'
+
+providers:
+  docker:
+    exposedByDefault: false
+  file:
+    filename: /etc/traefik/dynamic.yml
+
+experimental:
+  plugins:
+    github-com-deep-rent-traefik-plugin-couchdb:
+      modulename: github.com/deep-rent/traefik-plugin-couchdb
+      version: vX.Y.Z
 ```
 
 ```yaml
-# traefik-dynamic.yml
+# dynamic.yml
+
 http:
   middlewares:
     couchdb-auth:
@@ -122,6 +122,7 @@ http:
             userName: X-Auth-CouchDB-UserName
             roles: X-Auth-CouchDB-Roles
             token: X-Auth-CouchDB-Token
+
   routers:
     couchdb:
       rule: 'Host(`couch.example.com`)'
@@ -130,11 +131,68 @@ http:
       middlewares: ['couchdb-auth']
       tls:
         certResolver: letsencrypt
+
   services:
     couchdb:
       loadBalancer:
         servers:
           - url: 'http://couchdb:5984'
+```
+
+Here is a complete, runnable example using Docker Compose:
+
+```yaml
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.9
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-acme:/acme
+    networks:
+      - traefik
+
+  couchdb:
+    image: couchdb:3.3.1
+    restart: unless-stopped
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: password
+    volumes:
+      # Provide a local.ini config file in ./couchdb
+      - ./couchdb/local.ini:/opt/couchdb/etc/local.d:ro
+      - couchdb-data:/opt/couchdb/data
+    networks:
+      - traefik
+
+  jwks:
+    # Mock JWKS host for local testing
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      # Place a jwks.json at ./jwks.json to serve it at /.well-known/jwks.json
+      - ./jwks.json:/usr/share/nginx/html/.well-known/jwks.json:ro
+    ports:
+      - "8080:80"
+    networks:
+      - traefik
+
+volumes:
+  traefik-acme:
+  couchdb-data:
+
+networks:
+  traefik:
+    driver: bridge
 ```
 
 <a name="configuration"></a>
@@ -265,7 +323,7 @@ secret = your-proxy-secret
 
 #### `headers`
 
-**Optional.** Customizes the names of the CouchDB proxy headers. Only change these if you have customized the corresponding `x_auth_*` settings in your CouchDB config.
+**Optional.** Customizes the names of the CouchDB proxy headers to inject. Only change these if you have customized the corresponding `x_auth_*` settings in your CouchDB config.
 
 Default values:
 
