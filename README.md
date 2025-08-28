@@ -56,7 +56,7 @@ The middleware processes requests in three stages. If authentication or authoriz
 
 Before getting started, ensure that your setup meets the minimum requirements:
 
-- **Traefik v2.5.5 or later** with plugin support enabled.
+- **Traefik v3.2 or later** with plugin support enabled.
 - **Apache CouchDB v3.3.1 or later** configured for proxy authentication.
 - An **Identity Provider** that issues JWTs and exposes a JWKS endpoint.
 
