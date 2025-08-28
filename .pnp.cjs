@@ -11,7 +11,7 @@ const RAW_RUNTIME_STATE =
   ],\
   "dependencyTreeRoots": [\
     {\
-      "name": "traefik-plugin-couchdb",\
+      "name": "@deep-rent/traefik-plugin-couchdb",\
       "reference": "workspace:."\
     }\
   ],\
@@ -19,7 +19,7 @@ const RAW_RUNTIME_STATE =
   "ignorePatternData": "(^(?:\\\\.yarn\\\\/sdks(?:\\\\/(?!\\\\.{1,2}(?:\\\\/|$))(?:(?:(?!(?:^|\\\\/)\\\\.{1,2}(?:\\\\/|$)).)*?)|$))$)",\
   "pnpZipBackend": "libzip",\
   "fallbackExclusionList": [\
-    ["traefik-plugin-couchdb", ["workspace:."]]\
+    ["@deep-rent/traefik-plugin-couchdb", ["workspace:."]]\
   ],\
   "fallbackPool": [\
   ],\
@@ -28,18 +28,29 @@ const RAW_RUNTIME_STATE =
       [null, {\
         "packageLocation": "./",\
         "packageDependencies": [\
-          ["traefik-plugin-couchdb", "workspace:."]\
+          ["@deep-rent/traefik-plugin-couchdb", "workspace:."],\
+          ["husky", "npm:9.1.7"]\
         ],\
         "linkType": "SOFT"\
       }]\
     ]],\
-    ["traefik-plugin-couchdb", [\
+    ["@deep-rent/traefik-plugin-couchdb", [\
       ["workspace:.", {\
         "packageLocation": "./",\
         "packageDependencies": [\
-          ["traefik-plugin-couchdb", "workspace:."]\
+          ["@deep-rent/traefik-plugin-couchdb", "workspace:."],\
+          ["husky", "npm:9.1.7"]\
         ],\
         "linkType": "SOFT"\
+      }]\
+    ]],\
+    ["husky", [\
+      ["npm:9.1.7", {\
+        "packageLocation": "./.yarn/cache/husky-npm-9.1.7-5b02eaabc4-35bb110a71.zip/node_modules/husky/",\
+        "packageDependencies": [\
+          ["husky", "npm:9.1.7"]\
+        ],\
+        "linkType": "HARD"\
       }]\
     ]]\
   ]\
