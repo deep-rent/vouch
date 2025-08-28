@@ -37,11 +37,11 @@ import (
 
 // Headers configures the CouchDB trusted proxy header names.
 type Headers struct {
-	// UserName defaults to "X-Auth-CouchDB-UserName".
-	UserName string `json:"userName,omitempty"`
+	// User defaults to "X-Auth-CouchDB-User".
+	User string `json:"user,omitempty"`
 
-	// Roles defaults to "X-Auth-CouchDB-Roles".
-	Roles string `json:"roles,omitempty"`
+	// Role defaults to "X-Auth-CouchDB-Role".
+	Role string `json:"role,omitempty"`
 
 	// Token defaults to "X-Auth-CouchDB-Token".
 	Token string `json:"token,omitempty"`
@@ -136,7 +136,7 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	// Authorization with rules (first match wins).
 	env := auth.NewEnvironment(claims, req)
-	pass, user, role, err := m.guard.Authorize(req.Context(), env)
+	pass, user, role, err := m.guard.Authorize(env)
 	if err != nil {
 		http.Error(res, "insufficient permissions", http.StatusForbidden)
 		return
@@ -149,8 +149,8 @@ func (m *Middleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// Strip the authorization header from the forwarded request.
 	req.Header.Del("Authorization")
 
-	req.Header.Set(m.headers.UserName, user)
-	req.Header.Set(m.headers.Roles, role)
+	req.Header.Set(m.headers.User, user)
+	req.Header.Set(m.headers.Role, role)
 
 	if len(m.secret) > 0 {
 		req.Header.Set(m.headers.Token, m.sign(user))
@@ -195,11 +195,11 @@ func New(
 		return nil, errors.New("rules must be specified")
 	}
 
-	if strings.TrimSpace(config.Headers.UserName) == "" {
-		config.Headers.UserName = "X-Auth-CouchDB-UserName"
+	if strings.TrimSpace(config.Headers.User) == "" {
+		config.Headers.User = "X-Auth-CouchDB-UserName"
 	}
-	if strings.TrimSpace(config.Headers.Roles) == "" {
-		config.Headers.Roles = "X-Auth-CouchDB-Roles"
+	if strings.TrimSpace(config.Headers.Role) == "" {
+		config.Headers.Role = "X-Auth-CouchDB-Roles"
 	}
 	if strings.TrimSpace(config.Headers.Token) == "" {
 		config.Headers.Token = "X-Auth-CouchDB-Token"

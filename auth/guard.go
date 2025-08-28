@@ -18,12 +18,7 @@
 package auth
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/expr-lang/expr"
 )
 
 // Guard compiles and evaluates authorization rules.
@@ -46,61 +41,19 @@ func NewGuard(rules []Rule) (*Guard, error) {
 // Authorize evaluates rules in order and returns whether access is granted,
 // and if so, the username and roles to forward to CouchDB. If no rule
 // matches, access is denied.
-func (g *Guard) Authorize(
-	ctx context.Context,
-	env Environment,
-) (bool, string, string, error) {
+func (g *Guard) Authorize(env Environment) (bool, string, string, error) {
 	for _, rule := range g.rules {
-		w, err := expr.Run(rule.when, env)
+		skip, deny, user, role, err := rule.Evaluate(env)
 		if err != nil {
-			return false, "", "", fmt.Errorf("eval when: %w", err)
+			return false, "", "", err
 		}
-		pass, ok := w.(bool)
-		if !ok {
-			return false, "", "", fmt.Errorf("when must evaluate to bool, got %T", w)
-		}
-		if !pass {
+		if skip {
 			continue
 		}
-
-		if rule.mode == ModeDeny {
+		if deny {
 			return false, "", "", nil
 		}
-
-		u, err := expr.Run(rule.userName, env)
-		if err != nil {
-			return false, "", "", fmt.Errorf("eval userName: %w", err)
-		}
-		userName, ok := u.(string)
-		if !ok {
-			return false, "", "", fmt.Errorf("userName must evaluate to string, got %T", u)
-		}
-
-		r, err := expr.Run(rule.roles, env)
-		if err != nil {
-			return false, "", "", fmt.Errorf("eval roles: %w", err)
-		}
-		var roles string
-		switch v := r.(type) {
-		case string:
-			roles = v
-		case []string:
-			roles = strings.Join(v, ",")
-		case []any:
-			items := make([]string, len(v))
-			for i, e := range v {
-				if s, ok := e.(string); ok {
-					items[i] = s
-				} else {
-					return false, "", "", fmt.Errorf("roles must be string or []string; element at %d is %T", i, e)
-				}
-			}
-			roles = strings.Join(items, ",")
-		default:
-			return false, "", "", fmt.Errorf("roles must evaluate to string or []string, got %T", r)
-		}
-
-		return true, userName, roles, nil
+		return true, user, role, nil
 	}
 	return false, "", "", nil
 }
