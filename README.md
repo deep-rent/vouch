@@ -3,15 +3,12 @@
 </h1>
 
 <p align="center">
-  A Traefik middleware that authenticates requests with JWTs, enforces authorization rules, and forwards CouchDB proxy headers.
+  A middleware plugin that offloads token-based authentication and authorization from Apache CouchDB to Traefik.
 </p>
 
 <p align="center">
-  <a href="https://couchdb.apache.org">
-    <img src="./.github/assets/icon.png" width="64" height="64" alt="deep.rent GmbH"/>
-  </a>
+  <img src="./.github/assets/icon.png" width="64" height="64" alt="deep.rent GmbH"/>
 </p>
-
 
 ## Contents
 
