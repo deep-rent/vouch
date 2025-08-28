@@ -125,12 +125,12 @@ func NewCompiler() *Compiler {
 // Compile compiles the provided rules into a set of executable programs.
 func (c *Compiler) Compile(rules []Rule) ([]CompiledRule, error) {
 	out := make([]CompiledRule, 0, len(rules))
-	for i, rr := range rules {
-		cr, err := c.compile(i, rr)
+	for i, r := range rules {
+		compiled, err := c.compile(i, r)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, cr)
+		out = append(out, compiled)
 	}
 	return out, nil
 }
