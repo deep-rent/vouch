@@ -12,7 +12,9 @@
 *.yaml    text
 *.yml     text
 *.zip     binary
-/.husky/* text eol=lf
+.husky/*  text eol=lf
+.yarn/**  linguist-vendored
+vendor/** linguist-vendored
 go.mod    text
 go.sum    text
 LICENSE   text
