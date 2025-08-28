@@ -254,7 +254,7 @@ jwks:
 
 #### `rules`
 
-**Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The role list must be non-empty, or else an error will be raised during startup.
+**Required.** Defines the authorization rules that determine valid interactions with the CouchDB API. Every rule consists of a boolean `when` expression and a `mode`. If the `when` condition is met, then access is either allowed or denied, depending on the rule’s mode. Rules are applied in order, and the first match decides. If no rule matches, access is denied. The rule list must be non-empty, or else an error will be raised during startup.
 
 Rules in `allow` mode must specify a `user` expression that evaluates to a string, which is the username forwarded to CouchDB via a proxy header. Optionally, the rule can also specify `role`. This expression may return:
 - a single role name as a string,
