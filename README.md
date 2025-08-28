@@ -103,7 +103,7 @@ experimental:
   plugins:
     github-com-deep-rent-traefik-plugin-couchdb:
       modulename: github.com/deep-rent/traefik-plugin-couchdb
-      version: v0.2.0
+      version: v0.2.1
 ```
 
 **Step 2: Define the Middleware**
