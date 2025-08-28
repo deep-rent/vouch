@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  Middleware plugin that offloads token-based authentication and authorization from Apache CouchDB to a Traefik proxy.
+  Traefik middleware plugin that offloads token-based authentication and authorization for Apache CouchDB.
 </p>
 
 <p align="center">
