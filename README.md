@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  Traefik middleware plugin that offloads token-based authentication and authorization for Apache CouchDB.
+  Traefik middleware that offloads token-based authentication and authorization for Apache CouchDB.
 </p>
 
 <p align="center">
@@ -13,7 +13,9 @@
 </p>
 
 <p align="center">
-  <img src="./.github/assets/icon.png" width="64" height="64" alt="deep.rent GmbH"/>
+  <a href="https://couchdb.apache.org">
+    <img src="./.github/assets/icon.png" width="64" height="64" alt="Apache CouchDB"/>
+  </a>
 </p>
 
 ## Contents
@@ -31,7 +33,7 @@
 
 ## Overview
 
-This middleware validates incoming JSON Web Tokens (JWTs) against a JSON Web Key Set (JWKS), evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
+This middleware plugin validates incoming JSON Web Tokens (JWTs) against a JSON Web Key Set (JWKS), evaluates ordered authorization rules, and forwards CouchDB “trusted proxy” headers to your CouchDB node or cluster. When a proxy secret is configured, it also signs the forwarded identity, securing the connection between Traefik and CouchDB.
 
 In practice, this lets you:
 - **Centralize Access Control:** Keep CouchDB anonymous and let Traefik enforce authentication and authorization at the edge.
