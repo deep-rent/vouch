@@ -41,19 +41,25 @@ func NewGuard(rules []Rule) (*Guard, error) {
 // Authorize evaluates rules in order and returns whether access is granted,
 // and if so, the username and roles to forward to CouchDB. If no rule
 // matches, access is denied.
-func (g *Guard) Authorize(env Environment) (bool, string, string, error) {
+func (g *Guard) Authorize(env Environment) (
+	pass bool, user string, role string, err error,
+) {
 	for _, rule := range g.rules {
-		skip, deny, user, role, err := rule.Evaluate(env)
-		if err != nil {
-			return false, "", "", err
+		skip, deny, u, r, e := rule.Evaluate(env)
+		if e != nil {
+			err = e
+			return
 		}
 		if skip {
 			continue
 		}
 		if deny {
-			return false, "", "", nil
+			return
 		}
-		return true, user, role, nil
+		pass = true
+		user = u
+		role = r
+		return
 	}
-	return false, "", "", nil
+	return
 }
