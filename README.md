@@ -286,6 +286,8 @@ Expressions adhere to the [Expr](https://expr-lang.org/docs/language-definition)
 - `HasPrefix(s, prefix)`: indicates whether `s` starts with `prefix`.
 - `HasSuffix(s, suffix)`: indicates whether `s` ends with `suffix`.
 
+> **Important:** Always enclose rule expressions in YAML within quotes to preserve the correct data type — especially those that evaluate to an array or string literal.
+
 <a name="option-secret"></a>
 
 #### `secret`
