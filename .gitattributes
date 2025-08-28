@@ -1,13 +1,20 @@
-* text=auto
-*.go     text
-*.json   text
-*.md     text diff=markdown
-*.png    binary
-*.svg    text
-*.yaml   text
-*.yml    text
-AUTHORS  text
-go.mod   text
-go.sum   text
-LICENSE  text
-Makefile text
+*         text=auto
+*.cjs     text
+*.go      text
+*.gz      binary
+*.js      text
+*.json    text
+*.lock    text
+*.md      text diff=markdown
+*.mjs     text
+*.png     binary
+*.svg     text
+*.yaml    text
+*.yml     text
+*.zip     binary
+/.husky/* text eol=lf
+AUTHORS   text
+go.mod    text
+go.sum    text
+LICENSE   text
+Makefile  text
