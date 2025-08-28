@@ -47,6 +47,8 @@ type Rule struct {
 
 // Defines the possible rule modes.
 const (
+	// ModeAllow implies that a rule grants access when matched.
 	ModeAllow = "allow"
-	ModeDeny  = "deny"
+	// ModeDeny implies that a rule denies access when matched.
+	ModeDeny = "deny"
 )
