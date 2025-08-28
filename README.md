@@ -3,7 +3,13 @@
 </h1>
 
 <p align="center">
-  A middleware plugin that offloads token-based authentication and authorization from Apache CouchDB to Traefik.
+  Middleware plugin that offloads token-based authentication and authorization from Apache CouchDB to a Traefik proxy.
+</p>
+
+<p align="center">
+<a href="https://github.com/deep-rent/traefik-plugin-couchdb/actions/workflows/test.yml"><img src="https://github.com/deep-rent/traefik-plugin-couchdb/actions/workflows/test.yml/badge.svg"/></a>
+<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"/></a>
+<a href="https://github.com/deep-rent/traefik-plugin-couchdb/releases/latest"><img src="https://img.shields.io/github/v/release/deep-rent/traefik-plugin-couchdb?label=Release"/></a>
 </p>
 
 <p align="center">
@@ -449,7 +455,7 @@ If you discover a security vulnerability, please report it privately to [support
 
 ## Development
 
-This plugin was developed by deep.rent GmbH and was originally created for company-internal use. It is currently feature-frozen and will not receive major new features. Security fixes may be provided as needed.
+This plugin has been developed by deep.rent GmbH and was originally created for company-internal use. It is currently feature-frozen and will not receive major new features. Security fixes may be provided as needed.
 
 <p align="center">
   <a href="https://www.deep.rent">
