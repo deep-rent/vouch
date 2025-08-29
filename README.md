@@ -158,8 +158,6 @@ To launch the full example, create a `docker-compose.yml` file. This file will o
 ```yaml
 # docker-compose.yml
 
-version: '3.9'
-
 services:
   traefik:
     image: traefik:v3
