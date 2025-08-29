@@ -330,7 +330,11 @@ secret = your-proxy-secret
 
 #### `algorithms`
 
-**Optional.** Narrows down the supported JSON Web Algorithms (JWAs) for verifying token signatures. By default, it includes `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, and `PS512`.
+**Optional.** Narrows down the supported JSON Web Algorithms (JWAs) for verifying token signatures. By default, it includes the asymmetric algorithms
+
+- `RS256`, `RS384`, `RS512`
+- `ES256`, `ES384`, `ES512`
+- `PS256`, `PS384`, `PS512`
 
 <a name="option-headers"></a>
 
