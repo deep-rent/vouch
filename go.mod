@@ -1,6 +1,6 @@
 module github.com/deep-rent/traefik-plugin-couchdb
 
-go 1.25
+go 1.21
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.6.1
