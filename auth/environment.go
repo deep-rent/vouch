@@ -47,15 +47,15 @@ func NewEnvironment(claims map[string]any, req *http.Request) Environment {
 		C:         claims,
 		Method:    method,
 		Path:      path,
-		DB:        Database(path),
+		DB:        database(path),
 		HasPrefix: strings.HasPrefix,
 		HasSuffix: strings.HasSuffix,
 	}
 }
 
-// Database returns the name of the target database from the URL path.
+// database returns the name of the target database from the URL path.
 // This is the first segment after the leading slash.
-func Database(path string) string {
+func database(path string) string {
 	if path == "" {
 		return ""
 	}
