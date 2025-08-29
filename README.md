@@ -121,7 +121,7 @@ http:
           jwks: https://auth.example.com/.well-known/jwks.json
           secret: NyH2b4ltJ1l3wRnuQXgH7Fnrl7PKzYQH
           issuer: https://auth.example.com/
-          audience: ['couchdb-api']
+          audience: 'couchdb-api'
           strict: true
           leeway: 60
           algorithms: [ES256, ES384, ES512]
@@ -212,17 +212,17 @@ networks:
 
 ### Summary
 
-| Option                                 | Required | Description                             |
-|----------------------------------------|----------|-----------------------------------------|
-| [ `jwks` ]( #option-jwks )             | yes      | JWKS used for signature verification    |
-| [ `rules` ]( #option-rules )           | yes      | Authorization rules                     |
-| [ `secret` ]( #option-secret )         | no       | CouchDB proxy signing secret            |
-| [ `issuer` ]( #option-issuer )         | no       | Token issuer to match                   |
-| [ `audience` ]( #option-audience )     | no       | Acceptable token audiences              |
-| [ `leeway` ]( #option-leeway )         | no       | Clock skew tolerance for token lifespan |
-| [ `strict` ]( #option-strict )         | no       | Prohibit non-expiring tokens            |
-| [ `algorithms` ]( #option-algorithms ) | no       | Allowed signature algorithms            |
-| [ `headers` ]( #option-headers )       | no       | Custom CouchDB proxy header names       |
+| Option                             | Required | Description                             |
+|------------------------------------|----------|-----------------------------------------|
+| [`jwks`](#option-jwks)             | yes      | JWKS used for signature verification    |
+| [`rules`](#option-rules)           | yes      | Authorization rules                     |
+| [`secret`](#option-secret)         | no       | CouchDB proxy signing secret            |
+| [`issuer`](#option-issuer)         | no       | Token issuer to match                   |
+| [`audience`](#option-audience)     | no       | Acceptable token audience               |
+| [`leeway`](#option-leeway)         | no       | Clock skew tolerance for token lifespan |
+| [`strict`](#option-strict)         | no       | Prohibit non-expiring tokens            |
+| [`algorithms`](#option-algorithms) | no       | Allowed signature algorithms            |
+| [`headers`](#option-headers)       | no       | Custom CouchDB proxy header names       |
 
 ### Details
 
@@ -306,13 +306,15 @@ secret = your-proxy-secret
 
 #### `issuer`
 
-**Optional.** The expected value of the `iss` (issuer) claim in the JWT. If omitted, any value is accepted.
+**Optional.** The expected value of the `iss` (issuer) claim in the JWT. If provided, the claim must be present and match the configured value. If omitted, any value is accepted.
 
 <a name="option-audience"></a>
 
 #### `audience`
 
-**Optional.** An array of acceptable values for the `aud` (audience) claim. If provided, at least one value must match. If omitted, any value is accepted.
+**Optional.** The acceptable value for the `aud` (audience) claim. If provided, the claim must be present and match the configured value. If omitted, any value is accepted.
+
+> In an upcoming major version of the plugin, this option will allow you to specify an array of acceptable audiences, where at least one value must match.
 
 <a name="option-leeway"></a>
 

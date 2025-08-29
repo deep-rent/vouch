@@ -175,7 +175,7 @@ type MiddlewareBuilder struct {
 	jwks   any
 	secret string
 	iss    string
-	aud    []string
+	aud    string
 	leeway int
 	now    *time.Time
 	rules  []auth.Rule
@@ -188,11 +188,11 @@ func NewMiddlewareBuilder(jwks any) *MiddlewareBuilder {
 	}
 }
 
-func (b *MiddlewareBuilder) WithSecret(secret string) *MiddlewareBuilder   { b.secret = secret; return b }
-func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder      { b.iss = iss; return b }
-func (b *MiddlewareBuilder) WithAudience(aud ...string) *MiddlewareBuilder { b.aud = aud; return b }
-func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder         { b.leeway = sec; return b }
-func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder      { b.now = &now; return b }
+func (b *MiddlewareBuilder) WithSecret(secret string) *MiddlewareBuilder { b.secret = secret; return b }
+func (b *MiddlewareBuilder) WithIssuer(iss string) *MiddlewareBuilder    { b.iss = iss; return b }
+func (b *MiddlewareBuilder) WithAudience(aud string) *MiddlewareBuilder  { b.aud = aud; return b }
+func (b *MiddlewareBuilder) WithLeeway(sec int) *MiddlewareBuilder       { b.leeway = sec; return b }
+func (b *MiddlewareBuilder) WithNow(now time.Time) *MiddlewareBuilder    { b.now = &now; return b }
 func (b *MiddlewareBuilder) WithRules(rules ...auth.Rule) *MiddlewareBuilder {
 	b.rules = rules
 	return b

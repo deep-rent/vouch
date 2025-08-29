@@ -60,8 +60,8 @@ type Config struct {
 	// Expected issuer for JWT validation hardening (optional).
 	Issuer string `json:"issuer,omitempty"`
 
-	// Valid audiences for JWT validation hardening (optional).
-	Audience []string `json:"audience,omitempty"`
+	// Valid audience for JWT validation hardening (optional).
+	Audience string `json:"audience,omitempty"`
 
 	// When enabled, tokens without the "exp" claim will be rejected.
 	// Defaults to false.
@@ -88,7 +88,7 @@ func CreateConfig() *Config {
 		JWKS:       nil,
 		Secret:     "",
 		Issuer:     "",
-		Audience:   []string{},
+		Audience:   "",
 		Strict:     false,
 		Leeway:     0,
 		Algorithms: []string{},
@@ -248,11 +248,11 @@ func New(
 	if config.Strict {
 		opts = append(opts, jwt.WithExpirationRequired())
 	}
-	if len(config.Audience) > 0 {
-		opts = append(opts, jwt.WithAudience(config.Audience...))
-	}
 	if iss := strings.TrimSpace(config.Issuer); iss != "" {
 		opts = append(opts, jwt.WithIssuer(iss))
+	}
+	if aud := strings.TrimSpace(config.Audience); aud != "" {
+		opts = append(opts, jwt.WithAudience(aud))
 	}
 
 	mw.parser = jwt.NewParser(opts...)
