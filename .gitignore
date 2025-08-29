@@ -21,7 +21,7 @@ UserInterfaceState.xcuserstate
 
 # Go
 *.coverprofile
-# vendor/
+vendor/
 
 # Yarn
 .yarn/*
@@ -31,6 +31,3 @@ UserInterfaceState.xcuserstate
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-
-# Yaegi
-.yaegi/
