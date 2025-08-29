@@ -9,6 +9,6 @@ require (
 )
 
 require (
-	github.com/MicahParks/jwkset v0.8.0 // indirect
+	github.com/MicahParks/jwkset v0.9.6 // indirect; hard pin
 	golang.org/x/time v0.9.0 // indirect
 )
