@@ -23,6 +23,7 @@ import (
 	"github.com/deep-rent/traefik-plugin-couchdb/auth"
 )
 
+// main probes the plugin constructor for basic compilation testing with Yaegi.
 func main() {
 	config := plugin.CreateConfig()
 	config.JWKS = "https://auth.example.com/.well-known/jwks.json"
