@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -646,5 +647,56 @@ func TestMissingAuthorizationHeader(t *testing.T) {
 	header := "WWW-Authenticate"
 	if got := rec.Header().Get(header); got == "" {
 		t.Fatalf("expected %s header", header)
+	}
+}
+
+func TestRemoteJWKS(t *testing.T) {
+	gen := generate(t)
+	now := time.Unix(1_000_000_000, 0)
+
+	// Serve the JWKS over HTTP.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/jwks.json" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(gen.JWKS())
+	}))
+	defer ts.Close()
+
+	// Issue a token that matches the served JWKS.
+	token := NewTokenBuilder(gen.Key, gen.Kid).
+		At(now).
+		Issuer("iss").
+		Audience("aud").
+		Subject("bob").
+		Sign(t)
+
+	var seen http.Header = make(http.Header)
+	var called bool
+	next := trap(&seen, &called)
+
+	rules := []auth.Rule{
+		{Mode: "allow", When: `true`, User: `C["sub"]`, Role: `""`},
+	}
+
+	// Configure the middleware to fetch JWKS from the remote URL.
+	mw := NewMiddlewareBuilder(ts.URL).
+		WithRules(rules...).
+		WithIssuer("iss").
+		WithAudience("aud").
+		WithNow(now).
+		Build(t, next)
+
+	url := "http://couch.example.com/user_bob/_all_docs"
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || !called {
+		t.Fatalf("expected 200 and next called; code=%d called=%v", rec.Code, called)
 	}
 }
