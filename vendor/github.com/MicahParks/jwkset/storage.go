@@ -219,6 +219,41 @@ type httpStorage struct {
 	Storage
 }
 
+// Explicitly implement Storage to satisfy Yaegi (which doesn't promote methods from an embedded interface).
+func (s httpStorage) KeyDelete(ctx context.Context, keyID string) (bool, error) {
+	return s.Storage.KeyDelete(ctx, keyID)
+}
+func (s httpStorage) KeyRead(ctx context.Context, keyID string) (JWK, error) {
+	return s.Storage.KeyRead(ctx, keyID)
+}
+func (s httpStorage) KeyReadAll(ctx context.Context) ([]JWK, error) {
+	return s.Storage.KeyReadAll(ctx)
+}
+func (s httpStorage) KeyReplaceAll(ctx context.Context, given []JWK) error {
+	return s.Storage.KeyReplaceAll(ctx, given)
+}
+func (s httpStorage) KeyWrite(ctx context.Context, jwk JWK) error {
+	return s.Storage.KeyWrite(ctx, jwk)
+}
+func (s httpStorage) JSON(ctx context.Context) (json.RawMessage, error) {
+	return s.Storage.JSON(ctx)
+}
+func (s httpStorage) JSONPublic(ctx context.Context) (json.RawMessage, error) {
+	return s.Storage.JSONPublic(ctx)
+}
+func (s httpStorage) JSONPrivate(ctx context.Context) (json.RawMessage, error) {
+	return s.Storage.JSONPrivate(ctx)
+}
+func (s httpStorage) JSONWithOptions(ctx context.Context, marshalOptions JWKMarshalOptions, validationOptions JWKValidateOptions) (json.RawMessage, error) {
+	return s.Storage.JSONWithOptions(ctx, marshalOptions, validationOptions)
+}
+func (s httpStorage) Marshal(ctx context.Context) (JWKSMarshal, error) {
+	return s.Storage.Marshal(ctx)
+}
+func (s httpStorage) MarshalWithOptions(ctx context.Context, marshalOptions JWKMarshalOptions, validationOptions JWKValidateOptions) (JWKSMarshal, error) {
+	return s.Storage.MarshalWithOptions(ctx, marshalOptions, validationOptions)
+}
+
 // NewStorageFromHTTP creates a new Storage implementation that processes a remote HTTP resource for a JWK Set. If
 // the RefreshInterval option is not set, the remote HTTP resource will be requested and processed before returning. If
 // the RefreshInterval option is set, a background goroutine will be launched to refresh the remote HTTP resource and
