@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  traefik:
+    container_name: traefik
+    image: traefik:v3.5
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./containers/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./containers/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./:/plugins-local/src/github.com/deep-rent/traefik-plugin-couchdb:ro
+    depends_on:
+      - auth
+    networks:
+      - edge
+
+  couchdb:
+    container_name: couchdb
+    image: couchdb:3.5
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpass
+    volumes:
+      - ./containers/couchdb/local.ini:/opt/couchdb/etc/local.d/traefik-proxy.ini:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.couchdb.rule=Host(`couchdb.localhost`)
+      - traefik.http.routers.couchdb.entrypoints=web
+      - traefik.http.routers.couchdb.service=couchdb
+      - traefik.http.services.couchdb.loadbalancer.server.port=5984
+      - traefik.http.routers.couchdb.middlewares=couchdb-auth@file
+    networks:
+      - edge
+
+  auth:
+    container_name: auth
+    image: nginx:1.29-alpine
+    volumes:
+      - ./containers/auth/jwks:/usr/share/nginx/html:ro
+    networks:
+      - edge
+
+networks:
+  edge: {}
