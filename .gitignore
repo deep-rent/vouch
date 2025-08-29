@@ -31,3 +31,6 @@ UserInterfaceState.xcuserstate
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Yaegi
+.yaegi/
