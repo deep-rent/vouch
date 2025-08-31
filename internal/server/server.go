@@ -26,6 +26,13 @@ func New(proxy http.Handler) *Server {
 }
 
 func (s *Server) routes(proxy http.Handler) {
+	// Unprotected health endpoint (readiness/liveness)
+	s.mux.HandleFunc("/healthz", func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(http.StatusOK)
+		_, _ = res.Write([]byte("ok"))
+	})
+
+	// Everything else goes through the middleware chain and to CouchDB
 	s.mux.Handle("/",
 		middleware.Chain(
 			proxy,
