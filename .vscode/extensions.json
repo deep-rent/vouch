@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "github.vscode-github-actions",
-    "golang.go"
+    "golang.go",
+    "vivaxy.vscode-conventional-commits"
   ]
 }
