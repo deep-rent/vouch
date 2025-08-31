@@ -32,6 +32,9 @@ func (s *Server) routes(proxy http.Handler) {
 		_, _ = res.Write([]byte("ok"))
 	})
 
+	// Pass CORS preflight straight through to CouchDB (no auth)
+	s.mux.Handle("OPTIONS /{path...}", proxy)
+
 	// Everything else goes through the middleware chain and to CouchDB
 	s.mux.Handle("/", middleware.Apply(proxy))
 }
