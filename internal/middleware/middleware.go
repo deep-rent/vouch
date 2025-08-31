@@ -2,6 +2,7 @@ package middleware
 
 import "net/http"
 
+// Apply applies all middleware to the given handler.
 func Apply(h http.Handler) http.Handler {
 	return chain(h, auth)
 }
