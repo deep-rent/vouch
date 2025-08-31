@@ -5,6 +5,7 @@ go 1.25
 require gopkg.in/yaml.v3 v3.0.1
 
 require (
+	github.com/expr-lang/expr v1.17.6 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
 	github.com/lestrrat-go/jwx/v3 v3.0.10 // indirect
