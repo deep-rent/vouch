@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 )
 
 func New(target string) (http.Handler, error) {
@@ -36,6 +37,13 @@ func New(target string) (http.Handler, error) {
 
 		slog.Error(msg, "error", err)
 		http.Error(res, msg, http.StatusBadGateway)
+	}
+
+	proxy.Transport = &http.Transport{
+		MaxIdleConns:        128,
+		MaxIdleConnsPerHost: 128,
+		IdleConnTimeout:     120 * time.Second,
+		ForceAttemptHTTP2:   true,
 	}
 
 	return proxy, nil
