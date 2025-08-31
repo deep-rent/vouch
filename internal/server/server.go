@@ -45,7 +45,10 @@ func (s *Server) Start(addr string) error {
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           s.mux,
+		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	fail := make(chan error, 1)
@@ -53,6 +56,7 @@ func (s *Server) Start(addr string) error {
 
 	go func() {
 		slog.Info("Starting server", "address", srv.Addr)
+
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			fail <- err
 		}
