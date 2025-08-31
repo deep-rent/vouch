@@ -1,5 +1,5 @@
 {
-  "name": "@deep-rent/couchmw",
+  "name": "@deep-rent/vouch",
   "type": "module",
   "packageManager": "yarn@4.9.4",
   "scripts": {

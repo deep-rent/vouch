@@ -214,9 +214,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deep-rent/couchmw@workspace:.":
+"@deep-rent/vouch@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@deep-rent/couchmw@workspace:."
+  resolution: "@deep-rent/vouch@workspace:."
   dependencies:
     "@commitlint/cli": "npm:19.8.1"
     "@commitlint/config-conventional": "npm:19.8.1"

@@ -1,3 +1,3 @@
-module github.com/deep-rent/couchmw
+module github.com/deep-rent/vouch
 
 go 1.25
