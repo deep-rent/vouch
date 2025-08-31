@@ -11,7 +11,7 @@ const RAW_RUNTIME_STATE =
   ],\
   "dependencyTreeRoots": [\
     {\
-      "name": "@deep-rent/traefik-plugin-couchdb",\
+      "name": "@deep-rent/couchmw",\
       "reference": "workspace:."\
     }\
   ],\
@@ -19,7 +19,7 @@ const RAW_RUNTIME_STATE =
   "ignorePatternData": "(^(?:\\\\.yarn\\\\/sdks(?:\\\\/(?!\\\\.{1,2}(?:\\\\/|$))(?:(?:(?!(?:^|\\\\/)\\\\.{1,2}(?:\\\\/|$)).)*?)|$))$)",\
   "pnpZipBackend": "libzip",\
   "fallbackExclusionList": [\
-    ["@deep-rent/traefik-plugin-couchdb", ["workspace:."]]\
+    ["@deep-rent/couchmw", ["workspace:."]]\
   ],\
   "fallbackPool": [\
   ],\
@@ -30,7 +30,7 @@ const RAW_RUNTIME_STATE =
         "packageDependencies": [\
           ["@commitlint/cli", "npm:19.8.1"],\
           ["@commitlint/config-conventional", "npm:19.8.1"],\
-          ["@deep-rent/traefik-plugin-couchdb", "workspace:."],\
+          ["@deep-rent/couchmw", "workspace:."],\
           ["husky", "npm:9.1.7"]\
         ],\
         "linkType": "SOFT"\
@@ -266,13 +266,13 @@ const RAW_RUNTIME_STATE =
         "linkType": "HARD"\
       }]\
     ]],\
-    ["@deep-rent/traefik-plugin-couchdb", [\
+    ["@deep-rent/couchmw", [\
       ["workspace:.", {\
         "packageLocation": "./",\
         "packageDependencies": [\
           ["@commitlint/cli", "npm:19.8.1"],\
           ["@commitlint/config-conventional", "npm:19.8.1"],\
-          ["@deep-rent/traefik-plugin-couchdb", "workspace:."],\
+          ["@deep-rent/couchmw", "workspace:."],\
           ["husky", "npm:9.1.7"]\
         ],\
         "linkType": "SOFT"\

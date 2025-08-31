@@ -1,5 +1,5 @@
 {
-  "name": "@deep-rent/traefik-plugin-couchdb",
+  "name": "@deep-rent/couchmw",
   "type": "module",
   "packageManager": "yarn@4.9.4",
   "scripts": {

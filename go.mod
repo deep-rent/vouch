@@ -1,3 +1,3 @@
-module github.com/deep-rent/traefik-plugin-couchdb
+module github.com/deep-rent/couchmw
 
 go 1.25

@@ -1,1 +1,1 @@
-# couchdb-auth-middleware
+# CouchMW
