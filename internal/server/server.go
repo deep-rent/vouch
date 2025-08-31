@@ -33,12 +33,7 @@ func (s *Server) routes(proxy http.Handler) {
 	})
 
 	// Everything else goes through the middleware chain and to CouchDB
-	s.mux.Handle("/",
-		middleware.Chain(
-			proxy,
-			middleware.Auth,
-		),
-	)
+	s.mux.Handle("/", middleware.Apply(proxy))
 }
 
 func (s *Server) Start(addr string) error {
