@@ -5,12 +5,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/deep-rent/vouch/internal/rule"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Source string `yaml:"source"`
-	Target string `yaml:"target"`
+	Source string        `yaml:"source"`
+	Target string        `yaml:"target"`
+	Rules  []rule.Config `yaml:"rules"`
 }
 
 func Load(path string) (*Config, error) {
