@@ -1,6 +1,8 @@
 package guard
 
 import (
+	"errors"
+
 	"github.com/deep-rent/vouch/internal/rule"
 )
 
@@ -11,6 +13,9 @@ type Guard struct {
 
 // NewGuard compiles the provided rules.
 func New(rules []rule.Config) (*Guard, error) {
+	if len(rules) == 0 {
+		return nil, errors.New("at least one rule is required")
+	}
 	compiler := rule.NewCompiler()
 	compiled, err := compiler.Compile(rules)
 	if err != nil {

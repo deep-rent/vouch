@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/middleware"
 	"github.com/deep-rent/vouch/internal/proxy"
 	"github.com/deep-rent/vouch/internal/server"
 )
@@ -27,13 +28,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	pxy, err := proxy.New(cfg.Target)
+	h, err := proxy.New(cfg.Target)
 	if err != nil {
 		slog.Error("Failed to init proxy handler", "error", err)
 		os.Exit(1)
 	}
 
-	srv := server.New(pxy)
+	auth, err := middleware.NewAuth(cfg)
+	if err != nil {
+		slog.Error("Failed to init auth middleware", "error", err)
+		os.Exit(1)
+	}
+
+	srv := server.New(h, auth)
 	if err := srv.Start(cfg.Source); err != nil {
 		slog.Error("Server runtime error", "error", err)
 		os.Exit(1)

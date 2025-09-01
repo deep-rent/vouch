@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,7 +18,7 @@ type Server struct {
 	mux *http.ServeMux
 }
 
-func New(proxy http.Handler) *Server {
+func New(proxy http.Handler, mws ...middleware.Middleware) *Server {
 	s := &Server{
 		mux: http.NewServeMux(),
 	}
@@ -25,21 +26,22 @@ func New(proxy http.Handler) *Server {
 	return s
 }
 
-func (s *Server) routes(proxy http.Handler) {
+func (s *Server) routes(proxy http.Handler, mws ...middleware.Middleware) {
 	// Unprotected health endpoint (readiness/liveness)
-	s.mux.HandleFunc("/healthz", func(res http.ResponseWriter, req *http.Request) {
-		res.WriteHeader(http.StatusOK)
-		_, _ = res.Write([]byte("ok"))
-	})
+	s.mux.HandleFunc("/healthz", health)
 
 	// Pass CORS preflight straight through to CouchDB (no auth)
 	s.mux.Handle("OPTIONS /{path...}", proxy)
 
 	// Everything else goes through the middleware chain and to CouchDB
-	s.mux.Handle("/", middleware.Apply(proxy))
+	s.mux.Handle("/", middleware.Chain(proxy, mws...))
 }
 
 func (s *Server) Start(addr string) error {
+	if addr = strings.TrimSpace(addr); addr == "" {
+		addr = ":8080"
+	}
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           s.mux,
@@ -79,4 +81,9 @@ func (s *Server) Start(addr string) error {
 
 	slog.Info("Server stopped")
 	return nil
+}
+
+func health(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(http.StatusOK)
+	_, _ = res.Write([]byte("ok"))
 }
