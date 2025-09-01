@@ -24,16 +24,21 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(b, &cfg); err != nil {
 		return nil, fmt.Errorf("parse yaml: %w", err)
 	}
-	src := strings.TrimSpace(cfg.Source)
-	if src == "" {
-		src = ":8080"
+	source := strings.TrimSpace(cfg.Source)
+	if source == "" {
+		source = ":8080"
 	}
-	tgt := strings.TrimSpace(cfg.Target)
-	if tgt == "" {
-		tgt = "http://localhost:3000"
+	target := strings.TrimSpace(cfg.Target)
+	if target == "" {
+		target = "http://localhost:3000"
+	}
+	rules := cfg.Rules
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("at least one rule is required")
 	}
 	return &Config{
-		Source: src,
-		Target: tgt,
+		Source: source,
+		Target: target,
+		Rules:  rules,
 	}, nil
 }
