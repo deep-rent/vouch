@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func Load(path string) (*Config, error) {
 	}
 	rules := cfg.Rules
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("at least one rule is required")
+		return nil, errors.New("at least one rule is required")
 	}
 	return &Config{
 		Source: source,
