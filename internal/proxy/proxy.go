@@ -31,10 +31,9 @@ func (p *bufferPool) Get() []byte {
 }
 
 func (p *bufferPool) Put(buf []byte) {
-	if cap(buf) > 256<<10 { // Avoid holding on to very large buffers
-		return
+	if cap(buf) <= 256<<10 { // Avoid holding on to very large buffers
+		p.bufs.Put(&buf)
 	}
-	p.bufs.Put(&buf)
 }
 
 func transport() *http.Transport {
