@@ -62,6 +62,8 @@ func New(target string) (http.Handler, error) {
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	// Tune transport for upstream CouchDB
 	proxy.Transport = transport()
+	// Helpful for long-lived responses such as the _changes feed
+	proxy.FlushInterval = 200 * time.Millisecond
 	// Reduce allocations on large responses
 	proxy.BufferPool = newByteBufferPool(32 << 10)
 
