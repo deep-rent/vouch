@@ -4,16 +4,16 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
-	"hash"
 )
 
 type Signer struct {
-	mac hash.Hash
+	key []byte
 }
 
 func (s *Signer) Sign(user string) string {
-	_, _ = s.mac.Write([]byte(user))
-	return hex.EncodeToString(s.mac.Sum(nil))
+	mac := hmac.New(sha1.New, s.key)
+	_, _ = mac.Write([]byte(user))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func New(secret string) *Signer {
@@ -21,6 +21,6 @@ func New(secret string) *Signer {
 		return nil
 	}
 	return &Signer{
-		mac: hmac.New(sha1.New, []byte(secret)),
+		key: []byte(secret),
 	}
 }
