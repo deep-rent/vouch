@@ -1,8 +1,9 @@
 package proxy
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -95,17 +96,15 @@ func New(target string) (http.Handler, error) {
 		req *http.Request,
 		err error,
 	) {
-		msg := "Error forwarding request to upstream service"
-
-		slog.Error(msg, "error", err)
-		http.Error(res, msg, http.StatusBadGateway)
-	}
-
-	proxy.Transport = &http.Transport{
-		MaxIdleConns:        128,
-		MaxIdleConnsPerHost: 128,
-		IdleConnTimeout:     120 * time.Second,
-		ForceAttemptHTTP2:   true,
+		var code = http.StatusBadGateway
+		if errors.Is(err, context.DeadlineExceeded) {
+			code = http.StatusGatewayTimeout
+		}
+		// If the client canceled, there's nothing useful to send; just close
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		http.Error(res, http.StatusText(code), code)
 	}
 
 	return proxy, nil
