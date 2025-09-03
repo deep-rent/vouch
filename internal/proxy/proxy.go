@@ -45,6 +45,7 @@ func transport() *http.Transport {
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dial.DialContext,
 		ForceAttemptHTTP2:     true,
+		DisableCompression:    true, // Keep upstream encoding; don't decompress in-proxy
 		MaxIdleConns:          200,
 		MaxIdleConnsPerHost:   50,
 		IdleConnTimeout:       90 * time.Second,
