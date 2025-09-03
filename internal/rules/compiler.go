@@ -119,15 +119,27 @@ func (r *Rule) Eval(env Environment) (
 
 // Compiler encapsulates rule compilation details.
 type Compiler struct {
-	opts []expr.Option
+	when  []expr.Option
+	user  []expr.Option
+	roles []expr.Option
 }
 
 // NewCompiler creates a new rule compiler.
 func NewCompiler() *Compiler {
-	return &Compiler{opts: []expr.Option{
+	base := []expr.Option{
 		expr.Env(Environment{}),
 		expr.Optimize(true),
-	}}
+	}
+	opts := func(add ...expr.Option) []expr.Option {
+		out := make([]expr.Option, len(base)+len(add))
+		copy(out, base)
+		return append(out, add...)
+	}
+	return &Compiler{
+		when:  opts(expr.AsBool()),
+		user:  opts(expr.AsKind(reflect.String)),
+		roles: opts(expr.AsKind(reflect.Slice)),
+	}
 }
 
 // Compile compiles the rule definitions into a set of executable programs.
@@ -163,8 +175,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 			)
 		}
 		var err error
-		opts := append(c.opts, expr.AsBool())
-		when, err = expr.Compile(w, opts...)
+		when, err = expr.Compile(w, c.when...)
 		if err != nil {
 			return Rule{}, fmt.Errorf(
 				"compile rules[%d].when: %w", i, err,
@@ -190,8 +201,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		u := strings.TrimSpace(rule.User)
 		if u != "" {
 			var err error
-			opts := append(c.opts, expr.AsKind(reflect.String))
-			user, err = expr.Compile(u, opts...)
+			user, err = expr.Compile(u, c.user...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
 					"compile rules[%d].user: %w", i, err,
@@ -201,8 +211,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		r := strings.TrimSpace(rule.Roles)
 		if r != "" {
 			var err error
-			opts := append(c.opts, expr.AsKind(reflect.Slice))
-			roles, err = expr.Compile(r, opts...)
+			roles, err = expr.Compile(r, c.roles...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
 					"compile rules[%d].roles: %w", i, err,
