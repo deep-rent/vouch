@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package key provides access to cryptographic keys (e.g. public keys) used by
+// the authentication handler for signature verification, including retrieval
+// and caching logic.
 package key
 
 import (

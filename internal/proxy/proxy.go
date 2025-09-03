@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package proxy wraps and configures an HTTP reverse proxy to forward requests
+// to the configured upstream target.
 package proxy
 
 import (

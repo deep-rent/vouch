@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package auth provides request authentication primitives.
+// It wires configuration, key material, token parsing, and rules to decide
+// whether and how a request should be authenticated.
 package auth
 
 import (

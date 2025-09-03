@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package hash contains hashing and signing helpers used to produce and verify
+// integrity-protected values (e.g. proxy authentication headers).
 package hash
 
 import (

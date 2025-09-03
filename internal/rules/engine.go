@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package rules defines an expression-based authorization model.
+// It compiles human-readable rule definitions into executable programs and
+// evaluates them against an evaluation environment in the request context.
 package rules
 
 import (
