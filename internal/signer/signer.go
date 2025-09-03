@@ -17,9 +17,6 @@ func (s *Signer) Sign(user string) string {
 }
 
 func New(secret string) *Signer {
-	if secret == "" {
-		return nil
-	}
 	return &Signer{
 		key: []byte(secret),
 	}
