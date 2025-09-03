@@ -39,7 +39,7 @@ func (s *Server) Start(addr string) error {
 		Handler:           s.mux,
 		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      0, // Allow streaming responses
 		IdleTimeout:       90 * time.Second,
 		MaxHeaderBytes:    1 << 16, // 64 KB
 	}
