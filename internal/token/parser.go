@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/deep-rent/vouch/internal/config"
-	"github.com/deep-rent/vouch/internal/keys"
+	"github.com/deep-rent/vouch/internal/key"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
@@ -33,12 +33,12 @@ var ErrInvalidToken = &AuthenticationError{
 }
 
 type Parser struct {
-	keys keys.Store
+	keys key.Store
 	opts []jwt.ParseOption
 }
 
 func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
-	keys, err := keys.NewStore(ctx, cfg.Keys)
+	keys, err := key.NewStore(ctx, cfg.Keys)
 	if err != nil {
 		return nil, err
 	}
