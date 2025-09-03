@@ -161,27 +161,31 @@ func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 // compile compiles a single authorization rule.
 func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 	mode := strings.ToLower(strings.TrimSpace(rule.Mode))
-	if mode != ModeAllow && mode != ModeDeny {
+	deny := mode == ModeDeny
+	if mode != ModeAllow && !deny {
 		return Rule{}, fmt.Errorf(
 			"rules[%d].mode must be '%s' or '%s'",
 			i, ModeAllow, ModeDeny,
 		)
 	}
 
-	w := strings.TrimSpace(rule.When)
-	if w == "" {
-		return Rule{}, fmt.Errorf(
-			"rules[%d].when is required", i,
-		)
-	}
-	when, err := expr.Compile(w, c.opts...)
-	if err != nil {
-		return Rule{}, fmt.Errorf(
-			"compile rules[%d].when: %w", i, err,
-		)
+	var when *vm.Program
+	{
+		w := strings.TrimSpace(rule.When)
+		if w == "" {
+			return Rule{}, fmt.Errorf(
+				"rules[%d].when is required", i,
+			)
+		}
+		var err error
+		when, err = expr.Compile(w, append(c.opts, expr.AsBool())...)
+		if err != nil {
+			return Rule{}, fmt.Errorf(
+				"compile rules[%d].when: %w", i, err,
+			)
+		}
 	}
 
-	deny := mode == ModeDeny
 	var user, roles *vm.Program
 	if deny {
 		if strings.TrimSpace(rule.User) != "" {
@@ -199,6 +203,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 	} else {
 		u := strings.TrimSpace(rule.User)
 		if u != "" {
+			var err error
 			user, err = expr.Compile(u, c.opts...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
@@ -208,6 +213,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		}
 		r := strings.TrimSpace(rule.Roles)
 		if r != "" {
+			var err error
 			roles, err = expr.Compile(r, c.opts...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
