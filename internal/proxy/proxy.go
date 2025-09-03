@@ -7,8 +7,51 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 )
+
+type byteBufferPool struct {
+	pool sync.Pool
+}
+
+func newByteBufferPool(size int) *byteBufferPool {
+	return &byteBufferPool{
+		pool: sync.Pool{
+			New: func() any {
+				b := make([]byte, size)
+				return &b
+			},
+		},
+	}
+}
+
+func (p *byteBufferPool) Get() []byte {
+	b := p.pool.Get().(*[]byte)
+	return *b
+}
+
+func (p *byteBufferPool) Put(b []byte) {
+	if cap(b) > 256<<10 { // Avoid holding on to very large buffers
+		return
+	}
+	p.pool.Put(&b)
+}
+
+func transport() *http.Transport {
+	dial := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dial.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   50,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 01 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	}
+}
 
 func New(target string) (http.Handler, error) {
 	u, err := url.Parse(target)
@@ -17,6 +60,11 @@ func New(target string) (http.Handler, error) {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(u)
+	// Tune transport for upstream CouchDB
+	proxy.Transport = transport()
+	// Reduce allocations on large responses
+	proxy.BufferPool = newByteBufferPool(32 << 10)
+
 	chain := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		chain(req)
