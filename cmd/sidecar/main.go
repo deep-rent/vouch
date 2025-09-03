@@ -13,8 +13,8 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(log)
 
 	path := flag.String(
 		"config",
@@ -25,7 +25,7 @@ func main() {
 
 	cfg, err := config.Load(*path)
 	if err != nil {
-		slog.Error("Failed to load configuration", "error", err)
+		log.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
 
@@ -37,7 +37,7 @@ func main() {
 
 	guard, err := auth.NewGuard(cfg)
 	if err != nil {
-		slog.Error("Failed to init auth guard", "error", err)
+		log.Error("Failed to init auth guard", "error", err)
 		os.Exit(1)
 	}
 
@@ -46,15 +46,15 @@ func main() {
 		cfg.Proxy.Headers,
 	)
 	if err != nil {
-		slog.Error("Failed to init auth middleware", "error", err)
+		log.Error("Failed to init auth middleware", "error", err)
 		os.Exit(1)
 	}
 
-	srv := server.New(h, auth)
+	srv := server.New(h, auth, middleware.Recover(log))
 	if err := srv.Start(cfg.Proxy.Listen); err != nil {
-		slog.Error("Server runtime error", "error", err)
+		log.Error("Server runtime error", "error", err)
 		os.Exit(1)
 	}
 
-	slog.Info("Exited gracefully")
+	log.Info("Exited gracefully")
 }
