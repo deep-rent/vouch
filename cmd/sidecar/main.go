@@ -47,8 +47,8 @@ func main() {
 	}
 
 	srv := server.New(h,
-		middleware.Forward(log, grd, cfg.Proxy.Headers),
 		middleware.Recover(log),
+		middleware.Forward(log, grd, cfg.Proxy.Headers),
 	)
 
 	fatal := make(chan error, 1)
