@@ -89,9 +89,6 @@ type Token struct {
 	// Leeway is the amount of time to allow for clock skew.
 	// Defaults to 0.
 	Leeway uint `yaml:"leeway,omitempty"`
-	// Algorithms specifies the acceptable algorithms for token signatures.
-	// Defaults to the ES*, RS*, and PS* families.
-	Algorithms []string `yaml:"algorithms,omitempty"`
 
 	Clock jwt.Clock `yaml:"-"`
 }
@@ -197,26 +194,11 @@ func Load(path string) (Config, error) {
 		issuer := strings.TrimSpace(cfg.Token.Issuer)
 		audience := strings.TrimSpace(cfg.Token.Audience)
 		leeway := cfg.Token.Leeway
-		algorithms := cfg.Token.Algorithms
-		if algorithms == nil {
-			algorithms = []string{
-				"ES256",
-				"ES384",
-				"ES512",
-				"RS256",
-				"RS384",
-				"RS512",
-				"PS256",
-				"PS384",
-				"PS512",
-			}
-		}
 		token = Token{
-			Keys:       keys,
-			Issuer:     issuer,
-			Audience:   audience,
-			Leeway:     leeway,
-			Algorithms: algorithms,
+			Keys:     keys,
+			Issuer:   issuer,
+			Audience: audience,
+			Leeway:   leeway,
 		}
 	}
 
