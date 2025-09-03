@@ -70,6 +70,8 @@ func New(target string) (http.Handler, error) {
 	chain := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		chain(req)
+		// Do not leak client tokens to CouchDB
+		req.Header.Del("Authorization")
 		// Preserve original host
 		req.Header.Set("X-Forwarded-Host", req.Host)
 		// Augment headers with the immediate peer
