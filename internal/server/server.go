@@ -13,8 +13,8 @@ import (
 )
 
 type Server struct {
-	mux *http.ServeMux
 	srv *http.Server
+	mux *http.ServeMux
 	url string
 	cli *http.Client
 }
@@ -39,10 +39,12 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected readiness and liveness probes
-	s.mux.HandleFunc("/ready", s.ready)
-	s.mux.HandleFunc("/healthy", s.healthy)
+	s.mux.HandleFunc("GET /ready", s.ready)
+	s.mux.HandleFunc("HEAD /ready", s.ready)
+	s.mux.HandleFunc("GET /healthy", s.healthy)
+	s.mux.HandleFunc("HEAD /healthy", s.healthy)
 
-	// Pass CORS preflight straight through to CouchDB (no auth)
+	// Pass CORS preflight straight through to CouchDB
 	s.mux.Handle("OPTIONS /{path...}", h)
 
 	// Everything else goes through the middleware chain and to CouchDB
