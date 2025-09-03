@@ -12,25 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package hash
 
 import (
-	"log/slog"
-	"net/http"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 )
 
-func Recover(log *slog.Logger) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			defer func() {
-				if v := recover(); v != nil {
-					method, path := req.Method, req.URL.Path
-					log.Error("unhandled error", "method", method, "path", path, "error", v)
-					code := http.StatusInternalServerError
-					http.Error(res, http.StatusText(code), code)
-				}
-			}()
-			next.ServeHTTP(res, req)
-		})
+type Signer struct {
+	key []byte
+}
+
+func (s *Signer) Sign(user string) string {
+	mac := hmac.New(sha1.New, s.key)
+	_, _ = mac.Write([]byte(user))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func New(secret string) *Signer {
+	return &Signer{
+		key: []byte(secret),
 	}
 }
