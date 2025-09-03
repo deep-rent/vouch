@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/keys"
@@ -44,9 +43,8 @@ func NewParser(cfg config.Token) (*Parser, error) {
 		return nil, err
 	}
 	opts := make([]jwt.ParseOption, 0, 4)
-	if cfg.Leeway > 0 {
-		skew := time.Duration(cfg.Leeway) * time.Second
-		opts = append(opts, jwt.WithAcceptableSkew(skew))
+	if lee := cfg.Leeway; lee != 0 {
+		opts = append(opts, jwt.WithAcceptableSkew(lee))
 	}
 	if iss := strings.TrimSpace(cfg.Issuer); iss != "" {
 		opts = append(opts, jwt.WithIssuer(iss))

@@ -67,18 +67,16 @@ func newRemote(cfg config.Remote) (Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create cache: %w", err)
 	}
-	url := cfg.Endpoint
-	min := time.Duration(cfg.Interval) * time.Minute
-	max := 2 * min
 	err = cache.Register(
-		ctx, url,
-		jwk.WithMinInterval(min),
-		jwk.WithMaxInterval(max),
+		ctx,
+		cfg.Endpoint,
+		jwk.WithMinInterval(cfg.Interval),
+		jwk.WithMaxInterval(cfg.Interval*2),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register url: %w", err)
 	}
-	return &remote{cache, url}, nil
+	return &remote{cache, cfg.Endpoint}, nil
 }
 
 type composite struct {

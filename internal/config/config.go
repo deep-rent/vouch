@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"gopkg.in/yaml.v3"
@@ -62,7 +63,7 @@ type Remote struct {
 	Endpoint string `yaml:"endpoint"`
 	// Interval is the time to wait between polling the JWKS endpoint (in minutes).
 	// Defaults to 30.
-	Interval uint `yaml:"interval,omitempty"`
+	Interval time.Duration `yaml:"interval,omitempty"`
 }
 
 // Keys configures the key sources for token validation.
@@ -87,9 +88,9 @@ type Token struct {
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
 	Audience string `yaml:"audience,omitempty"`
-	// Leeway is the amount of time to allow for clock skew.
+	// Leeway is the amount of time to allow for clock skew (in seconds).
 	// Defaults to 0.
-	Leeway uint `yaml:"leeway,omitempty"`
+	Leeway time.Duration `yaml:"leeway,omitempty"`
 
 	Clock jwt.Clock `yaml:"-"`
 }
@@ -153,7 +154,7 @@ func Load(path string) (Config, error) {
 		}
 		secret := strings.TrimSpace(raw.Proxy.Headers.Secret)
 		if secret == "" {
-			slog.Warn("proxy secret is not set")
+			slog.Warn("proxy.headers.secret is not set; do not use in production")
 		}
 
 		headers = Headers{
@@ -203,21 +204,22 @@ func Load(path string) (Config, error) {
 			Static: static,
 			Remote: Remote{
 				Endpoint: endpoint,
-				Interval: interval,
+				Interval: interval * time.Minute,
 			},
 		}
 	}
 
 	var token Token
 	{
-		issuer := strings.TrimSpace(raw.Token.Issuer)
-		audience := strings.TrimSpace(raw.Token.Audience)
 		leeway := raw.Token.Leeway
+		if leeway < 0 {
+			return Config{}, errors.New("token.leeway: must be non-negative")
+		}
 		token = Token{
 			Keys:     keys,
-			Issuer:   issuer,
-			Audience: audience,
-			Leeway:   leeway,
+			Issuer:   strings.TrimSpace(raw.Token.Issuer),
+			Audience: strings.TrimSpace(raw.Token.Audience),
+			Leeway:   leeway * time.Second,
 		}
 	}
 
