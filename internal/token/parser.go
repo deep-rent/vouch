@@ -64,11 +64,14 @@ func NewParser(cfg config.Token) (*Parser, error) {
 }
 
 func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
-	h, ok := req.Header["Authorization"]
-	if !ok || len(h) != 1 {
+	auth := strings.TrimSpace(req.Header.Get("Authorization"))
+	if auth == "" {
 		return nil, ErrMissingToken
 	}
-	s := strings.TrimSpace(strings.TrimPrefix(h[0], Scheme))
+	if len(auth) < len(Scheme) || !strings.EqualFold(auth[:len(Scheme)], Scheme) {
+		return nil, ErrMissingToken
+	}
+	s := strings.TrimSpace(auth[len(Scheme):])
 	if s == "" {
 		return nil, ErrMissingToken
 	}
