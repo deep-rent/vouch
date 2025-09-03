@@ -30,18 +30,19 @@ func main() {
 
 	cfg, err := config.Load(*path)
 	if err != nil {
-		log.Error("failed to load config", "error", err)
+		log.Error("couldn't load config", "error", err)
 		os.Exit(1)
 	}
 
 	h, err := proxy.New(cfg.Proxy.Target)
 	if err != nil {
+		log.Error("failed to init proxy", "error", err)
 		os.Exit(1)
 	}
 
 	grd, err := auth.NewGuard(cfg)
 	if err != nil {
-		log.Error("couldn't create guard", "error", err)
+		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
 	}
 
