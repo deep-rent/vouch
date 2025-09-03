@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
@@ -25,36 +30,53 @@ func main() {
 
 	cfg, err := config.Load(*path)
 	if err != nil {
-		log.Error("Failed to load configuration", "error", err)
+		log.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
 	h, err := proxy.New(cfg.Proxy.Target)
 	if err != nil {
-
 		os.Exit(1)
 	}
 
-	guard, err := auth.NewGuard(cfg)
+	grd, err := auth.NewGuard(cfg)
 	if err != nil {
-		log.Error("Failed to init auth guard", "error", err)
+		log.Error("couldn't create guard", "error", err)
 		os.Exit(1)
 	}
 
-	auth, err := middleware.NewAuth(
-		guard,
-		cfg.Proxy.Headers,
+	srv := server.New(h,
+		middleware.Forward(log, grd, cfg.Proxy.Headers),
+		middleware.Recover(log),
 	)
-	if err != nil {
-		log.Error("Failed to init auth middleware", "error", err)
-		os.Exit(1)
-	}
 
-	srv := server.New(h, auth, middleware.Recover(log))
-	if err := srv.Start(cfg.Proxy.Listen); err != nil {
-		log.Error("Server runtime error", "error", err)
-		os.Exit(1)
-	}
+	fatal := make(chan error, 1)
+	go func() {
+		fatal <- srv.Start(cfg.Proxy.Listen)
+	}()
 
-	log.Info("Exited gracefully")
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	select {
+	case err := <-fatal:
+		if err != nil {
+			log.Error("server exited with error", "error", err)
+			os.Exit(1)
+		}
+	case <-ctx.Done():
+		timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err := srv.Shutdown(timeout)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error("graceful shutdown failed", "error", err)
+			os.Exit(1)
+		}
+		<-fatal
+	}
 }

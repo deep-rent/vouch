@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -152,13 +151,9 @@ func Load(path string) (Config, error) {
 		} else {
 			hash = http.CanonicalHeaderKey(hash)
 		}
-		secret := strings.TrimSpace(raw.Proxy.Headers.Secret)
-		if secret == "" {
-			slog.Warn("proxy.headers.secret is not set; do not use in production")
-		}
 
 		headers = Headers{
-			Secret: secret,
+			Secret: strings.TrimSpace(raw.Proxy.Headers.Secret),
 			User:   user,
 			Roles:  role,
 			Token:  hash,

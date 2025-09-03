@@ -11,7 +11,7 @@ import (
 	"github.com/deep-rent/vouch/internal/token"
 )
 
-func Auth(log *slog.Logger, guard *auth.Guard, cfg config.Headers) Middleware {
+func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 	var sign *signer.Signer
 	if secret := cfg.Secret; secret != "" {
 		sign = signer.New(secret)
@@ -24,7 +24,7 @@ func Auth(log *slog.Logger, guard *auth.Guard, cfg config.Headers) Middleware {
 				return
 			}
 
-			scope, err := guard.Check(req)
+			scope, err := grd.Check(req)
 			if err == auth.ErrForbidden {
 				code := http.StatusForbidden
 				http.Error(res, http.StatusText(code), code)

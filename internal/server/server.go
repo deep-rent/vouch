@@ -3,11 +3,7 @@ package server
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
@@ -15,6 +11,7 @@ import (
 
 type Server struct {
 	mux *http.ServeMux
+	srv *http.Server
 }
 
 func New(h http.Handler, mws ...middleware.Middleware) *Server {
@@ -37,45 +34,28 @@ func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 }
 
 func (s *Server) Start(addr string) error {
-	srv := &http.Server{
+	s.srv = &http.Server{
 		Addr:              addr,
 		Handler:           s.mux,
 		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       90 * time.Second,
-		MaxHeaderBytes:    1 << 14, // 16 KB
+		MaxHeaderBytes:    1 << 16, // 64 KB
 	}
 
-	fail := make(chan error, 1)
-	quit := make(chan os.Signal, 1)
-
-	go func() {
-		slog.Info("Starting server", "address", srv.Addr)
-
-		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			fail <- err
-		}
-	}()
-
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case err := <-fail:
-		return err
-	case sig := <-quit:
-		slog.Info("Shutdown signal received", "signal", sig.String())
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
+	err := s.srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-
-	slog.Info("Server stopped")
 	return nil
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.srv == nil {
+		return nil
+	}
+	return s.srv.Shutdown(ctx)
 }
 
 func health(res http.ResponseWriter, req *http.Request) {
