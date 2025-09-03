@@ -12,31 +12,29 @@ import (
 	"time"
 )
 
-type pool struct {
-	pool sync.Pool
-}
+type bufferPool struct{ bufs sync.Pool }
 
-func newPool(size int) *pool {
-	return &pool{
-		pool: sync.Pool{
+func newBufferPool(size int) *bufferPool {
+	return &bufferPool{
+		bufs: sync.Pool{
 			New: func() any {
-				b := make([]byte, size)
-				return &b
+				buf := make([]byte, size)
+				return &buf
 			},
 		},
 	}
 }
 
-func (p *pool) Get() []byte {
-	b := p.pool.Get().(*[]byte)
-	return *b
+func (p *bufferPool) Get() []byte {
+	buf := p.bufs.Get().(*[]byte)
+	return *buf
 }
 
-func (p *pool) Put(b []byte) {
-	if cap(b) > 256<<10 { // Avoid holding on to very large buffers
+func (p *bufferPool) Put(buf []byte) {
+	if cap(buf) > 256<<10 { // Avoid holding on to very large buffers
 		return
 	}
-	p.pool.Put(&b)
+	p.bufs.Put(&buf)
 }
 
 func transport() *http.Transport {
@@ -67,7 +65,7 @@ func New(target string) (http.Handler, error) {
 	// Helpful for long-lived responses such as the _changes feed
 	proxy.FlushInterval = 200 * time.Millisecond
 	// Reduce allocations on large responses
-	proxy.BufferPool = newPool(32 << 10)
+	proxy.BufferPool = newBufferPool(32 << 10)
 
 	base := proxy.Director
 	proxy.Director = func(req *http.Request) {
