@@ -17,14 +17,24 @@ type Environment struct {
 	Path string
 	// DB is the name of the target CouchDB database.
 	DB string
+	// Claim extracts the value of a JWT claim by name.
+	Claim func(name string) any
 }
 
 func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
+
 	return Environment{
 		Method: method,
 		Path:   path,
 		DB:     database(path),
+		Claim: func(name string) any {
+			var v any
+			if err := tok.Get(name, &v); err != nil {
+				return nil
+			}
+			return v
+		},
 	}
 }
 
