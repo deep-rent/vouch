@@ -66,10 +66,11 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	if auth == "" {
 		return nil, ErrMissingToken
 	}
-	if len(auth) < len(scheme) || !strings.EqualFold(auth[:len(scheme)], scheme) {
+	n := len(scheme)
+	if n > len(auth) || !strings.EqualFold(auth[:n], scheme) {
 		return nil, ErrMissingToken
 	}
-	s := strings.TrimSpace(auth[len(scheme):])
+	s := strings.TrimSpace(auth[n:])
 	if s == "" {
 		return nil, ErrMissingToken
 	}
@@ -85,7 +86,9 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	return tok, nil
 }
 
-func (p *Parser) parse(ctx context.Context, set jwk.Set, s string) (jwt.Token, error) {
+func (p *Parser) parse(
+	ctx context.Context, set jwk.Set, s string,
+) (jwt.Token, error) {
 	opts := make([]jwt.ParseOption, 0, len(p.opts)+2)
 	opts = append(opts, jwt.WithKeySet(set), jwt.WithContext(ctx))
 	opts = append(opts, p.opts...)
