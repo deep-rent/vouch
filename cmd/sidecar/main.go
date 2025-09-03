@@ -18,7 +18,7 @@ import (
 
 func main() {
 	path := flag.String(
-		"config",
+		"c",
 		"./config.yaml",
 		"Path to the YAML configuration file",
 	)
