@@ -44,6 +44,11 @@ func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 				return
 			}
 
+			// Never leak client-supplied proxy auth headers
+			req.Header.Del(cfg.User)
+			req.Header.Del(cfg.Roles)
+			req.Header.Del(cfg.Token)
+
 			if user := scope.User; user != "" {
 				res.Header().Set(cfg.User, user)
 
