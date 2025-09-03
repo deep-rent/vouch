@@ -37,8 +37,11 @@ func main() {
 		os.Exit(2)
 	}
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout,
-		&slog.HandlerOptions{Level: level},
+	log := slog.New(slog.NewJSONHandler(
+		os.Stdout,
+		&slog.HandlerOptions{
+			Level: level,
+		},
 	))
 	slog.SetDefault(log)
 
