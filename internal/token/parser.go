@@ -16,6 +16,7 @@ package token
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -47,14 +48,14 @@ var ErrInvalidToken = &AuthenticationError{
 }
 
 type Parser struct {
-	keys key.Store
+	keys key.Provider
 	opts []jwt.ParseOption
 }
 
 func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
-	keys, err := key.NewStore(ctx, cfg.Keys)
+	keys, err := key.NewProvider(ctx, cfg.Keys)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create key provider: %w", err)
 	}
 	opts := make([]jwt.ParseOption, 0, 4)
 	if v := cfg.Leeway; v != 0 {

@@ -27,7 +27,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-type Store interface {
+type Provider interface {
 	Keys(ctx context.Context) (jwk.Set, error)
 }
 
@@ -39,7 +39,7 @@ func (s *static) Keys(ctx context.Context) (jwk.Set, error) {
 	return s.set, nil
 }
 
-func newStatic(path string) (Store, error) {
+func newStatic(path string) (Provider, error) {
 	if fi, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("stat file %q: %w", path, err)
 	} else if !fi.Mode().IsRegular() {
@@ -65,7 +65,7 @@ func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 	return r.cache.Lookup(ctx, r.url)
 }
 
-func newRemote(ctx context.Context, cfg config.Remote) (Store, error) {
+func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -104,7 +104,7 @@ func newRemote(ctx context.Context, cfg config.Remote) (Store, error) {
 }
 
 type composite struct {
-	stores []Store
+	stores []Provider
 }
 
 func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
@@ -126,8 +126,8 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 	return agg, nil
 }
 
-func NewStore(ctx context.Context, cfg config.Keys) (Store, error) {
-	var static, remote Store
+func NewProvider(ctx context.Context, cfg config.Keys) (Provider, error) {
+	var static, remote Provider
 	if cfg.Static != "" {
 		s, err := newStatic(cfg.Static)
 		if err != nil {
@@ -149,7 +149,7 @@ func NewStore(ctx context.Context, cfg config.Keys) (Store, error) {
 		return static, nil
 	}
 	return &composite{
-		stores: []Store{
+		stores: []Provider{
 			static,
 			remote,
 		},
