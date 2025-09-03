@@ -13,7 +13,6 @@ import (
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/middleware"
-	"github.com/deep-rent/vouch/internal/proxy"
 	"github.com/deep-rent/vouch/internal/server"
 )
 
@@ -28,7 +27,7 @@ func main() {
 	)
 	flag.Parse()
 
-	log.Info("starting", "config", *path)
+	log.Info("loading config", "path", *path)
 
 	cfg, err := config.Load(*path)
 	if err != nil {
@@ -40,26 +39,28 @@ func main() {
 		log.Warn("proxy signing secret not configured")
 	}
 
-	h, err := proxy.New(cfg.Proxy.Target)
-	if err != nil {
-		log.Error("failed to init proxy", "error", err)
-		os.Exit(1)
-	}
-
 	grd, err := auth.NewGuard(cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
 	}
 
-	srv := server.New(h,
+	srv, err := server.New(
+		cfg.Proxy.Target,
 		middleware.Recover(log),
 		middleware.Forward(log, grd, cfg.Proxy.Headers),
 	)
+	if err != nil {
+		log.Error("failed to create server", "error", err)
+		os.Exit(1)
+	}
 
 	fatal := make(chan error, 1)
 	go func() {
-		log.Info("listening", "address", cfg.Proxy.Listen)
+		log.Info("starting server",
+			"listen", cfg.Proxy.Listen,
+			"target", cfg.Proxy.Target,
+		)
 		fatal <- srv.Start(cfg.Proxy.Listen)
 	}()
 

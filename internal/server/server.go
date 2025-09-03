@@ -3,34 +3,66 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
+	"github.com/deep-rent/vouch/internal/proxy"
 )
 
 type Server struct {
 	mux *http.ServeMux
 	srv *http.Server
+	url string
+	cli *http.Client
 }
 
-func New(h http.Handler, mws ...middleware.Middleware) *Server {
+func New(target string, mws ...middleware.Middleware) (*Server, error) {
+	h, err := proxy.New(target)
+	if err != nil {
+		return nil, fmt.Errorf("create proxy: %w", err)
+	}
+	url, err := url.JoinPath(target, "_up")
+	if err != nil {
+		return nil, fmt.Errorf("build up url: %w", err)
+	}
 	s := &Server{
 		mux: http.NewServeMux(),
+		url: url,
+		cli: &http.Client{Timeout: 2 * time.Second},
 	}
-	s.routes(h)
-	return s
+	s.routes(h, mws...)
+	return s, nil
 }
 
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
-	// Unprotected health endpoint (readiness/liveness)
-	s.mux.HandleFunc("/health", health)
+	// Unprotected readiness and liveness probes
+	s.mux.HandleFunc("/ready", s.ready)
+	s.mux.HandleFunc("/healthy", s.healthy)
 
 	// Pass CORS preflight straight through to CouchDB (no auth)
 	s.mux.Handle("OPTIONS /{path...}", h)
 
 	// Everything else goes through the middleware chain and to CouchDB
 	s.mux.Handle("/", middleware.Chain(h, mws...))
+}
+
+func (s *Server) ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
+	if err != nil {
+		return err
+	}
+	res, err := s.cli.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusOK {
+		return nil
+	}
+	return fmt.Errorf("health check returned %d", res.StatusCode)
 }
 
 func (s *Server) Start(addr string) error {
@@ -58,7 +90,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func health(res http.ResponseWriter, req *http.Request) {
+func (s *Server) healthy(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 	_, _ = res.Write([]byte("ok"))
+}
+
+func (s *Server) ready(res http.ResponseWriter, req *http.Request) {
+	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+	defer cancel()
+
+	if err := s.ping(ctx); err != nil {
+		http.Error(res, "not ready", http.StatusServiceUnavailable)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+	_, _ = res.Write([]byte("ready"))
 }
