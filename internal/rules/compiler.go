@@ -139,7 +139,10 @@ type Compiler struct {
 
 // NewCompiler creates a new rule compiler.
 func NewCompiler() *Compiler {
-	return &Compiler{opts: []expr.Option{expr.Env(Environment{})}}
+	return &Compiler{opts: []expr.Option{
+		expr.Env(Environment{}),
+		expr.Optimize(true),
+	}}
 }
 
 // Compile compiles the rule definitions into a set of executable programs.
