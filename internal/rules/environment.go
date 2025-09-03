@@ -11,31 +11,33 @@ import (
 // Environment provides the context for evaluating rule expressions.
 // It is populated with information from the HTTP request and the access token.
 type Environment struct {
+	tok jwt.Token
 	// Method is the HTTP method of the request.
 	Method string
 	// Path is the request path (including the leading slash).
 	Path string
 	// DB is the name of the target CouchDB database.
 	DB string
-	// Claim extracts the value of a JWT claim by name.
-	Claim func(name string) any
 }
 
 func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
 
 	return Environment{
+		tok:    tok,
 		Method: method,
 		Path:   path,
 		DB:     database(path),
-		Claim: func(name string) any {
-			var v any
-			if err := tok.Get(name, &v); err != nil {
-				return nil
-			}
-			return v
-		},
 	}
+}
+
+// Claim extracts the value of a JWT claim by name.
+func (e Environment) Claim(name string) any {
+	var v any
+	if err := e.tok.Get(name, &v); err != nil {
+		return nil
+	}
+	return v
 }
 
 // database extracts the name of the CouchDB database from the URL path.
