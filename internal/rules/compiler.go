@@ -27,23 +27,23 @@ import (
 // Mode defines the behavior of a rule when matched.
 const (
 	// ModeAllow grants access, authenticating the request on behalf of the
-	// specified user.
+	// specified user with optional roles.
 	ModeAllow = "allow"
-	// ModeDeny implies that access should be denied, preventing the
-	// request from proceeding.
+	// ModeDeny denies access and prevents the request from proceeding.
 	ModeDeny = "deny"
 )
 
-// Rule represents an authorization rule whose expressions have been
-// compiled into executable programs.
+// Rule represents an authorization rule.
+// Each expression is compiled once and evaluated per request.
 type Rule struct {
-	deny  bool
+	deny  bool        // whether the rule denies access when matched
 	when  *vm.Program // required; evaluates to bool
 	user  *vm.Program // optional; evaluates to string
 	roles *vm.Program // optional; evaluates to []any
 }
 
-// evalWhen checks if the rule's condition is met.
+// evalWhen reports whether the rule's condition holds for the
+// given environment.
 func (r *Rule) evalWhen(env Environment) (bool, error) {
 	v, err := expr.Run(r.when, env)
 	if err != nil {
@@ -56,8 +56,9 @@ func (r *Rule) evalWhen(env Environment) (bool, error) {
 	return b, nil
 }
 
-// evalUser returns the CouchDB user to authenticate as, or an empty string
-// to forward the request anonymously.
+// evalUser evaluates the user expression and returns the name of the
+// CouchDB user to authenticate as, or an empty string to forward the
+// request anonymously.
 func (r *Rule) evalUser(env Environment) (string, error) {
 	if r.user == nil {
 		return "", nil
@@ -73,8 +74,8 @@ func (r *Rule) evalUser(env Environment) (string, error) {
 	return s, nil
 }
 
-// evalRoles returns the CouchDB roles for authentication as a comma-joined
-// string, or an empty string if no roles must be assigned.
+// evalRoles evaluates the roles expression and returns a comma-joined list
+// of CouchDB roles, or an empty string if no roles should be assigned.
 func (r *Rule) evalRoles(env Environment) (string, error) {
 	if r.roles == nil {
 		return "", nil
@@ -98,8 +99,8 @@ func (r *Rule) evalRoles(env Environment) (string, error) {
 	return strings.Join(b, ","), nil
 }
 
-// Eval executes the compiled expressions of this rule against the given
-// environment.
+// Eval evaluates the rule against env and returns the decision and
+// authentication parameters (if applicable).
 func (r *Rule) Eval(env Environment) (
 	skip bool, // whether this rule should be applied or skipped
 	deny bool, // whether this rule grants or denies access (if not skipped)
@@ -131,14 +132,14 @@ func (r *Rule) Eval(env Environment) (
 	return
 }
 
-// Compiler encapsulates rule compilation details.
+// Compiler compiles declarative rule definitions into executable programs.
 type Compiler struct {
 	when  []expr.Option
 	user  []expr.Option
 	roles []expr.Option
 }
 
-// NewCompiler creates a new rule compiler.
+// NewCompiler returns a new rule compiler with type-checked expressions.
 func NewCompiler() *Compiler {
 	base := []expr.Option{
 		expr.Env(Environment{}),
@@ -156,7 +157,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
-// Compile compiles the rule definitions into a set of executable programs.
+// Compile compiles a slice of rule definitions into executable rules.
 func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 	out := make([]Rule, 0, len(rules))
 	for i, r := range rules {
@@ -169,7 +170,7 @@ func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 	return out, nil
 }
 
-// compile compiles a single authorization rule.
+// compile compiles a single declarative rule into typed programs.
 func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 	mode := strings.ToLower(strings.TrimSpace(rule.Mode))
 	deny := mode == ModeDeny
@@ -199,6 +200,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 
 	var user, roles *vm.Program
 	if deny {
+		// Deny mode: user and roles must not be set.
 		if strings.TrimSpace(rule.User) != "" {
 			return Rule{}, fmt.Errorf(
 				"rules[%d].user must not be set for %s mode",
@@ -212,6 +214,7 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 			)
 		}
 	} else {
+		// Allow mode: user and roles can be set.
 		u := strings.TrimSpace(rule.User)
 		if u != "" {
 			var err error
