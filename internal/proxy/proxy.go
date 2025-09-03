@@ -7,15 +7,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"time"
 )
 
 func New(target string) (http.Handler, error) {
-	if target = strings.TrimSpace(target); target == "" {
-		target = "http://localhost:5984"
-	}
-
 	u, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target: %v", err)

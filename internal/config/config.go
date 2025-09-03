@@ -1,34 +1,235 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
+	"strings"
 
-	"github.com/deep-rent/vouch/internal/rule"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"gopkg.in/yaml.v3"
 )
 
-type Headers struct {
-	User string `yaml:"user,omitempty"`
-	Role string `yaml:"role,omitempty"`
-	Hash string `yaml:"hash,omitempty"`
-}
-
+// Config represents the entire configuration for the application.
 type Config struct {
-	Source  string        `yaml:"source,omitempty"`
-	Target  string        `yaml:"target,omitempty"`
-	Headers Headers       `yaml:"headers,omitempty"`
-	Rules   []rule.Config `yaml:"rules"`
+	// Proxy configures the proxy server.
+	// If omitted, the proxy defaults are used.
+	Proxy Proxy `yaml:"proxy,omitempty"`
+	// Token configures the validation of access tokens.
+	// This option is mandatory.
+	Token Token `yaml:"token"`
+	// Rules defines the list of authorization rules.
+	// The first matching rule decides. At least one rule must be provided.
+	Rules []Rule `yaml:"rules"`
 }
 
-func Load(path string) (*Config, error) {
+// Proxy configures the proxy server.
+type Proxy struct {
+	// Listen is the TCP address for the server to listen on in the form host:port.
+	// Defaults to :8080.
+	Listen string `yaml:"listen,omitempty"`
+	// Target is the URL to which requests are proxied.
+	// Defaults to http://localhost:5984.
+	Target string `yaml:"target,omitempty"`
+	// Headers customizes the proxy headers forwarded to CouchDB.
+	// If omitted, the CouchDB defaults are used.
+	Headers Headers `yaml:"headers,omitempty"`
+}
+
+// Headers customizes the proxy headers forwarded to CouchDB.
+type Headers struct {
+	// Secret is the CouchDB proxy secret used to sign requests.
+	// If omitted, the secret is not used.
+	Secret string `yaml:"secret,omitempty"`
+	// User is the name of the CouchDB proxy header containing the user's name.
+	// Defaults to X-Auth-CouchDB-UserName.
+	User string `yaml:"user,omitempty"`
+	// Roles is the name of the CouchDB proxy header containing the user's roles.
+	// Defaults to X-Auth-CouchDB-Roles.
+	Roles string `yaml:"roles,omitempty"`
+	// Token is the name of the CouchDB proxy header containing the signed token.
+	// Defaults to X-Auth-CouchDB-Token.
+	Token string `yaml:"token,omitempty"`
+}
+
+// Remote configures the polling behavior for a JWKS endpoint.
+type Remote struct {
+	// Endpoint is the URL from which the JWKS is retrieved.
+	// This option is mandatory.
+	Endpoint string `yaml:"endpoint"`
+	// Interval is the time to wait between polling the JWKS endpoint (in minutes).
+	// Defaults to 30.
+	Interval uint `yaml:"interval,omitempty"`
+}
+
+// Keys configures the key sources for token validation.
+// The static and remote keys will be merged.
+type Keys struct {
+	// Static specifies a set of JWK objects.
+	// If not specified, at least one remote endpoint must be provided.
+	Static string `yaml:"static,omitempty"`
+	// Remote specifies a set of JWKS endpoints from which keys are fetched.
+	// If not specified, at least one static key must be provided.
+	Remote Remote `yaml:"remote,omitempty"`
+}
+
+// Token configures the validation of access tokens.
+type Token struct {
+	// Keys specifies the key material used to verify signatures.
+	// This option is mandatory.
+	Keys Keys `yaml:"keys"`
+	// Issuer is the expected value of the "iss" claim.
+	// If omitted, the issuer is not validated.
+	Issuer string `yaml:"issuer,omitempty"`
+	// Audience is the value that the "aud" claim is expected to contain.
+	// If omitted, the audience is not validated.
+	Audience string `yaml:"audience,omitempty"`
+	// Leeway is the amount of time to allow for clock skew.
+	// Defaults to 0.
+	Leeway uint `yaml:"leeway,omitempty"`
+	// Algorithms specifies the acceptable algorithms for token signatures.
+	// Defaults to the ES*, RS*, and PS* families.
+	Algorithms []string `yaml:"algorithms,omitempty"`
+
+	Clock jwt.Clock `yaml:"-"`
+}
+
+// Rule represents a single, uncompiled authorization rule.
+// It is intended to be unmarshaled from a configuration source, such as YAML.
+// The expressions in When, User, and Role are plain strings that must be
+// compiled before evaluation.
+type Rule struct {
+	// Mode indicates whether the rule allows or denies access when matched.
+	// Supported values are "allow" and "deny".
+	Mode string `yaml:"mode"`
+	// When specifies the condition under which the rule applies.
+	// This expression is mandatory for every rule and must evaluate to a
+	// boolean.
+	When string `yaml:"when"`
+	// User is an optional expression that determines the CouchDB user to
+	// authenticate as. This field is only used in "allow" mode. If specified,
+	// the expression must return a string. An empty or missing result will
+	// cause the request to be forwarded anonymously. Must be left undefined in
+	// "deny" mode.
+	User string `yaml:"user,omitempty"`
+	// Roles is an optional expression that specifies CouchDB roles for
+	// authentication. This field is only used in "allow" mode. The expression
+	// must return a string, a comma-separated list of strings, or an array of
+	// strings. Must be left undefined in "deny" mode.
+	Roles string `yaml:"role,omitempty"`
+}
+
+func Load(path string) (Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read file '%s': %w", path, err)
+		return Config{}, fmt.Errorf("read file '%s': %w", path, err)
 	}
 	var cfg Config
 	if err := yaml.Unmarshal(b, &cfg); err != nil {
-		return nil, fmt.Errorf("parse yaml: %w", err)
+		return Config{}, fmt.Errorf("parse yaml: %w", err)
 	}
-	return &cfg, nil
+
+	var headers Headers
+	{
+		user := cfg.Proxy.Headers.User
+		if user = strings.TrimSpace(user); user == "" {
+			user = "X-Auth-CouchDB-UserName"
+		} else {
+			user = http.CanonicalHeaderKey(user)
+		}
+		role := cfg.Proxy.Headers.Roles
+		if role = strings.TrimSpace(role); role == "" {
+			role = "X-Auth-CouchDB-Roles"
+		} else {
+			role = http.CanonicalHeaderKey(role)
+		}
+		hash := cfg.Proxy.Headers.Token
+		if hash = strings.TrimSpace(hash); hash == "" {
+			hash = "X-Auth-CouchDB-Token"
+		} else {
+			hash = http.CanonicalHeaderKey(hash)
+		}
+		secret := strings.TrimSpace(cfg.Proxy.Headers.Secret)
+		if secret == "" {
+			slog.Warn("proxy secret is not set")
+		}
+
+		headers = Headers{
+			User:  user,
+			Roles: role,
+			Token: hash,
+		}
+	}
+
+	var proxy Proxy
+	{
+		source := strings.TrimSpace(cfg.Proxy.Listen)
+		if source == "" {
+			source = ":8080"
+		}
+		target := strings.TrimSpace(cfg.Proxy.Target)
+		if target == "" {
+			target = "http://localhost:5984"
+		}
+
+		proxy = Proxy{
+			Listen:  source,
+			Target:  target,
+			Headers: headers,
+		}
+	}
+
+	var keys Keys
+	{
+		remote := cfg.Token.Keys.Remote
+		static := cfg.Token.Keys.Static
+		keys = Keys{
+			Remote: remote,
+			Static: static,
+		}
+	}
+
+	var token Token
+	{
+		issuer := strings.TrimSpace(cfg.Token.Issuer)
+		audience := strings.TrimSpace(cfg.Token.Audience)
+		leeway := cfg.Token.Leeway
+		algorithms := cfg.Token.Algorithms
+		if algorithms == nil {
+			algorithms = []string{
+				"ES256",
+				"ES384",
+				"ES512",
+				"RS256",
+				"RS384",
+				"RS512",
+				"PS256",
+				"PS384",
+				"PS512",
+			}
+		}
+		token = Token{
+			Keys:       keys,
+			Issuer:     issuer,
+			Audience:   audience,
+			Leeway:     leeway,
+			Algorithms: algorithms,
+		}
+	}
+
+	rules := cfg.Rules
+	if rules == nil {
+		rules = make([]Rule, 0)
+	}
+	if len(rules) == 0 {
+		return Config{}, errors.New("no authorization rules configured")
+	}
+
+	return Config{
+		Proxy: proxy,
+		Token: token,
+		Rules: rules,
+	}, nil
 }

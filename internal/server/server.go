@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -18,30 +17,26 @@ type Server struct {
 	mux *http.ServeMux
 }
 
-func New(proxy http.Handler, mws ...middleware.Middleware) *Server {
+func New(h http.Handler, mws ...middleware.Middleware) *Server {
 	s := &Server{
 		mux: http.NewServeMux(),
 	}
-	s.routes(proxy)
+	s.routes(h)
 	return s
 }
 
-func (s *Server) routes(proxy http.Handler, mws ...middleware.Middleware) {
+func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected health endpoint (readiness/liveness)
 	s.mux.HandleFunc("/healthz", health)
 
 	// Pass CORS preflight straight through to CouchDB (no auth)
-	s.mux.Handle("OPTIONS /{path...}", proxy)
+	s.mux.Handle("OPTIONS /{path...}", h)
 
 	// Everything else goes through the middleware chain and to CouchDB
-	s.mux.Handle("/", middleware.Chain(proxy, mws...))
+	s.mux.Handle("/", middleware.Chain(h, mws...))
 }
 
 func (s *Server) Start(addr string) error {
-	if addr = strings.TrimSpace(addr); addr == "" {
-		addr = ":8080"
-	}
-
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           s.mux,

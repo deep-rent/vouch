@@ -1,35 +1,18 @@
 package middleware
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
-	"strings"
 
+	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
-	"github.com/deep-rent/vouch/internal/guard"
-	"github.com/deep-rent/vouch/internal/rule"
+	"github.com/deep-rent/vouch/internal/signer"
+	"github.com/deep-rent/vouch/internal/token"
 )
 
-func NewAuth(cfg *config.Config) (Middleware, error) {
-	g, err := guard.New(cfg.Rules)
-	if err != nil {
-		return nil, err
-	}
-
-	userHeader := strings.TrimSpace(cfg.Headers.User)
-	if userHeader == "" {
-		userHeader = "X-Auth-CouchDB-UserName"
-	}
-
-	roleHeader := strings.TrimSpace(cfg.Headers.Role)
-	if roleHeader == "" {
-		roleHeader = "X-Auth-CouchDB-Roles"
-	}
-
-	hashHeader := strings.TrimSpace(cfg.Headers.Hash)
-	if hashHeader == "" {
-		hashHeader = "X-Auth-CouchDB-Token"
-	}
-
+func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
+	signer := signer.New(cfg.Secret)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			// Let CORS preflight pass through unchanged
@@ -38,26 +21,31 @@ func NewAuth(cfg *config.Config) (Middleware, error) {
 				return
 			}
 
-			// Build evaluation environment
-			env := rule.NewEnvironment(nil, req)
-
-			pass, user, role, err := g.Authorize(env)
-
+			scope, err := guard.Check(req)
+			if err == auth.ErrForbidden {
+				res.WriteHeader(http.StatusForbidden)
+				return
+			}
+			var unauthorized *token.AuthenticationError
+			if errors.As(err, &unauthorized) {
+				res.Header().Set("WWW-Authenticate", unauthorized.Challenge)
+				res.WriteHeader(http.StatusUnauthorized)
+				return
+			}
 			if err != nil {
-				http.Error(res, "Failed to authorize request", http.StatusInternalServerError)
+				slog.Error("", "error", err)
 				return
 			}
 
-			if !pass {
-				http.Error(res, "Insufficient permissions", http.StatusForbidden)
-				return
-			}
+			if user := scope.User; user != "" {
+				res.Header().Set(cfg.User, user)
 
-			if user != "" {
-				res.Header().Set(userHeader, user)
-			}
-			if role != "" {
-				res.Header().Set(roleHeader, role)
+				if role := scope.Role; role != "" {
+					res.Header().Set(cfg.Roles, role)
+				}
+				if signer != nil {
+					res.Header().Set(cfg.Token, signer.Sign(user))
+				}
 			}
 
 			next.ServeHTTP(res, req)
