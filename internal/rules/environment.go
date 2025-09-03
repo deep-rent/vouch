@@ -52,6 +52,9 @@ func database(path string) string {
 		return ""
 	}
 	first := segments[1]
+	if strings.IndexByte(first, '%') == -1 {
+		return first
+	}
 	s, err := url.PathUnescape(first)
 	if err != nil {
 		return first
