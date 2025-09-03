@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -121,34 +122,36 @@ type Rule struct {
 func Load(path string) (Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return Config{}, fmt.Errorf("read file '%s': %w", path, err)
+		return Config{}, fmt.Errorf("read file %q: %w", path, err)
 	}
-	var cfg Config
-	if err := yaml.Unmarshal(b, &cfg); err != nil {
+	var raw Config
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	dec.KnownFields(true)
+	if err := dec.Decode(&raw); err != nil {
 		return Config{}, fmt.Errorf("parse yaml: %w", err)
 	}
 
 	var headers Headers
 	{
-		user := cfg.Proxy.Headers.User
+		user := raw.Proxy.Headers.User
 		if user = strings.TrimSpace(user); user == "" {
 			user = "X-Auth-CouchDB-UserName"
 		} else {
 			user = http.CanonicalHeaderKey(user)
 		}
-		role := cfg.Proxy.Headers.Roles
+		role := raw.Proxy.Headers.Roles
 		if role = strings.TrimSpace(role); role == "" {
 			role = "X-Auth-CouchDB-Roles"
 		} else {
 			role = http.CanonicalHeaderKey(role)
 		}
-		hash := cfg.Proxy.Headers.Token
+		hash := raw.Proxy.Headers.Token
 		if hash = strings.TrimSpace(hash); hash == "" {
 			hash = "X-Auth-CouchDB-Token"
 		} else {
 			hash = http.CanonicalHeaderKey(hash)
 		}
-		secret := strings.TrimSpace(cfg.Proxy.Headers.Secret)
+		secret := strings.TrimSpace(raw.Proxy.Headers.Secret)
 		if secret == "" {
 			slog.Warn("proxy secret is not set")
 		}
@@ -163,11 +166,11 @@ func Load(path string) (Config, error) {
 
 	var proxy Proxy
 	{
-		source := strings.TrimSpace(cfg.Proxy.Listen)
+		source := strings.TrimSpace(raw.Proxy.Listen)
 		if source == "" {
 			source = ":8080"
 		}
-		target := strings.TrimSpace(cfg.Proxy.Target)
+		target := strings.TrimSpace(raw.Proxy.Target)
 		if target == "" {
 			target = "http://localhost:5984"
 		}
@@ -181,8 +184,8 @@ func Load(path string) (Config, error) {
 
 	var keys Keys
 	{
-		remote := cfg.Token.Keys.Remote
-		static := cfg.Token.Keys.Static
+		remote := raw.Token.Keys.Remote
+		static := raw.Token.Keys.Static
 		keys = Keys{
 			Remote: remote,
 			Static: static,
@@ -191,9 +194,9 @@ func Load(path string) (Config, error) {
 
 	var token Token
 	{
-		issuer := strings.TrimSpace(cfg.Token.Issuer)
-		audience := strings.TrimSpace(cfg.Token.Audience)
-		leeway := cfg.Token.Leeway
+		issuer := strings.TrimSpace(raw.Token.Issuer)
+		audience := strings.TrimSpace(raw.Token.Audience)
+		leeway := raw.Token.Leeway
 		token = Token{
 			Keys:     keys,
 			Issuer:   issuer,
@@ -202,7 +205,7 @@ func Load(path string) (Config, error) {
 		}
 	}
 
-	rules := cfg.Rules
+	rules := raw.Rules
 	if rules == nil {
 		rules = make([]Rule, 0)
 	}
