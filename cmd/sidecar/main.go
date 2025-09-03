@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -30,8 +31,14 @@ func main() {
 
 	flag.Parse()
 
+	level, err := toLevel(*verb)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err)
+		os.Exit(2)
+	}
+
 	log := slog.New(slog.NewJSONHandler(os.Stdout,
-		&slog.HandlerOptions{Level: level(*verb)},
+		&slog.HandlerOptions{Level: level},
 	))
 	slog.SetDefault(log)
 
@@ -106,17 +113,17 @@ func main() {
 	}
 }
 
-func level(v string) slog.Level {
-	switch v {
+func toLevel(s string) (slog.Level, error) {
+	switch s {
 	case "debug":
-		return slog.LevelDebug
+		return slog.LevelDebug, nil
 	case "info":
-		return slog.LevelInfo
+		return slog.LevelInfo, nil
 	case "warn":
-		return slog.LevelWarn
+		return slog.LevelWarn, nil
 	case "error":
-		return slog.LevelError
+		return slog.LevelError, nil
 	default:
-		return slog.LevelInfo
+		return 0, fmt.Errorf("unknown level: %s", s)
 	}
 }
