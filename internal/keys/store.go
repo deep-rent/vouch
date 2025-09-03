@@ -51,7 +51,7 @@ func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 	return r.cache.Lookup(ctx, r.url)
 }
 
-func newRemote(cfg config.Remote) (Store, error) {
+func newRemote(ctx context.Context, cfg config.Remote) (Store, error) {
 	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -67,7 +67,6 @@ func newRemote(cfg config.Remote) (Store, error) {
 			}).DialContext,
 		},
 	}))
-	ctx := context.Background()
 	cache, err := jwk.NewCache(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("create cache: %w", err)
@@ -113,7 +112,7 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 	return agg, nil
 }
 
-func NewStore(cfg config.Keys) (Store, error) {
+func NewStore(ctx context.Context, cfg config.Keys) (Store, error) {
 	var static, remote Store
 	if cfg.Static != "" {
 		s, err := newStatic(cfg.Static)
@@ -123,7 +122,7 @@ func NewStore(cfg config.Keys) (Store, error) {
 		static = s
 	}
 	if cfg.Remote.Endpoint != "" {
-		s, err := newRemote(cfg.Remote)
+		s, err := newRemote(ctx, cfg.Remote)
 		if err != nil {
 			return nil, fmt.Errorf("remote keys: %w", err)
 		}

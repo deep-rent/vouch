@@ -37,23 +37,23 @@ type Parser struct {
 	opts []jwt.ParseOption
 }
 
-func NewParser(cfg config.Token) (*Parser, error) {
-	keys, err := keys.NewStore(cfg.Keys)
+func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
+	keys, err := keys.NewStore(ctx, cfg.Keys)
 	if err != nil {
 		return nil, err
 	}
 	opts := make([]jwt.ParseOption, 0, 4)
-	if lee := cfg.Leeway; lee != 0 {
-		opts = append(opts, jwt.WithAcceptableSkew(lee))
+	if v := cfg.Leeway; v != 0 {
+		opts = append(opts, jwt.WithAcceptableSkew(v))
 	}
-	if iss := strings.TrimSpace(cfg.Issuer); iss != "" {
-		opts = append(opts, jwt.WithIssuer(iss))
+	if v := strings.TrimSpace(cfg.Issuer); v != "" {
+		opts = append(opts, jwt.WithIssuer(v))
 	}
-	if aud := strings.TrimSpace(cfg.Audience); aud != "" {
-		opts = append(opts, jwt.WithAudience(aud))
+	if v := strings.TrimSpace(cfg.Audience); v != "" {
+		opts = append(opts, jwt.WithAudience(v))
 	}
-	if clk := cfg.Clock; clk != nil {
-		opts = append(opts, jwt.WithClock(clk))
+	if v := cfg.Clock; v != nil {
+		opts = append(opts, jwt.WithClock(v))
 	}
 	return &Parser{
 		keys: keys,

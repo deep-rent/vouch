@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -21,8 +22,8 @@ type Guard struct {
 	engine *rules.Engine
 }
 
-func NewGuard(cfg config.Config) (*Guard, error) {
-	parser, err := token.NewParser(cfg.Token)
+func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
+	parser, err := token.NewParser(ctx, cfg.Token)
 	if err != nil {
 		return nil, err
 	}

@@ -40,7 +40,7 @@ func main() {
 		log.Warn("proxy signing secret not configured")
 	}
 
-	grd, err := auth.NewGuard(cfg)
+	grd, err := auth.NewGuard(context.Background(), cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
