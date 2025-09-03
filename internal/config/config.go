@@ -59,7 +59,7 @@ type Headers struct {
 type Remote struct {
 	// Endpoint is the URL from which the JWKS is retrieved.
 	// This option is mandatory.
-	Endpoint string `yaml:"endpoint"`
+	Endpoint string `yaml:"endpoint,omitempty"`
 	// Interval is the time to wait between polling the JWKS endpoint (in minutes).
 	// Defaults to 30.
 	Interval time.Duration `yaml:"interval,omitempty"`
