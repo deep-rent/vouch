@@ -18,6 +18,9 @@ func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+			// An OPTIONS short-circuit is not needed; the server routes OPTIONS to
+			// proxy directly.
+
 			scope, err := grd.Check(req)
 			if err == auth.ErrForbidden {
 				code := http.StatusForbidden
