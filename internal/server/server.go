@@ -24,7 +24,7 @@ func New(h http.Handler, mws ...middleware.Middleware) *Server {
 
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected health endpoint (readiness/liveness)
-	s.mux.HandleFunc("/healthz", health)
+	s.mux.HandleFunc("/health", health)
 
 	// Pass CORS preflight straight through to CouchDB (no auth)
 	s.mux.Handle("OPTIONS /{path...}", h)
