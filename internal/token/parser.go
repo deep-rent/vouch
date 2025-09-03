@@ -26,23 +26,23 @@ import (
 )
 
 type AuthenticationError struct {
-	message   string
+	msg       string
 	Challenge string
 }
 
 func (e *AuthenticationError) Error() string {
-	return e.message
+	return e.msg
 }
 
 const scheme = "Bearer "
 
 var ErrMissingToken = &AuthenticationError{
-	message:   "missing access token",
+	msg:       "missing access token",
 	Challenge: scheme + `error="invalid_request"`,
 }
 
 var ErrInvalidToken = &AuthenticationError{
-	message:   "invalid access token",
+	msg:       "invalid access token",
 	Challenge: scheme + `error="invalid_token"`,
 }
 
