@@ -98,8 +98,8 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 		}
 		for i := 0; i < set.Len(); i++ {
 			if key, ok := set.Key(i); ok {
-				if agg.AddKey(key) != nil {
-					return nil, err
+				if err := agg.AddKey(key); err != nil {
+					return nil, fmt.Errorf("add key: %w", err)
 				}
 			}
 		}
