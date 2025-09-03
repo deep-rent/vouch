@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/deep-rent/vouch/internal/config"
@@ -25,7 +26,7 @@ type Rule struct {
 	deny  bool
 	when  *vm.Program // required; evaluates to bool
 	user  *vm.Program // optional; evaluates to string
-	roles *vm.Program // optional; evaluates to string or []string
+	roles *vm.Program // optional; evaluates to []any
 }
 
 // evalWhen checks if the rule's condition is met.
@@ -76,12 +77,6 @@ func (r *Rule) evalRoles(env Environment) (roles string, err error) {
 		return
 	}
 	switch t := v.(type) {
-	case string:
-		roles = t
-		return
-	case []string:
-		roles = strings.Join(t, ",")
-		return
 	case []any:
 		a := make([]string, len(t))
 		for i, e := range t {
@@ -94,7 +89,7 @@ func (r *Rule) evalRoles(env Environment) (roles string, err error) {
 		roles = strings.Join(a, ",")
 		return
 	default:
-		err = fmt.Errorf("roles must evaluate to string or []string, got %T", v)
+		err = fmt.Errorf("roles must evaluate to []string, got %T", v)
 		return
 	}
 }
@@ -178,7 +173,8 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 			)
 		}
 		var err error
-		when, err = expr.Compile(w, append(c.opts, expr.AsBool())...)
+		opts := append(c.opts, expr.AsBool())
+		when, err = expr.Compile(w, opts...)
 		if err != nil {
 			return Rule{}, fmt.Errorf(
 				"compile rules[%d].when: %w", i, err,
@@ -204,7 +200,8 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		u := strings.TrimSpace(rule.User)
 		if u != "" {
 			var err error
-			user, err = expr.Compile(u, c.opts...)
+			opts := append(c.opts, expr.AsKind(reflect.String))
+			user, err = expr.Compile(u, opts...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
 					"compile rules[%d].user: %w", i, err,
@@ -214,7 +211,8 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		r := strings.TrimSpace(rule.Roles)
 		if r != "" {
 			var err error
-			roles, err = expr.Compile(r, c.opts...)
+			opts := append(c.opts, expr.AsKind(reflect.Slice))
+			roles, err = expr.Compile(r, opts...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
 					"compile rules[%d].roles: %w", i, err,
