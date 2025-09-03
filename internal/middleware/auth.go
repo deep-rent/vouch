@@ -12,7 +12,10 @@ import (
 )
 
 func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
-	signer := signer.New(cfg.Secret)
+	var sign *signer.Signer
+	if secret := cfg.Secret; secret != "" {
+		sign = signer.New(secret)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			// Let CORS preflight pass through unchanged
@@ -23,17 +26,21 @@ func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
 
 			scope, err := guard.Check(req)
 			if err == auth.ErrForbidden {
-				res.WriteHeader(http.StatusForbidden)
+				code := http.StatusForbidden
+				http.Error(res, http.StatusText(code), code)
 				return
 			}
 			var unauthorized *token.AuthenticationError
 			if errors.As(err, &unauthorized) {
 				res.Header().Set("WWW-Authenticate", unauthorized.Challenge)
-				res.WriteHeader(http.StatusUnauthorized)
+				code := http.StatusUnauthorized
+				http.Error(res, http.StatusText(code), code)
 				return
 			}
 			if err != nil {
-				slog.Error("", "error", err)
+				slog.Error("Authorization check failed", "error", err)
+				code := http.StatusInternalServerError
+				http.Error(res, http.StatusText(code), code)
 				return
 			}
 
@@ -43,8 +50,8 @@ func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
 				if role := scope.Role; role != "" {
 					res.Header().Set(cfg.Roles, role)
 				}
-				if signer != nil {
-					res.Header().Set(cfg.Token, signer.Sign(user))
+				if sign != nil {
+					res.Header().Set(cfg.Token, sign.Sign(user))
 				}
 			}
 
