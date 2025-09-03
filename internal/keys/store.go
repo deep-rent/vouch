@@ -67,15 +67,21 @@ func newRemote(cfg config.Remote) (Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create cache: %w", err)
 	}
-	err = cache.Register(
+	if err := cache.Register(
 		ctx,
 		cfg.Endpoint,
 		jwk.WithMinInterval(cfg.Interval),
 		jwk.WithMaxInterval(cfg.Interval*2),
-	)
-	if err != nil {
+	); err != nil {
 		return nil, fmt.Errorf("register url: %w", err)
 	}
+
+	// Pre-warm asynchronously so first request doesn’t pay the fetch cost
+	go func() {
+		wt, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = cache.Lookup(wt, cfg.Endpoint)
+	}()
 	return &remote{cache, cfg.Endpoint}, nil
 }
 
