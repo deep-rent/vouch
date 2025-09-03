@@ -17,15 +17,23 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(log)
-
 	path := flag.String(
 		"config",
 		"./config.yaml",
 		"Path to the YAML configuration file",
 	)
+	verb := flag.String(
+		"v",
+		"info",
+		"Verbosity: debug, info, warn, error",
+	)
+
 	flag.Parse()
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout,
+		&slog.HandlerOptions{Level: level(*verb)},
+	))
+	slog.SetDefault(log)
 
 	log.Info("loading config", "path", *path)
 
@@ -95,5 +103,20 @@ func main() {
 		}
 		<-fatal
 		log.Info("server stopped")
+	}
+}
+
+func level(v string) slog.Level {
+	switch v {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
 	}
 }
