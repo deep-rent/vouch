@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package config defines the sidecar configuration schema and helpers to load
-// and validate it (typically from a YAML file on disk).
 package config
 
 import (

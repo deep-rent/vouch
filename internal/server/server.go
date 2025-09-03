@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package server exposes a small HTTP server that wires middleware and proxy,
-// and provides lifecycle control for starting and graceful shutdown.
 package server
 
 import (

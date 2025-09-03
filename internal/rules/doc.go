@@ -12,26 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hash
-
-import (
-	"crypto/hmac"
-	"crypto/sha1"
-	"encoding/hex"
-)
-
-type Signer struct {
-	key []byte
-}
-
-func (s *Signer) Sign(user string) string {
-	mac := hmac.New(sha1.New, s.key)
-	_, _ = mac.Write([]byte(user))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func New(secret string) *Signer {
-	return &Signer{
-		key: []byte(secret),
-	}
-}
+// Package rules defines an expression-based authorization model.
+// It compiles human-readable rule definitions into executable programs and
+// evaluates them against an evaluation environment in the request context.
+package rules

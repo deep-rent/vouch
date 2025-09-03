@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package middleware contains HTTP middlewares used by the sidecar, including
-// panic recovery and request forwarding/authentication helpers.
 package middleware
 
 import "net/http"
