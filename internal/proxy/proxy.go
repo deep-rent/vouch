@@ -26,6 +26,16 @@ func New(target string) (http.Handler, error) {
 		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && ip != "" {
 			req.Header.Add("X-Forwarded-For", ip)
 		}
+		// Preserve original scheme
+		if req.Header.Get("X-Forwarded-Proto") == "" {
+			var scheme string
+			if req.TLS != nil {
+				scheme = "https"
+			} else {
+				scheme = "http"
+			}
+			req.Header.Set("X-Forwarded-Proto", scheme)
+		}
 	}
 
 	proxy.ErrorHandler = func(
