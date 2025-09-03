@@ -35,7 +35,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.Proxy.Headers.Secret == "" {
+	headers := cfg.Proxy.Headers
+	if headers.Secret == "" {
 		log.Warn("proxy signing secret not configured")
 	}
 
@@ -45,10 +46,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	target := cfg.Proxy.Target
+	listen := cfg.Proxy.Listen
+
 	srv, err := server.New(
-		cfg.Proxy.Target,
+		target,
 		middleware.Recover(log),
-		middleware.Forward(log, grd, cfg.Proxy.Headers),
+		middleware.Forward(log, grd, headers),
 	)
 	if err != nil {
 		log.Error("failed to create server", "error", err)
@@ -58,10 +62,10 @@ func main() {
 	fatal := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
-			"listen", cfg.Proxy.Listen,
-			"target", cfg.Proxy.Target,
+			"listen", listen,
+			"target", target,
 		)
-		fatal <- srv.Start(cfg.Proxy.Listen)
+		fatal <- srv.Start(listen)
 	}()
 
 	ctx, stop := signal.NotifyContext(
