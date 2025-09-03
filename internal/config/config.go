@@ -53,6 +53,8 @@ type Headers struct {
 	// Token is the name of the CouchDB proxy header containing the signed token.
 	// Defaults to X-Auth-CouchDB-Token.
 	Token string `yaml:"token,omitempty"`
+	// Anonymous allows requests to be forwarded without authentication.
+	Anonymous bool `yaml:"anonymous,omitempty"`
 }
 
 // Remote configures the polling behavior for a JWKS endpoint.
@@ -110,11 +112,13 @@ type Rule struct {
 	// authenticate as. This field is only used in "allow" mode. If specified,
 	// the expression must return a string. It must be left undefined in "deny"
 	// mode. An empty or missing result will cause the request to be forwarded
-	// anonymously.
+	// anonymously, provided that the configuration allows it.
+	// Example: 'Claim("sub")'
 	User string `yaml:"user,omitempty"`
 	// Roles is an optional expression that specifies CouchDB roles for
 	// authentication. This field is only used in "allow" mode. The expression
 	// must return a slice of strings. It must be left undefined in "deny" mode.
+	// Example: '["reader", "writer"]'
 	Roles string `yaml:"roles,omitempty"`
 }
 

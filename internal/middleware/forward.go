@@ -55,6 +55,9 @@ func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 				if sign != nil {
 					res.Header().Set(cfg.Token, sign.Sign(user))
 				}
+			} else if !cfg.Anonymous {
+				code := http.StatusUnauthorized
+				http.Error(res, http.StatusText(code), code)
 			}
 
 			next.ServeHTTP(res, req)
