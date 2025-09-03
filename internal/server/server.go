@@ -44,7 +44,7 @@ func (s *Server) Start(addr string) error {
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       90 * time.Second,
-		MaxHeaderBytes:    1 << 13, // 8 KB
+		MaxHeaderBytes:    1 << 14, // 16 KB
 	}
 
 	fail := make(chan error, 1)
