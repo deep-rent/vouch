@@ -22,10 +22,10 @@ const (
 // Rule represents an authorization rule whose expressions have been
 // compiled into executable programs.
 type Rule struct {
-	deny bool
-	when *vm.Program // required; evaluates to bool
-	user *vm.Program // optional; evaluates to string
-	role *vm.Program // optional; evaluates to string or []string
+	deny  bool
+	when  *vm.Program // required; evaluates to bool
+	user  *vm.Program // optional; evaluates to string
+	roles *vm.Program // optional; evaluates to string or []string
 }
 
 // evalWhen checks if the rule's condition is met.
@@ -64,23 +64,23 @@ func (r *Rule) evalUser(env Environment) (user string, err error) {
 	return
 }
 
-// evalRole returns the CouchDB role(s) for authentication as a comma-joined
+// evalRoles returns the CouchDB roles for authentication as a comma-joined
 // string, or an empty string if no roles must be assigned.
-func (r *Rule) evalRole(env Environment) (role string, err error) {
-	if r.role == nil {
+func (r *Rule) evalRoles(env Environment) (roles string, err error) {
+	if r.roles == nil {
 		return
 	}
-	v, err := expr.Run(r.role, env)
+	v, err := expr.Run(r.roles, env)
 	if err != nil {
-		err = fmt.Errorf("eval role: %w", err)
+		err = fmt.Errorf("eval roles: %w", err)
 		return
 	}
 	switch t := v.(type) {
 	case string:
-		role = t
+		roles = t
 		return
 	case []string:
-		role = strings.Join(t, ",")
+		roles = strings.Join(t, ",")
 		return
 	case []any:
 		a := make([]string, len(t))
@@ -91,10 +91,10 @@ func (r *Rule) evalRole(env Environment) (role string, err error) {
 			}
 			a[i] = s
 		}
-		role = strings.Join(a, ",")
+		roles = strings.Join(a, ",")
 		return
 	default:
-		err = fmt.Errorf("role must evaluate to string or []string, got %T", v)
+		err = fmt.Errorf("roles must evaluate to string or []string, got %T", v)
 		return
 	}
 }
@@ -105,7 +105,7 @@ func (r *Rule) Eval(env Environment) (
 	skip bool, // whether this rule should be applied or skipped
 	deny bool, // whether this rule grants or denies access (if not skipped)
 	user string, // the CouchDB user to authenticate as (if not denied)
-	role string, // the CouchDB role(s) to authenticate with (if not denied)
+	roles string, // the CouchDB role(s) to authenticate with (if not denied)
 	err error, // any error that occurred during evaluation
 ) {
 	pass, err := r.evalWhen(env)
@@ -124,7 +124,7 @@ func (r *Rule) Eval(env Environment) (
 	if err != nil {
 		return
 	}
-	role, err = r.evalRole(env)
+	roles, err = r.evalRoles(env)
 	if err != nil {
 		user = ""
 		return
@@ -179,17 +179,17 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 	}
 
 	deny := mode == ModeDeny
-	var user, role *vm.Program
+	var user, roles *vm.Program
 	if deny {
 		if strings.TrimSpace(rule.User) != "" {
 			return Rule{}, fmt.Errorf(
-				"rules[%d]: user must not be set for %s mode",
+				"rules[%d].user must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
 		if strings.TrimSpace(rule.Roles) != "" {
 			return Rule{}, fmt.Errorf(
-				"rules[%d]: role must not be set for %s mode",
+				"rules[%d].roles must not be set for %s mode",
 				i, ModeDeny,
 			)
 		}
@@ -205,19 +205,19 @@ func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 		}
 		r := strings.TrimSpace(rule.Roles)
 		if r != "" {
-			role, err = expr.Compile(r, c.opts...)
+			roles, err = expr.Compile(r, c.opts...)
 			if err != nil {
 				return Rule{}, fmt.Errorf(
-					"compile rules[%d].role: %w", i, err,
+					"compile rules[%d].roles: %w", i, err,
 				)
 			}
 		}
 	}
 
 	return Rule{
-		deny: deny,
-		when: when,
-		user: user,
-		role: role,
+		deny:  deny,
+		when:  when,
+		user:  user,
+		roles: roles,
 	}, nil
 }
