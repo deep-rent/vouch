@@ -26,6 +26,11 @@ func (s *static) Keys(ctx context.Context) (jwk.Set, error) {
 }
 
 func newStatic(path string) (Store, error) {
+	if fi, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("stat file %q: %w", path, err)
+	} else if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("file %q exists but is not regular", path)
+	}
 	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read file %q: %w", path, err)
