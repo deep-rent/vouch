@@ -108,14 +108,13 @@ type Rule struct {
 	When string `yaml:"when"`
 	// User is an optional expression that determines the CouchDB user to
 	// authenticate as. This field is only used in "allow" mode. If specified,
-	// the expression must return a string. An empty or missing result will
-	// cause the request to be forwarded anonymously. Must be left undefined in
-	// "deny" mode.
+	// the expression must return a string. It must be left undefined in "deny"
+	// mode. An empty or missing result will cause the request to be forwarded
+	// anonymously.
 	User string `yaml:"user,omitempty"`
 	// Roles is an optional expression that specifies CouchDB roles for
 	// authentication. This field is only used in "allow" mode. The expression
-	// must return a string, a comma-separated list of strings, or an array of
-	// strings. Must be left undefined in "deny" mode.
+	// must return a slice of strings. It must be left undefined in "deny" mode.
 	Roles string `yaml:"roles,omitempty"`
 }
 

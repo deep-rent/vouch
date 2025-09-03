@@ -30,68 +30,58 @@ type Rule struct {
 }
 
 // evalWhen checks if the rule's condition is met.
-func (r *Rule) evalWhen(env Environment) (pass bool, err error) {
+func (r *Rule) evalWhen(env Environment) (bool, error) {
 	v, err := expr.Run(r.when, env)
 	if err != nil {
-		err = fmt.Errorf("eval when: %w", err)
-		return
+		return false, fmt.Errorf("eval when: %w", err)
 	}
 	b, ok := v.(bool)
 	if !ok {
-		err = fmt.Errorf("when must evaluate to bool, got %T", v)
-		return
+		return false, fmt.Errorf("when must return bool, got %T", v)
 	}
-	pass = b
-	return
+	return b, nil
 }
 
 // evalUser returns the CouchDB user to authenticate as, or an empty string
 // to forward the request anonymously.
-func (r *Rule) evalUser(env Environment) (user string, err error) {
+func (r *Rule) evalUser(env Environment) (string, error) {
 	if r.user == nil {
-		return
+		return "", nil
 	}
 	v, err := expr.Run(r.user, env)
 	if err != nil {
-		err = fmt.Errorf("eval user: %w", err)
-		return
+		return "", fmt.Errorf("eval user: %w", err)
 	}
 	s, ok := v.(string)
 	if !ok {
-		err = fmt.Errorf("user must evaluate to string, got %T", v)
-		return
+		return "", fmt.Errorf("user must return to string, got %T", v)
 	}
-	user = s
-	return
+	return s, nil
 }
 
 // evalRoles returns the CouchDB roles for authentication as a comma-joined
 // string, or an empty string if no roles must be assigned.
-func (r *Rule) evalRoles(env Environment) (roles string, err error) {
+func (r *Rule) evalRoles(env Environment) (string, error) {
 	if r.roles == nil {
-		return
+		return "", nil
 	}
 	v, err := expr.Run(r.roles, env)
 	if err != nil {
-		err = fmt.Errorf("eval roles: %w", err)
-		return
+		return "", fmt.Errorf("eval roles: %w", err)
 	}
-	switch t := v.(type) {
-	case []any:
-		a := make([]string, len(t))
-		for i, e := range t {
-			s, ok := e.(string)
-			if !ok {
-				return "", fmt.Errorf("role at %d must be string, was %T", i, e)
-			}
-			a[i] = s
+	a, ok := v.([]any)
+	if !ok {
+		return "", fmt.Errorf("roles must produce a slice, got %T", v)
+	}
+	b := make([]string, len(a))
+	for i, e := range a {
+		if s, ok := e.(string); !ok {
+			return "", fmt.Errorf("roles[%d] must be string, was %T", i, e)
+		} else {
+			b[i] = s
 		}
-		roles = strings.Join(a, ",")
-		return
-	default:
-		err = fmt.Errorf("roles must evaluate to []string, got %T", v)
-		return
 	}
+	return strings.Join(b, ","), nil
 }
 
 // Eval executes the compiled expressions of this rule against the given
