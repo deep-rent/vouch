@@ -115,7 +115,7 @@ type Rule struct {
 	// authentication. This field is only used in "allow" mode. The expression
 	// must return a string, a comma-separated list of strings, or an array of
 	// strings. Must be left undefined in "deny" mode.
-	Roles string `yaml:"role,omitempty"`
+	Roles string `yaml:"roles,omitempty"`
 }
 
 func Load(path string) (Config, error) {
