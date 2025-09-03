@@ -12,12 +12,12 @@ import (
 	"time"
 )
 
-type byteBufferPool struct {
+type pool struct {
 	pool sync.Pool
 }
 
-func newByteBufferPool(size int) *byteBufferPool {
-	return &byteBufferPool{
+func newPool(size int) *pool {
+	return &pool{
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, size)
@@ -27,12 +27,12 @@ func newByteBufferPool(size int) *byteBufferPool {
 	}
 }
 
-func (p *byteBufferPool) Get() []byte {
+func (p *pool) Get() []byte {
 	b := p.pool.Get().(*[]byte)
 	return *b
 }
 
-func (p *byteBufferPool) Put(b []byte) {
+func (p *pool) Put(b []byte) {
 	if cap(b) > 256<<10 { // Avoid holding on to very large buffers
 		return
 	}
@@ -66,12 +66,12 @@ func New(target string) (http.Handler, error) {
 	// Helpful for long-lived responses such as the _changes feed
 	proxy.FlushInterval = 200 * time.Millisecond
 	// Reduce allocations on large responses
-	proxy.BufferPool = newByteBufferPool(32 << 10)
+	proxy.BufferPool = newPool(32 << 10)
 
-	chain := proxy.Director
+	base := proxy.Director
 	proxy.Director = func(req *http.Request) {
-		chain(req)
-		// Do not leak client tokens to CouchDB
+		base(req)
+		// Strip access tokens from the outgoing request
 		req.Header.Del("Authorization")
 		// Preserve original host
 		req.Header.Set("X-Forwarded-Host", req.Host)
@@ -91,6 +91,7 @@ func New(target string) (http.Handler, error) {
 		}
 	}
 
+	// Map upstream errors to reasonable statuses
 	proxy.ErrorHandler = func(
 		res http.ResponseWriter,
 		req *http.Request,
