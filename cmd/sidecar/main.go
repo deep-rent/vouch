@@ -36,6 +36,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if cfg.Proxy.Headers.Secret == "" {
+		log.Warn("proxy signing secret not configured")
+	}
+
 	h, err := proxy.New(cfg.Proxy.Target)
 	if err != nil {
 		log.Error("failed to init proxy", "error", err)
