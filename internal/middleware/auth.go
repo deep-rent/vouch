@@ -11,7 +11,7 @@ import (
 	"github.com/deep-rent/vouch/internal/token"
 )
 
-func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
+func Auth(log *slog.Logger, guard *auth.Guard, cfg config.Headers) Middleware {
 	var sign *signer.Signer
 	if secret := cfg.Secret; secret != "" {
 		sign = signer.New(secret)
@@ -38,7 +38,7 @@ func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
 				return
 			}
 			if err != nil {
-				slog.Error("Authorization check failed", "error", err)
+				log.Error("auth check failed", "error", err)
 				code := http.StatusInternalServerError
 				http.Error(res, http.StatusText(code), code)
 				return
@@ -57,5 +57,5 @@ func NewAuth(guard *auth.Guard, cfg config.Headers) (Middleware, error) {
 
 			next.ServeHTTP(res, req)
 		})
-	}, nil
+	}
 }
