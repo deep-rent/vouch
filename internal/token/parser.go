@@ -20,16 +20,16 @@ func (e *AuthenticationError) Error() string {
 	return e.message
 }
 
-const Scheme = "Bearer "
+const scheme = "Bearer "
 
 var ErrMissingToken = &AuthenticationError{
 	message:   "missing access token",
-	Challenge: Scheme + `error="invalid_request"`,
+	Challenge: scheme + `error="invalid_request"`,
 }
 
 var ErrInvalidToken = &AuthenticationError{
 	message:   "invalid access token",
-	Challenge: Scheme + `error="invalid_token"`,
+	Challenge: scheme + `error="invalid_token"`,
 }
 
 type Parser struct {
@@ -66,10 +66,10 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	if auth == "" {
 		return nil, ErrMissingToken
 	}
-	if len(auth) < len(Scheme) || !strings.EqualFold(auth[:len(Scheme)], Scheme) {
+	if len(auth) < len(scheme) || !strings.EqualFold(auth[:len(scheme)], scheme) {
 		return nil, ErrMissingToken
 	}
-	s := strings.TrimSpace(auth[len(Scheme):])
+	s := strings.TrimSpace(auth[len(scheme):])
 	if s == "" {
 		return nil, ErrMissingToken
 	}
