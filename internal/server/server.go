@@ -94,7 +94,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) healthy(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
-	_, _ = res.Write([]byte("ok"))
+	_, _ = res.Write([]byte("healthy"))
 }
 
 func (s *Server) ready(res http.ResponseWriter, req *http.Request) {
