@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package token provides parsing and validation utilities for bearer tokens
-// used by the sidecar during authentication.
 package token
 
 import (
