@@ -157,9 +157,10 @@ func Load(path string) (Config, error) {
 		}
 
 		headers = Headers{
-			User:  user,
-			Roles: role,
-			Token: hash,
+			Secret: secret,
+			User:   user,
+			Roles:  role,
+			Token:  hash,
 		}
 	}
 
