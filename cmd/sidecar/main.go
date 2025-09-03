@@ -28,6 +28,8 @@ func main() {
 	)
 	flag.Parse()
 
+	log.Info("starting", "config", *path)
+
 	cfg, err := config.Load(*path)
 	if err != nil {
 		log.Error("couldn't load config", "error", err)
@@ -53,6 +55,7 @@ func main() {
 
 	fatal := make(chan error, 1)
 	go func() {
+		log.Info("listening", "address", cfg.Proxy.Listen)
 		fatal <- srv.Start(cfg.Proxy.Listen)
 	}()
 
@@ -69,15 +72,19 @@ func main() {
 			log.Error("server exited with error", "error", err)
 			os.Exit(1)
 		}
+		log.Info("server stopped")
 	case <-ctx.Done():
-		timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		dur := 10 * time.Second
+		timeout, cancel := context.WithTimeout(context.Background(), dur)
 		defer cancel()
 
+		log.Info("shutting down", "timeout", dur.String())
 		err := srv.Shutdown(timeout)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
 			os.Exit(1)
 		}
 		<-fatal
+		log.Info("server stopped")
 	}
 }
