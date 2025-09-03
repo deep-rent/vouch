@@ -184,11 +184,27 @@ func Load(path string) (Config, error) {
 
 	var keys Keys
 	{
-		remote := raw.Token.Keys.Remote
 		static := raw.Token.Keys.Static
+		remote := raw.Token.Keys.Remote
+
+		endpoint := strings.TrimSpace(remote.Endpoint)
+		interval := remote.Interval
+		if interval == 0 {
+			interval = 30
+		}
+		if static == "" && endpoint == "" {
+			return Config{}, fmt.Errorf(
+				"token.keys: %q and/or %q must be set",
+				"static", "remote.endpoint",
+			)
+		}
+
 		keys = Keys{
-			Remote: remote,
 			Static: static,
+			Remote: Remote{
+				Endpoint: endpoint,
+				Interval: interval,
+			},
 		}
 	}
 
@@ -210,7 +226,7 @@ func Load(path string) (Config, error) {
 		rules = make([]Rule, 0)
 	}
 	if len(rules) == 0 {
-		return Config{}, errors.New("no authorization rules configured")
+		return Config{}, errors.New("rules: at least one rule must be specified")
 	}
 
 	return Config{
