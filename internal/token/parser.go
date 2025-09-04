@@ -26,32 +26,47 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
+// AuthenticationError represents an authentication failure that should be
+// surfaced to the client with a WWW-Authenticate challenge as per RFC 6750.
 type AuthenticationError struct {
-	msg       string
+	msg string // human-readable error text
+	// Challenge is the value to include in the WWW-Authenticate header.
 	Challenge string
 }
 
+// Error implements the error interface.
 func (e *AuthenticationError) Error() string {
 	return e.msg
 }
 
+// scheme is the case-insensitive HTTP Authorization scheme prefix we expect.
 const scheme = "Bearer "
 
+// ErrMissingToken signals that the Authorization header is missing,
+// malformed, or uses the wrong scheme.
 var ErrMissingToken = &AuthenticationError{
 	msg:       "missing access token",
 	Challenge: scheme + `error="invalid_request"`,
 }
 
+// ErrInvalidToken indicates that the access token could not be parsed or
+// failed validation (signature, expiration, issuer/audience, etc.).
 var ErrInvalidToken = &AuthenticationError{
 	msg:       "invalid access token",
 	Challenge: scheme + `error="invalid_token"`,
 }
 
+// Parser extracts and validates Bearer tokens from HTTP requests.
+// It obtains verification keys from the provided key.Provider and applies
+// optional verification constraints derived from config.Token.
 type Parser struct {
-	keys key.Provider
-	opts []jwt.ParseOption
+	keys key.Provider      // JWK provider used for signature verification
+	opts []jwt.ParseOption // additional parsing/validation options
 }
 
+// NewParser constructs a Parser configured from the configuration.
+// It prepares validation options (leeway, issuer, audience, clock) and
+// builds a key provider to retrieve the JWKS used for verification.
 func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 	keys, err := key.NewProvider(ctx, cfg.Keys)
 	if err != nil {
@@ -76,6 +91,13 @@ func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 	}, nil
 }
 
+// Parse extracts a Bearer token from req's Authorization header and validates
+// it using the current JWKS and configured constraints.
+// Returns:
+//   - (*AuthenticationError) ErrMissingToken when the header is absent,
+//     malformed, or uses a different scheme.
+//   - (*AuthenticationError) ErrInvalidToken when parsing/validation fails.
+//   - Other errors may be returned from the key provider lookup.
 func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	auth := strings.TrimSpace(req.Header.Get("Authorization"))
 	if auth == "" {
@@ -101,6 +123,9 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	return tok, nil
 }
 
+// parse is an internal helper that applies the provided key set and
+// context, plus the parser's configured options, to parse and
+// validate the token string.
 func (p *Parser) parse(
 	ctx context.Context, set jwk.Set, s string,
 ) (jwt.Token, error) {
