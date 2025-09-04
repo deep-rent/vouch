@@ -45,6 +45,12 @@ func transport() *http.Transport {
 	}
 }
 
+const (
+	xForwardedHost  = "X-Forwarded-Host"
+	xForwardedFor   = "X-Forwarded-For"
+	xForwardedProto = "X-Forwarded-Proto"
+)
+
 // New constructs a reverse proxy handler that forwards requests to the target
 // address. It applies sane defaults for CouchDB, strips sensitive headers, and
 // enriches forwarding headers (X-Forwarded-*). Upstream errors are mapped to
@@ -70,20 +76,18 @@ func New(target string) (http.Handler, error) {
 		// Strip access tokens from the outgoing request.
 		req.Header.Del("Authorization")
 		// Preserve original host
-		req.Header.Set("X-Forwarded-Host", req.Host)
+		req.Header.Set(xForwardedHost, req.Host)
 		// Augment headers with the immediate peer.
 		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && ip != "" {
-			req.Header.Add("X-Forwarded-For", ip)
+			req.Header.Add(xForwardedFor, ip)
 		}
 		// Preserve original scheme  if not already set by upstream infrastructure.
-		if req.Header.Get("X-Forwarded-Proto") == "" {
-			var scheme string
+		if req.Header.Get(xForwardedProto) == "" {
 			if req.TLS != nil {
-				scheme = "https"
+				req.Header.Set(xForwardedProto, "https")
 			} else {
-				scheme = "http"
+				req.Header.Set(xForwardedProto, "http")
 			}
-			req.Header.Set("X-Forwarded-Proto", scheme)
 		}
 	}
 
