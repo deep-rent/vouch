@@ -43,7 +43,7 @@ type flags struct {
 
 // parse parses the command line arguments and returns them.
 func parse() (*flags, error) {
-	path := strings.TrimSpace(os.Getenv("VOUCH_CONFIG_PATH"))
+	path := strings.TrimSpace(os.Getenv("VOUCH_CONFIG"))
 	if path == "" {
 		// The default config file path.
 		path = "./config.yaml"
@@ -61,9 +61,9 @@ func parse() (*flags, error) {
 // logger sets up and returns a structured logger.
 func logger() *slog.Logger {
 	// Determine the logging verbosity level from the environment variable.
-	l := strings.TrimSpace(os.Getenv("VOUCH_LOG_LEVEL"))
+	v := strings.TrimSpace(os.Getenv("VOUCH_LOG"))
 	var level slog.Level
-	switch strings.ToUpper(l) {
+	switch strings.ToUpper(v) {
 	case "DEBUG":
 		level = slog.LevelDebug
 	case "INFO":
@@ -114,11 +114,11 @@ func main() {
 	}
 
 	// Application-scoped context for background components.
-	_ctx, _cancel := context.WithCancel(context.Background())
-	defer _cancel()
+	ctx_, cancel_ := context.WithCancel(context.Background())
+	defer cancel_()
 
 	// Construct the authentication and authorization guard.
-	grd, err := auth.NewGuard(_ctx, cfg)
+	grd, err := auth.NewGuard(ctx_, cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
@@ -158,7 +158,7 @@ func main() {
 	select {
 	case err := <-fatal:
 		// Ensure background work is stopped if the server exits.
-		_cancel()
+		cancel_()
 		if err != nil {
 			log.Error("server exited with error", "error", err)
 			os.Exit(1)
@@ -166,7 +166,7 @@ func main() {
 		log.Info("server stopped")
 	case <-ctx.Done():
 		// Stop background work first, then shut down the server.
-		_cancel()
+		cancel_()
 		dur := 10 * time.Second
 		timeout, cancel := context.WithTimeout(context.Background(), dur)
 		defer cancel()
