@@ -26,13 +26,62 @@ import (
 	"github.com/deep-rent/vouch/internal/proxy"
 )
 
+// probe encapsulates upstream health checking and the /ready handler.
+type probe struct {
+	url string       // upstream health endpoint (target + "/_up")
+	cli *http.Client // small client for readiness checks
+}
+
+// newProbe constructs a probe for the given upstream health endpoint.
+func newProbe(url string) *probe {
+	return &probe{
+		url: url,
+		cli: &http.Client{Timeout: 2 * time.Second},
+	}
+}
+
+// ping probes the upstream health endpoint and expects 200 OK.
+func (p *probe) ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, nil)
+	if err != nil {
+		return err
+	}
+	res, err := p.cli.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusOK {
+		return nil
+	}
+	return fmt.Errorf("health check returned %d", res.StatusCode)
+}
+
+// ready is a readiness probe that checks upstream availability.
+func (p *probe) ready(res http.ResponseWriter, req *http.Request) {
+	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+	defer cancel()
+
+	if err := p.ping(ctx); err != nil {
+		http.Error(res, "not ready", http.StatusServiceUnavailable)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+	_, _ = res.Write([]byte("ready"))
+}
+
+// healthy is a simple liveness probe handler.
+func (p *probe) healthy(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(http.StatusOK)
+	_, _ = res.Write([]byte("healthy"))
+}
+
 // Server wraps an http.Server and reverse proxy, wiring middleware and
 // exposing health/readiness endpoints.
 type Server struct {
 	srv *http.Server
 	mux *http.ServeMux
-	url string       // upstream health endpoint (target + "/_up")
-	cli *http.Client // small client for readiness checks
+	prb *probe
 }
 
 // New constructs a Server that forwards to the given CouchDB target address.
@@ -49,8 +98,7 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 	}
 	s := &Server{
 		mux: http.NewServeMux(),
-		url: url,
-		cli: &http.Client{Timeout: 2 * time.Second},
+		prb: newProbe(url),
 	}
 	s.routes(h, mws...)
 	return s, nil
@@ -59,33 +107,16 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 // routes registers public health endpoints and the proxy handler.
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected readiness and liveness probes.
-	s.mux.HandleFunc("GET /ready", s.ready)
-	s.mux.HandleFunc("HEAD /ready", s.ready)
-	s.mux.HandleFunc("GET /healthy", s.healthy)
-	s.mux.HandleFunc("HEAD /healthy", s.healthy)
+	s.mux.HandleFunc("GET /ready", s.prb.ready)
+	s.mux.HandleFunc("HEAD /ready", s.prb.ready)
+	s.mux.HandleFunc("GET /healthy", s.prb.healthy)
+	s.mux.HandleFunc("HEAD /healthy", s.prb.healthy)
 
 	// Pass CORS preflight straight through to CouchDB.
 	s.mux.Handle("OPTIONS /{path...}", h)
 
 	// Everything else goes through the middleware chain and to CouchDB.
 	s.mux.Handle("/", middleware.Chain(h, mws...))
-}
-
-// ping probes the upstream health endpoint and expects 200 OK.
-func (s *Server) ping(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
-	if err != nil {
-		return err
-	}
-	res, err := s.cli.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusOK {
-		return nil
-	}
-	return fmt.Errorf("health check returned %d", res.StatusCode)
 }
 
 // Start runs the HTTP server on addr and blocks until the server stops.
@@ -114,23 +145,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return s.srv.Shutdown(ctx)
-}
-
-// healthy is a simple liveness probe handler.
-func (s *Server) healthy(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
-	_, _ = res.Write([]byte("healthy"))
-}
-
-// ready is a readiness probe that checks upstream availability.
-func (s *Server) ready(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
-	defer cancel()
-
-	if err := s.ping(ctx); err != nil {
-		http.Error(res, "not ready", http.StatusServiceUnavailable)
-		return
-	}
-	res.WriteHeader(http.StatusOK)
-	_, _ = res.Write([]byte("ready"))
 }
