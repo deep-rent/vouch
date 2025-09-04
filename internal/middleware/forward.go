@@ -65,20 +65,23 @@ func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 			req.Header.Del(cfg.Roles)
 			req.Header.Del(cfg.Token)
 
-			// If a user is set, forward identity and optional roles/token.
-			if user := scope.User; user != "" {
-				req.Header.Set(cfg.User, user)
-
-				if role := scope.Roles; role != "" {
-					req.Header.Set(cfg.Roles, role)
+			// If the scope is anonymous, either reject or allow it.
+			if scope.IsAnonymous() {
+				if !cfg.Anonymous {
+					// Anonymous access disabled: require authentication.
+					code := http.StatusUnauthorized
+					http.Error(res, http.StatusText(code), code)
+					return
+				}
+			} else {
+				// Authenticated: inject user, roles, and token headers into the request.
+				req.Header.Set(cfg.User, scope.User)
+				if scope.Roles != "" {
+					req.Header.Set(cfg.Roles, scope.Roles)
 				}
 				if sign != nil {
-					req.Header.Set(cfg.Token, sign.Sign(user))
+					req.Header.Set(cfg.Token, sign.Sign(scope.User))
 				}
-			} else if !cfg.Anonymous {
-				// Anonymous access disabled: require authentication.
-				code := http.StatusUnauthorized
-				http.Error(res, http.StatusText(code), code)
 			}
 
 			// Continue down the chain to the proxy.

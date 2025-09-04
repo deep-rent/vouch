@@ -33,6 +33,11 @@ type Scope struct {
 	Roles string
 }
 
+// IsAnonymous returns true if the scope does not specify a user.
+func (s Scope) IsAnonymous() bool {
+	return s.User == ""
+}
+
 // AuthorizationError indicates that the request is authenticated but not
 // authorized to proceed.
 type AuthorizationError struct {
