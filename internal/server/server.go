@@ -26,18 +26,23 @@ import (
 	"github.com/deep-rent/vouch/internal/proxy"
 )
 
+// Server wraps an http.Server and reverse proxy, wiring middleware and
+// exposing health/readiness endpoints.
 type Server struct {
 	srv *http.Server
 	mux *http.ServeMux
-	url string
-	cli *http.Client
+	url string       // upstream health endpoint (target + "/_up")
+	cli *http.Client // small client for readiness checks
 }
 
+// New constructs a Server that forwards to the given CouchDB target address.
+// Middlewares are applied outermost-first around the proxy handler.
 func New(target string, mws ...middleware.Middleware) (*Server, error) {
 	h, err := proxy.New(target)
 	if err != nil {
 		return nil, fmt.Errorf("create proxy: %w", err)
 	}
+	// Build upstream health URL used by the /ready handler.
 	url, err := url.JoinPath(target, "_up")
 	if err != nil {
 		return nil, fmt.Errorf("build up url: %w", err)
@@ -51,20 +56,22 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 	return s, nil
 }
 
+// routes registers public health endpoints and the proxy handler.
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
-	// Unprotected readiness and liveness probes
+	// Unprotected readiness and liveness probes.
 	s.mux.HandleFunc("GET /ready", s.ready)
 	s.mux.HandleFunc("HEAD /ready", s.ready)
 	s.mux.HandleFunc("GET /healthy", s.healthy)
 	s.mux.HandleFunc("HEAD /healthy", s.healthy)
 
-	// Pass CORS preflight straight through to CouchDB
+	// Pass CORS preflight straight through to CouchDB.
 	s.mux.Handle("OPTIONS /{path...}", h)
 
-	// Everything else goes through the middleware chain and to CouchDB
+	// Everything else goes through the middleware chain and to CouchDB.
 	s.mux.Handle("/", middleware.Chain(h, mws...))
 }
 
+// ping probes the upstream health endpoint and expects 200 OK.
 func (s *Server) ping(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
 	if err != nil {
@@ -81,6 +88,8 @@ func (s *Server) ping(ctx context.Context) error {
 	return fmt.Errorf("health check returned %d", res.StatusCode)
 }
 
+// Start runs the HTTP server on addr and blocks until the server stops.
+// It returns nil on graceful shutdown, or the terminal error otherwise.
 func (s *Server) Start(addr string) error {
 	s.srv = &http.Server{
 		Addr:              addr,
@@ -99,6 +108,7 @@ func (s *Server) Start(addr string) error {
 	return nil
 }
 
+// Shutdown attempts a graceful server shutdown within ctx.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.srv == nil {
 		return nil
@@ -106,11 +116,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
+// healthy is a simple liveness probe handler.
 func (s *Server) healthy(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 	_, _ = res.Write([]byte("healthy"))
 }
 
+// ready is a readiness probe that checks upstream availability.
 func (s *Server) ready(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
 	defer cancel()
