@@ -16,6 +16,7 @@ package key
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -140,7 +141,7 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 //   - If only remote is configured, returns a remote provider.
 //   - If both are configured, returns a composite provider that merges both.
 //
-// If neither is configured, it returns (nil, nil).
+// If neither is configured, an error will be returned.
 func NewProvider(ctx context.Context, cfg config.Keys) (Provider, error) {
 	var providers []Provider
 	if cfg.Static != "" {
@@ -159,7 +160,7 @@ func NewProvider(ctx context.Context, cfg config.Keys) (Provider, error) {
 	}
 	switch len(providers) {
 	case 0:
-		return nil, nil
+		return nil, errors.New("no key source provided")
 	case 1:
 		return providers[0], nil
 	default:
