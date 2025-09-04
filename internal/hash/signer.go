@@ -20,16 +20,26 @@ import (
 	"encoding/hex"
 )
 
+// Signer computes deterministic HMAC tags using a static secret.
+// It is used to produce CouchDB proxy authentication tokens for securing
+// the communication between the proxy and CouchDB.
 type Signer struct {
 	key []byte
 }
 
+// Sign returns the lowercase hex-encoded HMAC-SHA1 of the provided user
+// name using the underlying secret key. The output is deterministic for
+// the same input and key.
 func (s *Signer) Sign(user string) string {
 	mac := hmac.New(sha1.New, s.key)
+	// Writing cannot fail for in-memory hashes, so the write error is
+	// intentionally ignored.
 	_, _ = mac.Write([]byte(user))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// New returns a new Signer that derives its HMAC key from the given secret.
+// An empty secret is allowed but insecure and should be avoided.
 func New(secret string) *Signer {
 	return &Signer{
 		key: []byte(secret),
