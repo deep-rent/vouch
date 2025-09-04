@@ -27,18 +27,26 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
+// Provider supplies a JSON Web Key Set (JWKS) used to verify signatures of
+// incoming access tokens. Implementations may load keys from disk, fetch them
+// remotely, or aggregate multiple sources.
 type Provider interface {
 	Keys(ctx context.Context) (jwk.Set, error)
 }
 
+// static implements Provider by serving keys from a static JWKS document
+// loaded from the local filesystem at startup.
 type static struct {
 	set jwk.Set
 }
 
+// Keys returns the pre-parsed static JWK set.
 func (s *static) Keys(ctx context.Context) (jwk.Set, error) {
 	return s.set, nil
 }
 
+// newStatic constructs a static key Provider from a JWKS file at path.
+// The file must exist and be a regular file. The JWKS is parsed eagerly.
 func newStatic(path string) (Provider, error) {
 	if fi, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("stat file %q: %w", path, err)
@@ -56,15 +64,21 @@ func newStatic(path string) (Provider, error) {
 	return &static{set}, nil
 }
 
+// remote implements Provider by retrieving keys from a remote JWKS endpoint.
+// It relies on jwk.Cache to handle background refreshes and rate limiting.
 type remote struct {
 	cache *jwk.Cache
 	url   string
 }
 
+// Keys looks up (and possibly refreshes) the JWK set for the configured URL.
 func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 	return r.cache.Lookup(ctx, r.url)
 }
 
+// newRemote constructs a remote key Provider backed by jwk.Cache and a tuned
+// HTTP client. The cache is registered to poll cfg.Endpoint at the configured
+// interval and is pre-warmed asynchronously to reduce first-request latency.
 func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
 		Timeout: 10 * time.Second,
@@ -94,7 +108,6 @@ func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 		return nil, fmt.Errorf("register url: %w", err)
 	}
 
-	// Pre-warm asynchronously so first request doesn’t pay the fetch cost
 	go func() {
 		wt, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -103,10 +116,15 @@ func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	return &remote{cache, cfg.Endpoint}, nil
 }
 
+// composite implements Provider by aggregating keys from multiple Providers.
+// Keys from all sources are merged into a single jwk.Set.
 type composite struct {
 	stores []Provider
 }
 
+// Keys merges the sets from all underlying Providers into a new set.
+// If multiple providers expose the same key, AddKey may de-duplicate based
+// on key ID and material as implemented by the jwk library.
 func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 	agg := jwk.NewSet()
 	for _, store := range c.stores {
@@ -126,6 +144,12 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 	return agg, nil
 }
 
+// NewProvider builds a Provider from configuration:
+//   - If only static is configured, returns a static provider.
+//   - If only remote is configured, returns a remote provider.
+//   - If both are configured, returns a composite provider that merges both.
+//
+// If neither is configured, it returns (nil, nil).
 func NewProvider(ctx context.Context, cfg config.Keys) (Provider, error) {
 	var static, remote Provider
 	if cfg.Static != "" {
