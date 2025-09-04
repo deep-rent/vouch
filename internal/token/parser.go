@@ -99,16 +99,8 @@ func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 //   - ErrInvalidToken when parsing/validation fails.
 //   - Other errors may be returned from the key provider lookup.
 func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
-	auth := strings.TrimSpace(req.Header.Get("Authorization"))
-	if auth == "" {
-		return nil, ErrMissingToken
-	}
-	n := len(scheme)
-	if n > len(auth) || !strings.EqualFold(auth[:n], scheme) {
-		return nil, ErrMissingToken
-	}
-	s := strings.TrimSpace(auth[n:])
-	if s == "" {
+	raw := bearer(req.Header.Get("Authorization"))
+	if raw == "" {
 		return nil, ErrMissingToken
 	}
 	ctx := req.Context()
@@ -116,7 +108,7 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	tok, err := p.parse(ctx, set, s)
+	tok, err := p.parse(ctx, set, raw)
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -134,4 +126,13 @@ func (p *Parser) parse(
 	opts = append(opts, p.opts...)
 
 	return jwt.ParseString(s, opts...)
+}
+
+// bearer extracts the token from the Authorization header value.
+func bearer(auth string) string {
+	auth = strings.TrimSpace(auth)
+	if len(scheme) > len(auth) || !strings.EqualFold(auth[:len(scheme)], scheme) {
+		return ""
+	}
+	return strings.TrimSpace(auth[len(scheme):])
 }
