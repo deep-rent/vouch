@@ -50,7 +50,7 @@ func main() {
 
 	flag.Parse()
 
-	// Configure structured logging before doing any work.
+	// Set up structured logging before doing any work.
 	level, err := toLevel(*verb)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err)
