@@ -1,21 +1,23 @@
-*         text=auto
-*.cjs     text
-*.go      text
-*.gz      binary
-*.js      text
-*.json    text
-*.lock    text
-*.md      text diff=markdown
-*.mjs     text
-*.png     binary
-*.svg     text
-*.yaml    text
-*.yml     text
-*.zip     binary
-.husky/*  text eol=lf
-.yarn/**  linguist-vendored
-vendor/** linguist-vendored
-go.mod    text
-go.sum    text
-LICENSE   text
-Makefile  text
+*          text=auto
+.husky/*   text eol=lf
+*.cjs      text
+*.go       text
+*.gz       binary
+*.js       text
+*.json     text
+*.lock     text
+*.md       text diff=markdown
+*.mjs      text
+*.png      binary
+*.svg      text
+*.yaml     text
+*.yml      text
+*.zip      binary
+Dockerfile text
+go.mod     text
+go.sum     text
+LICENSE    text
+Makefile   text
+
+.yarn/**   linguist-vendored
+vendor/**  linguist-vendored
