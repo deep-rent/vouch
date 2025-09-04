@@ -114,7 +114,7 @@ func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	}
 
 	go func() {
-		wt, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		wt, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		_, _ = cache.Lookup(wt, cfg.Endpoint)
 	}()
