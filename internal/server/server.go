@@ -26,56 +26,6 @@ import (
 	"github.com/deep-rent/vouch/internal/proxy"
 )
 
-// probe encapsulates upstream health checking and the /ready handler.
-type probe struct {
-	url string       // upstream health endpoint (target + "/_up")
-	cli *http.Client // small client for readiness checks
-}
-
-// newProbe constructs a probe for the given upstream health endpoint.
-func newProbe(url string) *probe {
-	return &probe{
-		url: url,
-		cli: &http.Client{Timeout: 2 * time.Second},
-	}
-}
-
-// ping probes the upstream health endpoint and expects 200 OK.
-func (p *probe) ping(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, nil)
-	if err != nil {
-		return err
-	}
-	res, err := p.cli.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusOK {
-		return nil
-	}
-	return fmt.Errorf("health check returned %d", res.StatusCode)
-}
-
-// ready is a readiness probe that checks upstream availability.
-func (p *probe) ready(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
-	defer cancel()
-
-	if err := p.ping(ctx); err != nil {
-		http.Error(res, "not ready", http.StatusServiceUnavailable)
-		return
-	}
-	res.WriteHeader(http.StatusOK)
-	_, _ = res.Write([]byte("ready"))
-}
-
-// healthy is a simple liveness probe handler.
-func (p *probe) healthy(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
-	_, _ = res.Write([]byte("healthy"))
-}
-
 // Server wraps an http.Server and reverse proxy, wiring middleware and
 // exposing health/readiness endpoints.
 type Server struct {
