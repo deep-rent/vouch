@@ -20,4 +20,5 @@ LICENSE    text
 Makefile   text
 
 .yarn/**   linguist-vendored
+*.pnp.*    linguist-vendored
 vendor/**  linguist-vendored
