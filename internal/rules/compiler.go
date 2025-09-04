@@ -24,9 +24,9 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// Mode enumerates the decision a rule applies when its condition is
-// satisfied. A rule either allows (optionally authenticating as a user) or
-// denies the request.
+// Mode enumerates the decision a rule applies when its condition is met.
+// A rule either allows (optionally authenticating as a user) or denies
+// the incoming request.
 const (
 	// ModeAllow grants access and may authenticate the request on behalf of
 	// the specified user with optional roles.
