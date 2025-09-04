@@ -101,11 +101,11 @@ func (r *Rule) evalRoles(env Environment) (string, error) {
 	return strings.Join(b, ","), nil
 }
 
-// Eval evaluates the rule against env and returns:
-//   - skip: whether the rule did not match (when=false) and should be ignored.
+// Eval evaluates the rule against the specified environment and returns:
+//   - skip: whether the rule did not match and should be ignored.
 //   - deny: whether access is denied (only meaningful when not skipped).
-//   - user: CouchDB username to authenticate as (when allowed).
-//   - roles: comma-separated CouchDB roles (when allowed).
+//   - user: CouchDB username to authenticate as (if neither skipped nor denied).
+//   - roles: comma-separated CouchDB roles (if neither skipped nor denied).
 //   - err: any error that occurred during evaluation.
 //
 // If any evaluation error occurs, it is returned and evaluation stops.
