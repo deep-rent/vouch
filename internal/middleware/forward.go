@@ -69,13 +69,13 @@ func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
 
 			// If a user is set, forward identity and optional roles/token.
 			if user := scope.User; user != "" {
-				res.Header().Set(cfg.User, user)
+				req.Header.Set(cfg.User, user)
 
 				if role := scope.Roles; role != "" {
-					res.Header().Set(cfg.Roles, role)
+					req.Header.Set(cfg.Roles, role)
 				}
 				if sign != nil {
-					res.Header().Set(cfg.Token, sign.Sign(user))
+					req.Header.Set(cfg.Token, sign.Sign(user))
 				}
 			} else if !cfg.Anonymous {
 				// Anonymous access disabled: require authentication.
