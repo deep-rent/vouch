@@ -17,6 +17,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/deep-rent/vouch/internal/config"
@@ -49,11 +50,11 @@ type Guard struct {
 func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 	parser, err := token.NewParser(ctx, cfg.Token)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create parser: %w", err)
 	}
 	engine, err := rules.NewEngine(cfg.Rules)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create engine: %w", err)
 	}
 	return &Guard{
 		parser: parser,
