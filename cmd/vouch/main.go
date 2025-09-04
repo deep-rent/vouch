@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command sidecar starts the authentication sidecar and reverse proxy
-// for CouchDB. It validates inbound requests using a bearer token,
-// evaluates dynamic authorization rules, and forwards requests to the
+// Command vouch starts the authentication sidecar and reverse proxy
+// for CouchDB. It authenticates inbound requests using access tokens,
+// enforces authorization rules, and forwards requests to the
 // configured CouchDB target.
 package main
 
