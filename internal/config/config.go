@@ -41,6 +41,23 @@ type Config struct {
 	Rules []Rule `yaml:"rules"`
 }
 
+// setDefaults applies default values to the configuration.
+func (c *Config) setDefaults() {
+	c.Proxy.setDefaults()
+	c.Token.setDefaults()
+}
+
+// validate checks the overall configuration for correctness.
+func (c *Config) validate() error {
+	if len(c.Rules) == 0 {
+		return errors.New("rules: at least one rule must be specified")
+	}
+	if err := c.Token.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Proxy configures the HTTP listener and upstream target.
 type Proxy struct {
 	// Listen is the TCP address the server listens on, in the form host:port.
@@ -52,6 +69,16 @@ type Proxy struct {
 	// Headers customizes the proxy headers sent to CouchDB.
 	// If omitted, the CouchDB-compatible defaults are used.
 	Headers Headers `yaml:"headers,omitempty"`
+}
+
+func (p *Proxy) setDefaults() {
+	if strings.TrimSpace(p.Listen) == "" {
+		p.Listen = ":8080"
+	}
+	if strings.TrimSpace(p.Target) == "" {
+		p.Target = "http://localhost:5984"
+	}
+	p.Headers.setDefaults()
 }
 
 // Headers customizes the proxy headers forwarded to CouchDB.
@@ -74,6 +101,25 @@ type Headers struct {
 	Anonymous bool `yaml:"anonymous,omitempty"`
 }
 
+func (h *Headers) setDefaults() {
+	h.Secret = strings.TrimSpace(h.Secret)
+	if user := strings.TrimSpace(h.User); user == "" {
+		h.User = "X-Auth-CouchDB-UserName"
+	} else {
+		h.User = http.CanonicalHeaderKey(user)
+	}
+	if roles := strings.TrimSpace(h.Roles); roles == "" {
+		h.Roles = "X-Auth-CouchDB-Roles"
+	} else {
+		h.Roles = http.CanonicalHeaderKey(roles)
+	}
+	if token := strings.TrimSpace(h.Token); token == "" {
+		h.Token = "X-Auth-CouchDB-Token"
+	} else {
+		h.Token = http.CanonicalHeaderKey(token)
+	}
+}
+
 // Remote configures periodic retrieval of a JWKS from a remote endpoint.
 type Remote struct {
 	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
@@ -82,6 +128,16 @@ type Remote struct {
 	// Interval is the poll interval measured in minutes.
 	// Default to 30 (minutes).
 	Interval time.Duration `yaml:"interval,omitempty"`
+}
+
+func (r *Remote) setDefaults() {
+	r.Endpoint = strings.TrimSpace(r.Endpoint)
+	// YAML unmarshals a number to nanoseconds. We interpret it as minutes.
+	if r.Interval == 0 {
+		r.Interval = 30 * time.Minute
+	} else {
+		r.Interval *= time.Minute
+	}
 }
 
 // Keys configures sources of JWK material used to verify token signatures.
@@ -93,6 +149,18 @@ type Keys struct {
 	// Remote specifies a JWKS endpoint to fetch and refresh keys from.
 	// If not provided, a static JWKS file must be configured.
 	Remote Remote `yaml:"remote,omitempty"`
+}
+
+func (k *Keys) setDefaults() {
+	k.Static = strings.TrimSpace(k.Static)
+	k.Remote.setDefaults()
+}
+
+func (k *Keys) validate() error {
+	if k.Static == "" && k.Remote.Endpoint == "" {
+		return errors.New("token.keys: at least one of 'static' or 'remote.endpoint' must be set")
+	}
+	return nil
 }
 
 // Token configures the validation of access tokens.
@@ -112,6 +180,21 @@ type Token struct {
 	// Clock allows injecting a custom clock for testing purposes.
 	// Not configurable via YAML.
 	Clock jwt.Clock `yaml:"-"`
+}
+
+func (t *Token) setDefaults() {
+	t.Keys.setDefaults()
+	t.Issuer = strings.TrimSpace(t.Issuer)
+	t.Audience = strings.TrimSpace(t.Audience)
+	// YAML unmarshals a number to nanoseconds. We interpret it as seconds.
+	t.Leeway *= time.Second
+}
+
+func (t *Token) validate() error {
+	if t.Leeway < 0 {
+		return errors.New("token.leeway: must be non-negative")
+	}
+	return t.Keys.validate()
 }
 
 // Rule represents a single, uncompiled authorization rule loaded from config.
@@ -146,111 +229,19 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("read file %q: %w", path, err)
 	}
-	var raw Config
+
+	var cfg Config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
-	if err := dec.Decode(&raw); err != nil {
+	if err := dec.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("parse yaml: %w", err)
 	}
 
-	var headers Headers
-	{
-		user := raw.Proxy.Headers.User
-		if user = strings.TrimSpace(user); user == "" {
-			user = "X-Auth-CouchDB-UserName"
-		} else {
-			user = http.CanonicalHeaderKey(user)
-		}
-		role := raw.Proxy.Headers.Roles
-		if role = strings.TrimSpace(role); role == "" {
-			role = "X-Auth-CouchDB-Roles"
-		} else {
-			role = http.CanonicalHeaderKey(role)
-		}
-		hash := raw.Proxy.Headers.Token
-		if hash = strings.TrimSpace(hash); hash == "" {
-			hash = "X-Auth-CouchDB-Token"
-		} else {
-			hash = http.CanonicalHeaderKey(hash)
-		}
-
-		headers = Headers{
-			Secret: strings.TrimSpace(raw.Proxy.Headers.Secret),
-			User:   user,
-			Roles:  role,
-			Token:  hash,
-		}
+	// Apply defaults and validation logic.
+	cfg.setDefaults()
+	if err := cfg.validate(); err != nil {
+		return Config{}, err
 	}
 
-	var proxy Proxy
-	{
-		source := strings.TrimSpace(raw.Proxy.Listen)
-		if source == "" {
-			source = ":8080"
-		}
-		target := strings.TrimSpace(raw.Proxy.Target)
-		if target == "" {
-			target = "http://localhost:5984"
-		}
-
-		proxy = Proxy{
-			Listen:  source,
-			Target:  target,
-			Headers: headers,
-		}
-	}
-
-	var keys Keys
-	{
-		static := raw.Token.Keys.Static
-		remote := raw.Token.Keys.Remote
-
-		endpoint := strings.TrimSpace(remote.Endpoint)
-		interval := remote.Interval
-		if interval == 0 {
-			interval = 30
-		}
-		if static == "" && endpoint == "" {
-			return Config{}, fmt.Errorf(
-				"token.keys: %q and/or %q must be set",
-				"static", "remote.endpoint",
-			)
-		}
-
-		keys = Keys{
-			Static: static,
-			Remote: Remote{
-				Endpoint: endpoint,
-				Interval: interval * time.Minute,
-			},
-		}
-	}
-
-	var token Token
-	{
-		leeway := raw.Token.Leeway
-		if leeway < 0 {
-			return Config{}, errors.New("token.leeway: must be non-negative")
-		}
-		token = Token{
-			Keys:     keys,
-			Issuer:   strings.TrimSpace(raw.Token.Issuer),
-			Audience: strings.TrimSpace(raw.Token.Audience),
-			Leeway:   leeway * time.Second,
-		}
-	}
-
-	rules := raw.Rules
-	if rules == nil {
-		rules = make([]Rule, 0)
-	}
-	if len(rules) == 0 {
-		return Config{}, errors.New("rules: at least one rule must be specified")
-	}
-
-	return Config{
-		Proxy: proxy,
-		Token: token,
-		Rules: rules,
-	}, nil
+	return cfg, nil
 }
