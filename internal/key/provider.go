@@ -34,6 +34,11 @@ type Provider interface {
 	Keys(ctx context.Context) (jwk.Set, error)
 }
 
+// ProviderFunc is a small adapter for functional implementations of Provider.
+type ProviderFunc func(ctx context.Context) (jwk.Set, error)
+
+func (f ProviderFunc) Keys(ctx context.Context) (jwk.Set, error) { return f(ctx) }
+
 // static implements Provider by serving keys from a static JWKS document
 // loaded from the local filesystem at startup.
 type static struct {
