@@ -23,7 +23,8 @@ import (
 const maxBufferSize int = 256 << 10 // 256 KiB
 
 // bufferPool implements httputil.BufferPool backed by sync.Pool.
-// It reduces allocations for large response bodies by reusing byte slices.
+// It reduces allocations for large response bodies by reusing byte slices,
+// thus lowering GC pressure.
 type bufferPool struct{ pool sync.Pool }
 
 // newBufferPool creates a buffer pool that returns buffers of at least size
