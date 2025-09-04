@@ -16,7 +16,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -34,9 +33,20 @@ type Scope struct {
 	Roles string
 }
 
+// AuthorizationError indicates that the request is authenticated but not
+// authorized to proceed.
+type AuthorizationError struct {
+	msg string // human-readable error text
+}
+
+// Error implements the error interface.
+func (e *AuthorizationError) Error() string {
+	return e.msg
+}
+
 // ErrForbidden indicates that the request is authenticated but does not
 // satisfy any allow rule (either no rule matched, or a deny rule matched).
-var ErrForbidden = errors.New("insufficient permissions")
+var ErrForbidden = &AuthorizationError{msg: "insufficient permissions"}
 
 // Guard validates incoming HTTP requests by parsing a Bearer token and
 // evaluating authorization rules to determine the CouchDB user/roles to apply.
