@@ -95,7 +95,6 @@ func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 		ctx,
 		cfg.Endpoint,
 		jwk.WithMinInterval(cfg.Interval),
-		jwk.WithMaxInterval(cfg.Interval*2),
 	); err != nil {
 		return nil, fmt.Errorf("register url: %w", err)
 	}
