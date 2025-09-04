@@ -94,9 +94,9 @@ func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 // Parse extracts a Bearer token from req's Authorization header and validates
 // it using the current JWKS and configured constraints.
 // Returns:
-//   - (*AuthenticationError) ErrMissingToken when the header is absent,
-//     malformed, or uses a different scheme.
-//   - (*AuthenticationError) ErrInvalidToken when parsing/validation fails.
+//   - ErrMissingToken when the header is absent, malformed, or uses a
+//     different scheme.
+//   - ErrInvalidToken when parsing/validation fails.
 //   - Other errors may be returned from the key provider lookup.
 func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 	auth := strings.TrimSpace(req.Header.Get("Authorization"))

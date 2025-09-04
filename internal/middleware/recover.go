@@ -19,10 +19,13 @@ import (
 	"net/http"
 )
 
+// Recover wraps a handler and converts panics into a 500 Internal Server Error.
+// It logs the panic value together with basic request context.
 func Recover(log *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			defer func() {
+				// Intercept a panic from downstream handlers/middlewares.
 				if v := recover(); v != nil {
 					method, path := req.Method, req.URL.Path
 					log.Error("unhandled error", "method", method, "path", path, "error", v)

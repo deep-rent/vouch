@@ -24,18 +24,28 @@ import (
 	"github.com/deep-rent/vouch/internal/token"
 )
 
+// Scope encapsulates the authentication parameters to forward to CouchDB via
+// the proxy headers. It defines the access scope granted to the request.
 type Scope struct {
+	// User is the CouchDB user name to authenticate as.
 	User string
-	Role string
+	// Roles is a comma-separated list of CouchDB roles.
+	Roles string
 }
 
+// ErrForbidden indicates that the request is authenticated but does not
+// satisfy any allow rule (either no rule matched, or a deny rule matched).
 var ErrForbidden = errors.New("insufficient permissions")
 
+// Guard validates incoming HTTP requests by parsing a Bearer token and
+// evaluating authorization rules to determine the CouchDB user/roles to apply.
 type Guard struct {
 	parser *token.Parser
 	engine *rules.Engine
 }
 
+// NewGuard constructs a Guard from configuration by wiring a token parser and
+// compiling the authorization rules.
 func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 	parser, err := token.NewParser(ctx, cfg.Token)
 	if err != nil {
@@ -51,23 +61,33 @@ func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 	}, nil
 }
 
+// Check parses and validates the Bearer token from req, evaluates the rules,
+// and returns the target CouchDB user/roles on success. It returns:
+//
+//   - token.ErrMissingToken or token.ErrInvalidToken if authentication fails.
+//   - ErrForbidden when the request does not pass authorization.
+//   - Other errors may be returned from the key provider lookup.
 func (g *Guard) Check(req *http.Request) (scope Scope, err error) {
+	// Parse and validate the access token from the Authorization header.
 	tok, err := g.parser.Parse(req)
 	if err != nil {
 		return
 	}
+	// Build the rule evaluation environment and run the engine.
 	env := rules.NewEnvironment(tok, req)
 	res, err := g.engine.Eval(env)
 	if err != nil {
 		return
 	}
+	// Denied explicitly or implicitly (no rule matched).
 	if !res.Pass {
 		err = ErrForbidden
 		return
 	}
+	// Access has been granted.
 	scope = Scope{
-		User: res.User,
-		Role: res.Role,
+		User:  res.User,
+		Roles: res.Roles,
 	}
 	return
 }

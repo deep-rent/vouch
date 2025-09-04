@@ -20,18 +20,23 @@ import (
 	"github.com/deep-rent/vouch/internal/config"
 )
 
+// Result captures the outcome of evaluating rules for a request.
 type Result struct {
+	// Pass indicates whether access is granted.
 	Pass bool
+	// User is the CouchDB user name to authenticate as when Pass is true.
 	User string
-	Role string
+	// Roles is a comma-separated list of CouchDB roles when Pass is true.
+	Roles string
 }
 
-// Engine evaluates authorization rules.
+// Engine evaluates a list of authorization rules in order.
 type Engine struct {
 	rules []Rule
 }
 
-// NewEngine compiles the provided rules.
+// NewEngine compiles the provided declarative rules and returns an Engine.
+// The given slice must not be empty.
 func NewEngine(rules []config.Rule) (*Engine, error) {
 	if len(rules) == 0 {
 		return nil, errors.New("at least one rule is required")
@@ -44,12 +49,15 @@ func NewEngine(rules []config.Rule) (*Engine, error) {
 	return &Engine{rules: compiled}, nil
 }
 
-// Eval evaluates rules in order and returns whether access is granted,
-// and if so, the user and role(s) to forward to CouchDB. If no rule
-// matches, access will be denied.
+// Eval scans rules in order and returns the first allow decision alongside
+// the user and role(s) to forward to CouchDB. If a deny rule matches, access
+// is denied immediately. If no rule matches, access is denied by default.
+//
+// On denial (explicit or implicit), a zero-value Result and nil error are
+// returned so the caller can decide how to respond upstream.
 func (a *Engine) Eval(env Environment) (Result, error) {
 	for _, r := range a.rules {
-		skip, deny, user, role, err := r.Eval(env)
+		skip, deny, user, roles, err := r.Eval(env)
 		if err != nil {
 			return Result{}, err
 		}
@@ -60,9 +68,9 @@ func (a *Engine) Eval(env Environment) (Result, error) {
 			break
 		}
 		return Result{
-			Pass: true,
-			User: user,
-			Role: role,
+			Pass:  true,
+			User:  user,
+			Roles: roles,
 		}, nil
 	}
 	return Result{}, nil

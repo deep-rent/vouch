@@ -16,11 +16,14 @@ package middleware
 
 import "net/http"
 
-// Middleware wraps a HTTP handler to form a middleware chain.
+// Middleware wraps a HTTP handler to form a middleware chain for adding
+// cross-cutting behavior.
 type Middleware func(http.Handler) http.Handler
 
 // Chain composes middleware handlers (outermost first).
+// Middlewares are applied in the order provided.
 func Chain(h http.Handler, mws ...Middleware) http.Handler {
+	// Apply in reverse so the first middleware wraps last.
 	for i := len(mws) - 1; i >= 0; i-- {
 		h = mws[i](h)
 	}

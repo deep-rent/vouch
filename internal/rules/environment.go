@@ -22,8 +22,8 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
-// Environment provides the context for evaluating rule expressions.
-// It is populated with information from the HTTP request and the access token.
+// Environment provides the input context for rule evaluation.
+// It carries request metadata (method, path, database) and the parsed token.
 type Environment struct {
 	tok jwt.Token
 	// Method is the HTTP method of the request.
@@ -34,6 +34,8 @@ type Environment struct {
 	DB string
 }
 
+// NewEnvironment populates an Environment from a token and request.
+// It extracts the HTTP method, raw path, and derives the database name.
 func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
 
@@ -45,7 +47,8 @@ func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 	}
 }
 
-// Claim extracts the value of a JWT claim by name.
+// Claim returns the value of a JWT claim by name.
+// It returns nil when the claim is not set or cannot be decoded.
 func (e Environment) Claim(name string) any {
 	var v any
 	if err := e.tok.Get(name, &v); err != nil {
@@ -54,8 +57,9 @@ func (e Environment) Claim(name string) any {
 	return v
 }
 
-// database extracts the name of the CouchDB database from the URL path.
-// This is the first segment after the leading slash.
+// database extracts the CouchDB database name from a URL path.
+// It returns the first path segment after the leading slash and performs
+// a best-effort percent-decoding of that segment only.
 func database(path string) string {
 	if path == "" {
 		return ""

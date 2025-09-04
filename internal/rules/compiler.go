@@ -24,26 +24,30 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// Mode defines the behavior of a rule when matched.
+// Mode enumerates the decision a rule applies when its condition is
+// satisfied. A rule either allows (optionally authenticating as a user) or
+// denies the request.
 const (
-	// ModeAllow grants access, authenticating the request on behalf of the
-	// specified user with optional roles.
+	// ModeAllow grants access and may authenticate the request on behalf of
+	// the specified user with optional roles.
 	ModeAllow = "allow"
 	// ModeDeny denies access and prevents the request from proceeding.
 	ModeDeny = "deny"
 )
 
-// Rule represents an authorization rule.
-// Each expression is compiled once and evaluated per request.
+// Rule is a compiled authorization rule.
+// Its expressions are compiled once and evaluated for each request against an
+// Environment. When the rule matches, it either denies the request or
+// provides authentication parameters (user and roles).
 type Rule struct {
 	deny  bool        // whether the rule denies access when matched
 	when  *vm.Program // required; evaluates to bool
 	user  *vm.Program // optional; evaluates to string
-	roles *vm.Program // optional; evaluates to []any
+	roles *vm.Program // optional; evaluates to []any of strings
 }
 
-// evalWhen reports whether the rule's condition holds for the
-// given environment.
+// evalWhen evaluates the rule's "when" condition against the environment and
+// reports whether the rule matches.
 func (r *Rule) evalWhen(env Environment) (bool, error) {
 	v, err := expr.Run(r.when, env)
 	if err != nil {
@@ -56,9 +60,8 @@ func (r *Rule) evalWhen(env Environment) (bool, error) {
 	return b, nil
 }
 
-// evalUser evaluates the user expression and returns the name of the
-// CouchDB user to authenticate as, or an empty string to forward the
-// request anonymously.
+// evalUser evaluates the "user" expression and returns the CouchDB user name
+// to authenticate as. It returns an empty string when no user is configured.
 func (r *Rule) evalUser(env Environment) (string, error) {
 	if r.user == nil {
 		return "", nil
@@ -74,8 +77,9 @@ func (r *Rule) evalUser(env Environment) (string, error) {
 	return s, nil
 }
 
-// evalRoles evaluates the roles expression and returns a comma-joined list
-// of CouchDB roles, or an empty string if no roles should be assigned.
+// evalRoles evaluates the "roles" expression and returns a comma-joined list
+// of CouchDB roles to be assigned to the user. It returns an empty string
+// when no roles are configured.
 func (r *Rule) evalRoles(env Environment) (string, error) {
 	if r.roles == nil {
 		return "", nil
@@ -99,14 +103,20 @@ func (r *Rule) evalRoles(env Environment) (string, error) {
 	return strings.Join(b, ","), nil
 }
 
-// Eval evaluates the rule against env and returns the decision and
-// authentication parameters (if applicable).
+// Eval evaluates the rule against env and returns:
+//   - skip: whether the rule did not match (when=false) and should be ignored.
+//   - deny: whether access is denied (only meaningful when not skipped).
+//   - user: CouchDB username to authenticate as (when allowed).
+//   - roles: comma-separated CouchDB roles (when allowed).
+//   - err: any error that occurred during evaluation.
+//
+// If any evaluation error occurs, it is returned and evaluation stops.
 func (r *Rule) Eval(env Environment) (
-	skip bool, // whether this rule should be applied or skipped
-	deny bool, // whether this rule grants or denies access (if not skipped)
-	user string, // the CouchDB user to authenticate as (if not denied)
-	roles string, // the CouchDB role(s) to authenticate with (if not denied)
-	err error, // any error that occurred during evaluation
+	skip bool,
+	deny bool,
+	user string,
+	roles string,
+	err error,
 ) {
 	pass, err := r.evalWhen(env)
 	if err != nil {
@@ -133,13 +143,16 @@ func (r *Rule) Eval(env Environment) (
 }
 
 // Compiler compiles declarative rule definitions into executable programs.
+// It enforces result types for each expression (bool for when, string for user,
+// and slice for roles) at compile time.
 type Compiler struct {
-	when  []expr.Option
-	user  []expr.Option
-	roles []expr.Option
+	when  []expr.Option // compile options for "when" expressions
+	user  []expr.Option // compile options for "user" expressions
+	roles []expr.Option // compile options for "roles" expressions
 }
 
-// NewCompiler returns a new rule compiler with type-checked expressions.
+// NewCompiler builds a compiler that type-checks expressions against the
+// Environment and enables bytecode optimizations.
 func NewCompiler() *Compiler {
 	base := []expr.Option{
 		expr.Env(Environment{}),
@@ -157,7 +170,8 @@ func NewCompiler() *Compiler {
 	}
 }
 
-// Compile compiles a slice of rule definitions into executable rules.
+// Compile compiles a slice of declarative rules into executable Rules.
+// Rules are compiled in order and returned in the same order.
 func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 	out := make([]Rule, 0, len(rules))
 	for i, r := range rules {
@@ -170,7 +184,9 @@ func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 	return out, nil
 }
 
-// compile compiles a single declarative rule into typed programs.
+// compile compiles a single rule and validates its shape based on mode.
+// For deny rules, user and roles must not be provided; for allow rules,
+// when is required and user/roles are optional.
 func (c *Compiler) compile(i int, rule config.Rule) (Rule, error) {
 	mode := strings.ToLower(strings.TrimSpace(rule.Mode))
 	deny := mode == ModeDeny

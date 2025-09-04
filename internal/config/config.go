@@ -119,8 +119,8 @@ type Rule struct {
 	// Supported values are "allow" and "deny".
 	Mode string `yaml:"mode"`
 	// When specifies the condition under which the rule applies.
-	// This expression is mandatory for every rule and must evaluate to a
-	// boolean.
+	// This expression is mandatory for every rule and must always evaluate to
+	// a boolean.
 	When string `yaml:"when"`
 	// User is an optional expression that determines the CouchDB user to
 	// authenticate as. This field is only used in "allow" mode. If specified,
