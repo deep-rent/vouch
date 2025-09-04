@@ -31,7 +31,7 @@ import (
 type Config struct {
 	// Proxy configures the local HTTP server and reverse proxy behavior.
 	// If omitted, defaults are applied.
-	Proxy Proxy `yaml:"proxy,omitempty"`
+	Proxy Proxy `yaml:"proxy"`
 	// Token configures how incoming bearer tokens are validated.
 	// This section is mandatory.
 	Token Token `yaml:"token"`
@@ -47,7 +47,7 @@ func (c *Config) setDefaults() {
 	c.Token.setDefaults()
 }
 
-// validate checks the overall configuration for correctness.
+// validate checks the configuration for correctness.
 func (c *Config) validate() error {
 	if len(c.Rules) == 0 {
 		return errors.New("rules: at least one rule must be specified")
@@ -62,15 +62,16 @@ func (c *Config) validate() error {
 type Proxy struct {
 	// Listen is the TCP address the server listens on, in the form host:port.
 	// Defaults to "":8080".
-	Listen string `yaml:"listen,omitempty"`
+	Listen string `yaml:"listen"`
 	// Target is the CouchDB URL to which requests are proxied.
 	// Defaults to "http://localhost:5984".
-	Target string `yaml:"target,omitempty"`
+	Target string `yaml:"target"`
 	// Headers customizes the proxy headers sent to CouchDB.
 	// If omitted, the CouchDB-compatible defaults are used.
-	Headers Headers `yaml:"headers,omitempty"`
+	Headers Headers `yaml:"headers"`
 }
 
+// setDefaults applies default values to the configuration.
 func (p *Proxy) setDefaults() {
 	if strings.TrimSpace(p.Listen) == "" {
 		p.Listen = ":8080"
@@ -85,22 +86,23 @@ func (p *Proxy) setDefaults() {
 type Headers struct {
 	// Secret is the CouchDB proxy secret used to sign the token header.
 	// If empty, signing is disabled (not recommended in production).
-	Secret string `yaml:"secret,omitempty"`
+	Secret string `yaml:"secret"`
 	// User is the proxy header name that carries the CouchDB user name.
 	// Default: "X-Auth-CouchDB-UserName".
-	User string `yaml:"user,omitempty"`
+	User string `yaml:"user"`
 	// Roles is the proxy header name that carries comma-separated roles.
 	// Default: "X-Auth-CouchDB-Roles".
-	Roles string `yaml:"roles,omitempty"`
+	Roles string `yaml:"roles"`
 	// Token is the proxy header name that carries the signed token proving
 	// the authenticity of the User header.
 	// Default: "X-Auth-CouchDB-Token".
-	Token string `yaml:"token,omitempty"`
+	Token string `yaml:"token"`
 	// Anonymous allows forwarding requests without an authenticated user.
 	// If false, anonymous requests are rejected with 401 Unauthorized.
-	Anonymous bool `yaml:"anonymous,omitempty"`
+	Anonymous bool `yaml:"anonymous"`
 }
 
+// setDefaults applies default values to the configuration.
 func (h *Headers) setDefaults() {
 	h.Secret = strings.TrimSpace(h.Secret)
 	if user := strings.TrimSpace(h.User); user == "" {
@@ -124,12 +126,13 @@ func (h *Headers) setDefaults() {
 type Remote struct {
 	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
 	// Required if no static key set is provided.
-	Endpoint string `yaml:"endpoint,omitempty"`
+	Endpoint string `yaml:"endpoint"`
 	// Interval is the poll interval measured in minutes.
 	// Default to 30 (minutes).
-	Interval time.Duration `yaml:"interval,omitempty"`
+	Interval time.Duration `yaml:"interval"`
 }
 
+// setDefaults applies default values to the configuration.
 func (r *Remote) setDefaults() {
 	r.Endpoint = strings.TrimSpace(r.Endpoint)
 	// YAML unmarshals a number to nanoseconds. We interpret it as minutes.
@@ -145,17 +148,19 @@ func (r *Remote) setDefaults() {
 type Keys struct {
 	// Static is a filesystem path to a JWKS document.
 	// If not provided, a remote endpoint must be configured.
-	Static string `yaml:"static,omitempty"`
+	Static string `yaml:"static"`
 	// Remote specifies a JWKS endpoint to fetch and refresh keys from.
 	// If not provided, a static JWKS file must be configured.
-	Remote Remote `yaml:"remote,omitempty"`
+	Remote Remote `yaml:"remote"`
 }
 
+// setDefaults applies default values to the configuration.
 func (k *Keys) setDefaults() {
 	k.Static = strings.TrimSpace(k.Static)
 	k.Remote.setDefaults()
 }
 
+// validate checks the configuration for correctness.
 func (k *Keys) validate() error {
 	if k.Static == "" && k.Remote.Endpoint == "" {
 		return errors.New("token.keys: at least one of 'static' or 'remote.endpoint' must be set")
@@ -170,18 +175,19 @@ type Token struct {
 	Keys Keys `yaml:"keys"`
 	// Issuer is the expected value of the "iss" claim.
 	// If omitted, the issuer is not validated.
-	Issuer string `yaml:"issuer,omitempty"`
+	Issuer string `yaml:"issuer"`
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
-	Audience string `yaml:"audience,omitempty"`
+	Audience string `yaml:"audience"`
 	// Leeway is the amount of time to allow for clock skew in seconds.
 	// Defaults to 0 (no additional skew).
-	Leeway time.Duration `yaml:"leeway,omitempty"`
+	Leeway time.Duration `yaml:"leeway"`
 	// Clock allows injecting a custom clock for testing purposes.
 	// Not configurable via YAML.
 	Clock jwt.Clock `yaml:"-"`
 }
 
+// setDefaults applies default values to the configuration.
 func (t *Token) setDefaults() {
 	t.Keys.setDefaults()
 	t.Issuer = strings.TrimSpace(t.Issuer)
@@ -190,6 +196,7 @@ func (t *Token) setDefaults() {
 	t.Leeway *= time.Second
 }
 
+// validate checks the configuration for correctness.
 func (t *Token) validate() error {
 	if t.Leeway < 0 {
 		return errors.New("token.leeway: must be non-negative")
@@ -214,12 +221,12 @@ type Rule struct {
 	// mode. An empty or missing result will cause the request to be forwarded
 	// anonymously, provided that the configuration allows it.
 	// Example: 'Claim("sub")'
-	User string `yaml:"user,omitempty"`
+	User string `yaml:"user"`
 	// Roles is an optional expression that specifies CouchDB roles for
 	// authentication. This field is only used in "allow" mode. The expression
 	// must return a slice of strings. It must be left undefined in "deny" mode.
 	// Example: '["reader", "writer"]'
-	Roles string `yaml:"roles,omitempty"`
+	Roles string `yaml:"roles"`
 }
 
 // Load reads a YAML configuration file from path, applies defaults, normalizes
