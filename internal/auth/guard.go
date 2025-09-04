@@ -78,27 +78,25 @@ func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 //   - token.ErrMissingToken or token.ErrInvalidToken if authentication fails.
 //   - ErrForbidden when the request does not pass authorization.
 //   - Other errors may be returned from the key provider lookup.
-func (g *Guard) Check(req *http.Request) (scope Scope, err error) {
+func (g *Guard) Check(req *http.Request) (Scope, error) {
 	// Parse and validate the access token from the Authorization header.
 	tok, err := g.parser.Parse(req)
 	if err != nil {
-		return
+		return Scope{}, err
 	}
 	// Build the rule evaluation environment and run the engine.
 	env := rules.NewEnvironment(tok, req)
 	res, err := g.engine.Eval(env)
 	if err != nil {
-		return
+		return Scope{}, err
 	}
 	// Denied explicitly or implicitly (no rule matched).
 	if !res.Pass {
-		err = ErrForbidden
-		return
+		return Scope{}, ErrForbidden
 	}
 	// Access has been granted.
-	scope = Scope{
+	return Scope{
 		User:  res.User,
 		Roles: res.Roles,
-	}
-	return
+	}, nil
 }
