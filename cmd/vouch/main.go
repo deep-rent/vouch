@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -36,9 +37,13 @@ import (
 	"github.com/deep-rent/vouch/internal/server"
 )
 
+// version is set at build time using -ldflags "-X main.version=..."
+var version = "dev"
+
 // flags is the data model for the command line arguments.
 type flags struct {
-	path string // path to config file
+	path    string // path to config file
+	version bool   // show version
 }
 
 // parse parses the command line arguments and returns them.
@@ -51,6 +56,7 @@ func parse() (*flags, error) {
 	p := new(flags)
 	f := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError)
 	f.StringVar(&p.path, "c", path, "Path to the YAML config file")
+	f.BoolVar(&p.version, "v", false, "Show version and exit")
 	err := f.Parse(os.Args[1:])
 	if err != nil {
 		return nil, err
@@ -96,6 +102,11 @@ func main() {
 		}
 		log.Error("failed to parse command line arguments", "error", err)
 		os.Exit(2)
+	}
+
+	if f.version {
+		fmt.Printf("version: %s\n", version)
+		os.Exit(0)
 	}
 
 	log.Info("loading config", "path", f.path)
