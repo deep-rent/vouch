@@ -113,8 +113,12 @@ func main() {
 		log.Warn("proxy signing secret not configured")
 	}
 
+	// Application-scoped context for background components.
+	_ctx, _cancel := context.WithCancel(context.Background())
+	defer _cancel()
+
 	// Construct the authentication and authorization guard.
-	grd, err := auth.NewGuard(context.Background(), cfg)
+	grd, err := auth.NewGuard(_ctx, cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
@@ -153,12 +157,16 @@ func main() {
 
 	select {
 	case err := <-fatal:
+		// Ensure background work is stopped if the server exits.
+		_cancel()
 		if err != nil {
 			log.Error("server exited with error", "error", err)
 			os.Exit(1)
 		}
 		log.Info("server stopped")
 	case <-ctx.Done():
+		// Stop background work first, then shut down the server.
+		_cancel()
 		dur := 10 * time.Second
 		timeout, cancel := context.WithTimeout(context.Background(), dur)
 		defer cancel()
