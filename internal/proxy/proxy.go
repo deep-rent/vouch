@@ -30,10 +30,8 @@ import (
 // - Disables transparent decompression to preserve upstream encoding
 // - Sets conservative timeouts and generous connection pooling
 func transport() *http.Transport {
-	dial := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           dial.DialContext,
 		ForceAttemptHTTP2:     true,
 		DisableCompression:    true, // Keep upstream encoding; don't decompress in-proxy
 		MaxIdleConns:          512,
@@ -42,6 +40,10 @@ func transport() *http.Transport {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 01 * time.Second,
 		ResponseHeaderTimeout: 30 * time.Second,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
 	}
 }
 
