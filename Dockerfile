@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+# Usage: docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/deep-rent/vouch:latest . --push
 
 ARG GO_VERSION=1.25
 
