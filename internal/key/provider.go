@@ -17,7 +17,6 @@ package key
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"time"
@@ -86,19 +85,7 @@ func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 // interval and is pre-warmed asynchronously to reduce first-request latency.
 func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			Proxy:               http.ProxyFromEnvironment,
-			ForceAttemptHTTP2:   true,
-			MaxIdleConns:        32,
-			MaxIdleConnsPerHost: 16,
-			IdleConnTimeout:     60 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-		},
+		Timeout: 30 * time.Second,
 	}))
 	cache, err := jwk.NewCache(ctx, client)
 	if err != nil {
