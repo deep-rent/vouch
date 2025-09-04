@@ -20,6 +20,6 @@ func TestMatch(t *testing.T) {
 	exp := "027da48c8c642ca4c58eb982eec81915179e77a3"
 	s := New("secret")
 	if act := s.Sign("user"); act != exp {
-		t.Errorf("Sign() = %v, want %v", act, exp)
+		t.Fatalf("Sign() = %v, want %v", act, exp)
 	}
 }
