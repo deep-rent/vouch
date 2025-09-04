@@ -32,7 +32,7 @@ type Result struct {
 
 // Engine evaluates a list of authorization rules in order.
 type Engine struct {
-	rules []Rule
+	rules []rule
 }
 
 // NewEngine compiles the provided declarative rules and returns an Engine.
@@ -57,21 +57,24 @@ func NewEngine(rules []config.Rule) (*Engine, error) {
 // returned so the caller can decide how to respond upstream.
 func (a *Engine) Eval(env Environment) (Result, error) {
 	for _, r := range a.rules {
-		skip, deny, user, roles, err := r.Eval(env)
+		o, err := r.Eval(env)
 		if err != nil {
 			return Result{}, err
 		}
-		if skip {
+		if o.Skip {
 			continue
 		}
-		if deny {
-			break
+		if o.Deny {
+			// A deny rule matched, so we stop and deny access.
+			return Result{Pass: false}, nil
 		}
+		// An allow rule matched.
 		return Result{
 			Pass:  true,
-			User:  user,
-			Roles: roles,
+			User:  o.User,
+			Roles: o.Roles,
 		}, nil
 	}
-	return Result{}, nil
+	// No rule matched, so we deny by default.
+	return Result{Pass: false}, nil
 }

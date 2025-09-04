@@ -33,20 +33,32 @@ const (
 	ModeDeny = "deny"
 )
 
-// Rule is a compiled authorization rule.
+// rule is a compiled authorization rule.
 // Its expressions are compiled once and evaluated for each request against an
 // Environment. When the rule matches, it either denies the request or
 // provides authentication parameters (user and roles).
-type Rule struct {
+type rule struct {
 	deny  bool        // whether the rule denies access when matched
 	when  *vm.Program // required; evaluates to bool
 	user  *vm.Program // optional; evaluates to string
 	roles *vm.Program // optional; evaluates to []any of strings
 }
 
+// result holds the result of evaluating a single rule.
+type result struct {
+	// Skip is true if the rule's condition did not match.
+	Skip bool
+	// Deny is true if the rule matched and is a "deny" rule.
+	Deny bool
+	// User is the CouchDB user name to authenticate as.
+	User string
+	// Roles is a comma-separated list of CouchDB roles.
+	Roles string
+}
+
 // evalWhen evaluates the rule's "when" condition against the environment and
 // reports whether the rule matches.
-func (r *Rule) evalWhen(env Environment) (bool, error) {
+func (r *rule) evalWhen(env Environment) (bool, error) {
 	v, err := expr.Run(r.when, env)
 	if err != nil {
 		return false, fmt.Errorf("eval when: %w", err)
@@ -60,7 +72,7 @@ func (r *Rule) evalWhen(env Environment) (bool, error) {
 
 // evalUser evaluates the "user" expression and returns the CouchDB user name
 // to authenticate as. It returns an empty string when no user is configured.
-func (r *Rule) evalUser(env Environment) (string, error) {
+func (r *rule) evalUser(env Environment) (string, error) {
 	if r.user == nil {
 		return "", nil
 	}
@@ -78,7 +90,7 @@ func (r *Rule) evalUser(env Environment) (string, error) {
 // evalRoles evaluates the "roles" expression and returns a comma-joined list
 // of CouchDB roles to be assigned to the user. It returns an empty string
 // when no roles are configured.
-func (r *Rule) evalRoles(env Environment) (string, error) {
+func (r *rule) evalRoles(env Environment) (string, error) {
 	if r.roles == nil {
 		return "", nil
 	}
@@ -101,41 +113,30 @@ func (r *Rule) evalRoles(env Environment) (string, error) {
 	return strings.Join(b, ","), nil
 }
 
-// Eval evaluates the rule against the specified environment and returns:
-//   - skip: whether the rule did not match and should be ignored.
-//   - deny: whether access is denied (only meaningful when not skipped).
-//   - user: CouchDB username to authenticate as (if neither skipped nor denied).
-//   - roles: comma-separated CouchDB roles (if neither skipped nor denied).
-//   - err: any error that occurred during evaluation.
-//
-// If any evaluation error occurs, it is returned and evaluation stops.
-func (r *Rule) Eval(env Environment) (
-	skip bool,
-	deny bool,
-	user string,
-	roles string,
-	err error,
-) {
+// Eval evaluates the rule against the specified environment.
+// It returns a result struct describing the outcome or an error if the
+// evaluation of any expression fails.
+func (r *rule) Eval(env Environment) (result, error) {
 	pass, err := r.evalWhen(env)
 	if err != nil {
-		return
+		return result{}, err
 	}
 	if !pass {
-		skip = true
-		return
+		return result{Skip: true}, nil
 	}
 	if r.deny {
-		deny = true
-		return
+		return result{Deny: true}, nil
 	}
-	user, err = r.evalUser(env)
+
+	user, err := r.evalUser(env)
 	if err != nil {
-		return
+		return result{}, err
 	}
-	roles, err = r.evalRoles(env)
+
+	roles, err := r.evalRoles(env)
 	if err != nil {
-		user = ""
-		return
+		return result{}, err
 	}
-	return
+
+	return result{User: user, Roles: roles}, nil
 }
