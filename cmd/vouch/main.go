@@ -22,10 +22,11 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,40 +36,72 @@ import (
 	"github.com/deep-rent/vouch/internal/server"
 )
 
-func main() {
-	// CLI flags: configuration path and logging verbosity.
-	path := flag.String(
-		"c",
-		"./config.yaml",
-		"Path to the YAML configuration file",
-	)
-	verb := flag.String(
-		"v",
-		"info",
-		"Verbosity: debug, info, warn, error",
-	)
+// flags is the data model for the command line arguments.
+type flags struct {
+	path string // path to config file
+}
 
-	flag.Parse()
-
-	// Set up structured logging before doing any work.
-	level, err := toLevel(*verb)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err)
-		os.Exit(2)
+// parse parses the command line arguments and returns them.
+func parse() (*flags, error) {
+	path := strings.TrimSpace(os.Getenv("VOUCH_CONFIG_PATH"))
+	if path == "" {
+		// The default config file path.
+		path = "./config.yaml"
 	}
+	p := new(flags)
+	f := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError)
+	f.StringVar(&p.path, "c", path, "Path to the YAML config file")
+	err := f.Parse(os.Args[1:])
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
 
-	log := slog.New(slog.NewJSONHandler(
+// logger sets up and returns a structured logger.
+func logger() *slog.Logger {
+	// Determine the logging verbosity level from the environment variable.
+	l := strings.TrimSpace(os.Getenv("VOUCH_LOG_LEVEL"))
+	var level slog.Level
+	switch strings.ToUpper(l) {
+	case "DEBUG":
+		level = slog.LevelDebug
+	case "INFO":
+		level = slog.LevelInfo
+	case "WARN":
+		level = slog.LevelWarn
+	case "ERROR":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+	return slog.New(slog.NewJSONHandler(
 		os.Stdout,
 		&slog.HandlerOptions{
 			Level: level,
 		},
 	))
+}
+
+func main() {
+	// Set up structured logging before doing any work.
+	log := logger()
 	slog.SetDefault(log)
 
-	log.Info("loading config", "path", *path)
+	f, err := parse()
+	if err != nil {
+		// Print help exits successfully.
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+		log.Error("failed to parse command line arguments", "error", err)
+		os.Exit(2)
+	}
+
+	log.Info("loading config", "path", f.path)
 
 	// Load and validate the configuration.
-	cfg, err := config.Load(*path)
+	cfg, err := config.Load(f.path)
 	if err != nil {
 		log.Error("couldn't load config", "error", err)
 		os.Exit(1)
@@ -138,22 +171,5 @@ func main() {
 		}
 		<-fatal
 		log.Info("server stopped")
-	}
-}
-
-// toLevel converts a string representation of a logging level
-// to the corresponding slog.Level value.
-func toLevel(s string) (slog.Level, error) {
-	switch s {
-	case "debug":
-		return slog.LevelDebug, nil
-	case "info":
-		return slog.LevelInfo, nil
-	case "warn":
-		return slog.LevelWarn, nil
-	case "error":
-		return slog.LevelError, nil
-	default:
-		return 0, fmt.Errorf("unknown level: %s", s)
 	}
 }
