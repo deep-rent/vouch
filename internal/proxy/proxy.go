@@ -22,42 +22,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"sync"
 	"time"
 )
-
-// bufferPool implements httputil.BufferPool backed by sync.Pool.
-// It reduces allocations for large response bodies by reusing byte slices.
-type bufferPool struct{ bufs sync.Pool }
-
-// newBufferPool creates a buffer pool that returns buffers of at least size
-// bytes. Buffers larger than 256 KiB are not kept to avoid memory bloat.
-func newBufferPool(size int) *bufferPool {
-	return &bufferPool{
-		bufs: sync.Pool{
-			New: func() any {
-				buf := make([]byte, size)
-				return &buf
-			},
-		},
-	}
-}
-
-// Get returns a reusable buffer slice.
-func (p *bufferPool) Get() []byte {
-	buf := p.bufs.Get().(*[]byte)
-	return *buf
-}
-
-// Put returns the buffer to the pool unless it grew beyond 256 KiB.
-func (p *bufferPool) Put(buf []byte) {
-	if cap(buf) <= 256<<10 { // Avoid holding on to very large buffers
-		p.bufs.Put(&buf)
-	}
-}
-
-// Ensure bufferPool satisfies the interface expected by ReverseProxy.
-var _ httputil.BufferPool = (*bufferPool)(nil)
 
 // transport returns an HTTP transport tuned for CouchDB upstreams.
 // - Enables HTTP/2 where possible
