@@ -27,75 +27,78 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the entire configuration for the application.
+// Config represents the entire application configuration.
 type Config struct {
-	// Proxy configures the proxy server.
-	// If omitted, the proxy defaults are used.
+	// Proxy configures the local HTTP server and reverse proxy behavior.
+	// If omitted, defaults are applied.
 	Proxy Proxy `yaml:"proxy,omitempty"`
-	// Token configures the validation of access tokens.
-	// This option is mandatory.
+	// Token configures how incoming bearer tokens are validated.
+	// This section is mandatory.
 	Token Token `yaml:"token"`
-	// Rules defines the list of authorization rules.
-	// The first matching rule decides. At least one rule must be provided.
+	// Rules defines ordered authorization rules.
+	// The first matching rule decides the outcome. At least one
+	// rule is required.
 	Rules []Rule `yaml:"rules"`
 }
 
-// Proxy configures the proxy server.
+// Proxy configures the HTTP listener and upstream target.
 type Proxy struct {
-	// Listen is the TCP address for the server to listen on in the form host:port.
-	// Defaults to :8080.
+	// Listen is the TCP address the server listens on, in the form host:port.
+	// Defaults to "":8080".
 	Listen string `yaml:"listen,omitempty"`
-	// Target is the URL to which requests are proxied.
-	// Defaults to http://localhost:5984.
+	// Target is the CouchDB URL to which requests are proxied.
+	// Defaults to "http://localhost:5984".
 	Target string `yaml:"target,omitempty"`
-	// Headers customizes the proxy headers forwarded to CouchDB.
-	// If omitted, the CouchDB defaults are used.
+	// Headers customizes the proxy headers sent to CouchDB.
+	// If omitted, the CouchDB-compatible defaults are used.
 	Headers Headers `yaml:"headers,omitempty"`
 }
 
 // Headers customizes the proxy headers forwarded to CouchDB.
 type Headers struct {
-	// Secret is the CouchDB proxy secret used to sign requests.
-	// If omitted, the secret is not used.
+	// Secret is the CouchDB proxy secret used to sign the token header.
+	// If empty, signing is disabled (not recommended in production).
 	Secret string `yaml:"secret,omitempty"`
-	// User is the name of the CouchDB proxy header containing the user's name.
-	// Defaults to X-Auth-CouchDB-UserName.
+	// User is the proxy header name that carries the CouchDB user name.
+	// Default: "X-Auth-CouchDB-UserName".
 	User string `yaml:"user,omitempty"`
-	// Roles is the name of the CouchDB proxy header containing the user's roles.
-	// Defaults to X-Auth-CouchDB-Roles.
+	// Roles is the proxy header name that carries comma-separated roles.
+	// Default: "X-Auth-CouchDB-Roles".
 	Roles string `yaml:"roles,omitempty"`
-	// Token is the name of the CouchDB proxy header containing the signed token.
-	// Defaults to X-Auth-CouchDB-Token.
+	// Token is the proxy header name that carries the signed token proving
+	// the authenticity of the User header.
+	// Default: "X-Auth-CouchDB-Token".
 	Token string `yaml:"token,omitempty"`
-	// Anonymous allows requests to be forwarded without authentication.
+	// Anonymous allows forwarding requests without an authenticated user.
+	// If false, anonymous requests are rejected with 401 Unauthorized.
 	Anonymous bool `yaml:"anonymous,omitempty"`
 }
 
-// Remote configures the polling behavior for a JWKS endpoint.
+// Remote configures periodic retrieval of a JWKS from a remote endpoint.
 type Remote struct {
-	// Endpoint is the URL from which the JWKS is retrieved.
-	// This option is mandatory.
+	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
+	// Required if no static key set is provided.
 	Endpoint string `yaml:"endpoint,omitempty"`
-	// Interval is the time to wait between polling the JWKS endpoint (in minutes).
-	// Defaults to 30.
+	// Interval is the poll interval measured in minutes.
+	// Default to 30 (minutes).
 	Interval time.Duration `yaml:"interval,omitempty"`
 }
 
-// Keys configures the key sources for token validation.
-// The static and remote keys will be merged.
+// Keys configures sources of JWK material used to verify token signatures.
+// Static and remote sources are merged when both are provided.
 type Keys struct {
-	// Static specifies a set of JWK objects.
-	// If not specified, at least one remote endpoint must be provided.
+	// Static is a filesystem path to a JWKS document.
+	// If not provided, a remote endpoint must be configured.
 	Static string `yaml:"static,omitempty"`
-	// Remote specifies a set of JWKS endpoints from which keys are fetched.
-	// If not specified, at least one static key must be provided.
+	// Remote specifies a JWKS endpoint to fetch and refresh keys from.
+	// If not provided, a static JWKS file must be configured.
 	Remote Remote `yaml:"remote,omitempty"`
 }
 
 // Token configures the validation of access tokens.
 type Token struct {
-	// Keys specifies the key material used to verify signatures.
-	// This option is mandatory.
+	// Keys specifies the JWK source(s) used for signature verification.
+	// This setting is required.
 	Keys Keys `yaml:"keys"`
 	// Issuer is the expected value of the "iss" claim.
 	// If omitted, the issuer is not validated.
@@ -103,26 +106,26 @@ type Token struct {
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
 	Audience string `yaml:"audience,omitempty"`
-	// Leeway is the amount of time to allow for clock skew (in seconds).
-	// Defaults to 0.
+	// Leeway is the amount of time to allow for clock skew in seconds.
+	// Defaults to 0 (no additional skew).
 	Leeway time.Duration `yaml:"leeway,omitempty"`
-
+	// Clock allows injecting a custom clock for testing purposes.
+	// Not configurable via YAML.
 	Clock jwt.Clock `yaml:"-"`
 }
 
-// Rule represents a single, uncompiled authorization rule.
-// It is intended to be unmarshaled from a configuration source, such as YAML.
-// The expressions in When, User, and Role are plain strings that must be
-// compiled before evaluation.
+// Rule represents a single, uncompiled authorization rule loaded from config.
+// Expressions in When, User, and Roles are plain strings that must be compiled
+// before use.
 type Rule struct {
-	// Mode indicates whether the rule allows or denies access when matched.
-	// Supported values are "allow" and "deny".
+	// Mode selects the decision when the rule matches.
+	// Supported values: "allow" or "deny".
 	Mode string `yaml:"mode"`
 	// When specifies the condition under which the rule applies.
 	// This expression is mandatory for every rule and must always evaluate to
 	// a boolean.
 	When string `yaml:"when"`
-	// User is an optional expression that determines the CouchDB user to
+	// User is an optional expression that determines the CouchDB user nameto
 	// authenticate as. This field is only used in "allow" mode. If specified,
 	// the expression must return a string. It must be left undefined in "deny"
 	// mode. An empty or missing result will cause the request to be forwarded
@@ -136,6 +139,8 @@ type Rule struct {
 	Roles string `yaml:"roles,omitempty"`
 }
 
+// Load reads a YAML configuration file from path, applies defaults, normalizes
+// values, and performs basic validation. It returns a fully-populated Config.
 func Load(path string) (Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
