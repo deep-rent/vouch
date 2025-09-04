@@ -156,31 +156,27 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 //
 // If neither is configured, it returns (nil, nil).
 func NewProvider(ctx context.Context, cfg config.Keys) (Provider, error) {
-	var static, remote Provider
+	var providers []Provider
 	if cfg.Static != "" {
 		s, err := newStatic(cfg.Static)
 		if err != nil {
 			return nil, fmt.Errorf("static keys: %w", err)
 		}
-		static = s
+		providers = append(providers, s)
 	}
 	if cfg.Remote.Endpoint != "" {
-		s, err := newRemote(ctx, cfg.Remote)
+		r, err := newRemote(ctx, cfg.Remote)
 		if err != nil {
 			return nil, fmt.Errorf("remote keys: %w", err)
 		}
-		remote = s
+		providers = append(providers, r)
 	}
-	if static == nil {
-		return remote, nil
+	switch len(providers) {
+	case 0:
+		return nil, nil
+	case 1:
+		return providers[0], nil
+	default:
+		return &composite{stores: providers}, nil
 	}
-	if remote == nil {
-		return static, nil
-	}
-	return &composite{
-		stores: []Provider{
-			static,
-			remote,
-		},
-	}, nil
 }
