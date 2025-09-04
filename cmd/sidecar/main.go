@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Command sidecar starts the authentication sidecar and reverse proxy
+// for CouchDB. It validates inbound requests using a bearer token,
+// evaluates dynamic authorization rules, and forwards requests to the
+// configured CouchDB target.
 package main
 
 import (
@@ -32,6 +36,7 @@ import (
 )
 
 func main() {
+	// CLI flags: configuration path and logging verbosity.
 	path := flag.String(
 		"c",
 		"./config.yaml",
@@ -45,6 +50,7 @@ func main() {
 
 	flag.Parse()
 
+	// Configure structured logging before doing any work.
 	level, err := toLevel(*verb)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err)
@@ -61,17 +67,20 @@ func main() {
 
 	log.Info("loading config", "path", *path)
 
+	// Load and validate the configuration.
 	cfg, err := config.Load(*path)
 	if err != nil {
 		log.Error("couldn't load config", "error", err)
 		os.Exit(1)
 	}
 
+	// Warn if CouchDB proxy signing is not configured.
 	headers := cfg.Proxy.Headers
 	if headers.Secret == "" {
 		log.Warn("proxy signing secret not configured")
 	}
 
+	// Construct the authentication and authorization guard.
 	grd, err := auth.NewGuard(context.Background(), cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
@@ -81,6 +90,7 @@ func main() {
 	target := cfg.Proxy.Target
 	listen := cfg.Proxy.Listen
 
+	// Wire proxy and middleware into the server.
 	srv, err := server.New(
 		target,
 		middleware.Recover(log),
@@ -91,6 +101,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Run the server and handle termination signals for graceful shutdown.
 	fatal := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
@@ -130,6 +141,8 @@ func main() {
 	}
 }
 
+// toLevel converts a string representation of a logging level
+// to the corresponding slog.Level value.
 func toLevel(s string) (slog.Level, error) {
 	switch s {
 	case "debug":
