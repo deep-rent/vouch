@@ -163,7 +163,9 @@ func (k *Keys) setDefaults() {
 // validate checks the configuration for correctness.
 func (k *Keys) validate() error {
 	if k.Static == "" && k.Remote.Endpoint == "" {
-		return errors.New("token.keys: at least one of 'static' or 'remote.endpoint' must be set")
+		return fmt.Errorf("token.keys: at least one of %q or %q must be set",
+			"static", "remote.endpoint",
+		)
 	}
 	return nil
 }
