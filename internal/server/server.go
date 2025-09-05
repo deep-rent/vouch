@@ -29,9 +29,9 @@ import (
 // Server wraps an http.Server and reverse proxy, wiring middleware and
 // exposing health/readiness endpoints.
 type Server struct {
-	srv *http.Server
-	mux *http.ServeMux
-	prb *probe
+	srv   *http.Server
+	mux   *http.ServeMux
+	probe *probe
 }
 
 // New constructs a Server that forwards to the given CouchDB target address.
@@ -47,8 +47,8 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 		return nil, fmt.Errorf("build up url: %w", err)
 	}
 	s := &Server{
-		mux: http.NewServeMux(),
-		prb: newProbe(url),
+		mux:   http.NewServeMux(),
+		probe: newProbe(url),
 	}
 	s.routes(h, mws...)
 	return s, nil
@@ -57,10 +57,10 @@ func New(target string, mws ...middleware.Middleware) (*Server, error) {
 // routes registers public health endpoints and the proxy handler.
 func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected readiness and liveness probes.
-	s.mux.HandleFunc("GET /ready", s.prb.ready)
-	s.mux.HandleFunc("HEAD /ready", s.prb.ready)
-	s.mux.HandleFunc("GET /healthy", s.prb.healthy)
-	s.mux.HandleFunc("HEAD /healthy", s.prb.healthy)
+	s.mux.HandleFunc("GET /ready", s.probe.ready)
+	s.mux.HandleFunc("HEAD /ready", s.probe.ready)
+	s.mux.HandleFunc("GET /healthy", s.probe.healthy)
+	s.mux.HandleFunc("HEAD /healthy", s.probe.healthy)
 
 	// Pass CORS preflight straight through to CouchDB.
 	s.mux.Handle("OPTIONS /{path...}", h)
