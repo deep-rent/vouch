@@ -15,6 +15,8 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"testing"
 )
@@ -68,6 +70,37 @@ func TestParse(t *testing.T) {
 			}
 			if f.path != tc.want {
 				t.Errorf("parse() path = %q, want %q", f.path, tc.want)
+			}
+		})
+	}
+}
+
+func TestLogger(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want slog.Level
+	}{
+		{"debug", "DEBUG", slog.LevelDebug},
+		{"info", "INFO", slog.LevelInfo},
+		{"warn", "WARN", slog.LevelWarn},
+		{"error", "ERROR", slog.LevelError},
+		{"lowercase", "debug", slog.LevelDebug},
+		{"empty", "", slog.LevelInfo},
+		{"invalid", "invalid", slog.LevelInfo},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("VOUCH_LOG", tc.env)
+			log := logger()
+			// Check if the handler has the correct level enabled.
+			if !log.Handler().Enabled(context.Background(), tc.want) {
+				t.Errorf("logger level %v should be enabled", tc.want)
+			}
+			// Check that a level below the desired one is disabled.
+			if tc.want > slog.LevelDebug && log.Handler().Enabled(context.Background(), tc.want-1) {
+				t.Errorf("logger level below %v should be disabled", tc.want)
 			}
 		})
 	}
