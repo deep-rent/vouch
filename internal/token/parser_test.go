@@ -70,7 +70,7 @@ func TestParse_EmptyAfterBearer(t *testing.T) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Authorization", "Bearer  ")
+	req.Header.Set(Header, "Bearer  ")
 
 	_, err := p.Parse(req)
 	if err != ErrMissingToken {
@@ -85,7 +85,7 @@ func TestParse_PropagatesErrors(t *testing.T) {
 		return nil, sentinel
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set(Header, "Bearer token")
 
 	_, err := p.Parse(req)
 	if err != sentinel {
@@ -99,7 +99,7 @@ func TestParse_RaisesCorrectErrors(t *testing.T) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Authorization", "Bearer invalid")
+	req.Header.Set(Header, "Bearer invalid")
 
 	_, err := p.Parse(req)
 	if err != ErrInvalidToken {
@@ -122,7 +122,7 @@ func TestParse_PassesRequestContextToProvider(t *testing.T) {
 
 	base := httptest.NewRequest("GET", "/", nil)
 	req := base.WithContext(context.WithValue(base.Context(), pointer{}, marker))
-	req.Header.Set("Authorization", "Bearer invalid")
+	req.Header.Set(Header, "Bearer invalid")
 
 	_, _ = p.Parse(req)
 	if !seen {

@@ -23,6 +23,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"github.com/deep-rent/vouch/internal/token"
 )
 
 // transport returns an HTTP transport tuned for CouchDB upstreams.
@@ -48,9 +50,9 @@ func transport() *http.Transport {
 }
 
 const (
-	xForwardedHost  = "X-Forwarded-Host"
-	xForwardedFor   = "X-Forwarded-For"
-	xForwardedProto = "X-Forwarded-Proto"
+	HeaderForwardedHost  = "X-Forwarded-Host"
+	HeaderForwardedFor   = "X-Forwarded-For"
+	HeaderForwardedProto = "X-Forwarded-Proto"
 )
 
 // New constructs a reverse proxy handler that forwards requests to the target
@@ -76,19 +78,19 @@ func New(target string) (http.Handler, error) {
 	proxy.Director = func(req *http.Request) {
 		base(req)
 		// Strip access tokens from the outgoing request.
-		req.Header.Del("Authorization")
+		req.Header.Del(token.Header)
 		// Preserve original host
-		req.Header.Set(xForwardedHost, req.Host)
+		req.Header.Set(HeaderForwardedHost, req.Host)
 		// Augment headers with the immediate peer.
 		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && ip != "" {
-			req.Header.Add(xForwardedFor, ip)
+			req.Header.Add(HeaderForwardedFor, ip)
 		}
 		// Preserve original scheme  if not already set by upstream infrastructure.
-		if req.Header.Get(xForwardedProto) == "" {
+		if req.Header.Get(HeaderForwardedProto) == "" {
 			if req.TLS != nil {
-				req.Header.Set(xForwardedProto, "https")
+				req.Header.Set(HeaderForwardedProto, "https")
 			} else {
-				req.Header.Set(xForwardedProto, "http")
+				req.Header.Set(HeaderForwardedProto, "http")
 			}
 		}
 	}

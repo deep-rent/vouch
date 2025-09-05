@@ -26,6 +26,9 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
+// Header is the HTTP header used to transmit the Bearer token.
+const Header = "Authorization"
+
 // AuthenticationError represents an authentication failure that should be
 // surfaced to the client with a WWW-Authenticate challenge as per RFC 6750.
 type AuthenticationError struct {
@@ -99,7 +102,7 @@ func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 //   - ErrInvalidToken when parsing/validation fails.
 //   - Other errors may be returned from the key provider lookup.
 func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
-	raw := bearer(req.Header.Get("Authorization"))
+	raw := bearer(req.Header.Get(Header))
 	if raw == "" {
 		return nil, ErrMissingToken
 	}
