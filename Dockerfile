@@ -9,9 +9,11 @@
 #   . --push
 
 ARG GO_VERSION=1.25
+ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS build
 
+ARG VERSION
 WORKDIR /src
 
 # Go module download (cached)
@@ -19,7 +21,7 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Build
+# Build the main application binary
 COPY . .
 ARG TARGETOS
 ARG TARGETARCH
