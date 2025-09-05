@@ -135,11 +135,10 @@ type Remote struct {
 // setDefaults applies default values to the configuration.
 func (r *Remote) setDefaults() {
 	r.Endpoint = strings.TrimSpace(r.Endpoint)
-	// YAML unmarshals a number to nanoseconds. We interpret it as minutes.
 	if r.Interval == 0 {
 		r.Interval = 30 * time.Minute
 	} else {
-		r.Interval *= time.Minute
+		r.Interval = time.Duration(r.Interval) * time.Minute
 	}
 }
 
@@ -181,7 +180,7 @@ type Token struct {
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
 	Audience string `yaml:"audience"`
-	// Leeway is the amount of time to allow for clock skew in seconds.
+	// Leeway is the allowed clock skew interpreted as seconds.
 	// Defaults to 0 (no additional skew).
 	Leeway time.Duration `yaml:"leeway"`
 	// Clock allows injecting a custom clock for testing purposes.
@@ -194,8 +193,7 @@ func (t *Token) setDefaults() {
 	t.Keys.setDefaults()
 	t.Issuer = strings.TrimSpace(t.Issuer)
 	t.Audience = strings.TrimSpace(t.Audience)
-	// YAML unmarshals a number to nanoseconds. We interpret it as seconds.
-	t.Leeway *= time.Second
+	t.Leeway = time.Duration(t.Leeway) * time.Second
 }
 
 // validate checks the configuration for correctness.
