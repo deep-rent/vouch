@@ -59,3 +59,4 @@ USER nonroot:nonroot
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 CMD ["/healthcheck"]
 
 ENTRYPOINT ["/vouch"]
+CMD ["-c", "/app/config.yaml"]
