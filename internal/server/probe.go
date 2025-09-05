@@ -54,10 +54,9 @@ func (p *probe) ping(ctx context.Context) error {
 
 // ready is a readiness probe that checks upstream availability.
 func (p *probe) ready(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
-	defer cancel()
-
-	if err := p.ping(ctx); err != nil {
+	// The ping call will be canceled by the client's timeout or if the
+	// incoming request's context is canceled.
+	if err := p.ping(req.Context()); err != nil {
 		http.Error(res, "not ready", http.StatusServiceUnavailable)
 		return
 	}
