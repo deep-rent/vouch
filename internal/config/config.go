@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -41,19 +42,21 @@ type Config struct {
 	Rules []Rule `yaml:"rules"`
 }
 
-// setDefaults applies default values to the configuration.
-func (c *Config) setDefaults() {
-	c.Proxy.setDefaults()
-	c.Token.setDefaults()
-}
-
-// validate checks the configuration for correctness.
+// validate applies defaults and checks the configuration for correctness.
 func (c *Config) validate() error {
+	if err := c.Proxy.validate(); err != nil {
+		return fmt.Errorf("proxy: %w", err)
+	}
+	if err := c.Token.validate(); err != nil {
+		return fmt.Errorf("token: %w", err)
+	}
 	if len(c.Rules) == 0 {
 		return errors.New("rules: at least one rule must be specified")
 	}
-	if err := c.Token.validate(); err != nil {
-		return err
+	for i := range c.Rules {
+		if err := c.Rules[i].validate(); err != nil {
+			return fmt.Errorf("rules[%d]: %w", i, err)
+		}
 	}
 	return nil
 }
@@ -71,15 +74,15 @@ type Proxy struct {
 	Headers Headers `yaml:"headers"`
 }
 
-// setDefaults applies default values to the configuration.
-func (p *Proxy) setDefaults() {
+// validate applies defaults and checks the configuration for correctness.
+func (p *Proxy) validate() error {
 	if strings.TrimSpace(p.Listen) == "" {
 		p.Listen = ":8080"
 	}
 	if strings.TrimSpace(p.Target) == "" {
 		p.Target = "http://localhost:5984"
 	}
-	p.Headers.setDefaults()
+	return p.Headers.validate()
 }
 
 // Headers customizes the proxy headers forwarded to CouchDB.
@@ -102,8 +105,8 @@ type Headers struct {
 	Anonymous bool `yaml:"anonymous"`
 }
 
-// setDefaults applies default values to the configuration.
-func (h *Headers) setDefaults() {
+// validate applies defaults and checks the configuration for correctness.
+func (h *Headers) validate() error {
 	h.Secret = strings.TrimSpace(h.Secret)
 	if user := strings.TrimSpace(h.User); user == "" {
 		h.User = "X-Auth-CouchDB-UserName"
@@ -120,6 +123,7 @@ func (h *Headers) setDefaults() {
 	} else {
 		h.Token = http.CanonicalHeaderKey(token)
 	}
+	return nil
 }
 
 // Remote configures periodic retrieval of a JWKS from a remote endpoint.
@@ -130,17 +134,27 @@ type Remote struct {
 	// interval will be mapped to Interval after parsing.
 	interval int64 `yaml:"interval"`
 	// Interval is the poll interval measured in minutes.
-	// Default to 30 (minutes).
+	// Defaults to 30 (minutes).
 	Interval time.Duration `yaml:"-"`
 }
 
-// setDefaults applies default values to the configuration.
-func (r *Remote) setDefaults() {
+// validate applies defaults and checks the configuration for correctness.
+func (r *Remote) validate() error {
 	r.Endpoint = strings.TrimSpace(r.Endpoint)
-	if r.interval <= 0 {
+	u, err := url.Parse(r.Endpoint)
+	if err != nil {
+		return fmt.Errorf("endpoint: invalid url: %w", err)
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
+	}
+	if r.interval < 0 {
+		return errors.New("interval: must be non-negative")
+	} else if r.interval == 0 {
 		r.interval = 30
 	}
 	r.Interval = time.Duration(r.interval) * time.Minute
+	return nil
 }
 
 // Keys configures sources of JWK material used to verify token signatures.
@@ -154,16 +168,15 @@ type Keys struct {
 	Remote Remote `yaml:"remote"`
 }
 
-// setDefaults applies default values to the configuration.
-func (k *Keys) setDefaults() {
-	k.Static = strings.TrimSpace(k.Static)
-	k.Remote.setDefaults()
-}
-
-// validate checks the configuration for correctness.
+// validate applies defaults and checks the configuration for correctness.
 func (k *Keys) validate() error {
+	k.Static = strings.TrimSpace(k.Static)
+	if err := k.Remote.validate(); err != nil {
+		return fmt.Errorf("remote: %w", err)
+	}
+
 	if k.Static == "" && k.Remote.Endpoint == "" {
-		return fmt.Errorf("token.keys: at least one of %q or %q must be set",
+		return fmt.Errorf("keys: at least one of %q or %q must be set",
 			"static", "remote.endpoint",
 		)
 	}
@@ -191,20 +204,18 @@ type Token struct {
 	Clock jwt.Clock `yaml:"-"`
 }
 
-// setDefaults applies default values to the configuration.
-func (t *Token) setDefaults() {
-	t.Keys.setDefaults()
+// validate applies defaults and checks the configuration for correctness.
+func (t *Token) validate() error {
+	if err := t.Keys.validate(); err != nil {
+		return fmt.Errorf("keys: %w", err)
+	}
+	if t.Leeway < 0 {
+		return errors.New("leeway: must be non-negative")
+	}
 	t.Issuer = strings.TrimSpace(t.Issuer)
 	t.Audience = strings.TrimSpace(t.Audience)
 	t.Leeway = time.Duration(t.leeway) * time.Second
-}
-
-// validate checks the configuration for correctness.
-func (t *Token) validate() error {
-	if t.Leeway < 0 {
-		return errors.New("token.leeway: must be non-negative")
-	}
-	return t.Keys.validate()
+	return nil
 }
 
 // Rule represents a single, uncompiled authorization rule loaded from config.
@@ -232,6 +243,29 @@ type Rule struct {
 	Roles string `yaml:"roles"`
 }
 
+// validate applies defaults and checks the configuration for correctness.
+func (r *Rule) validate() error {
+	r.Mode = strings.ToLower(strings.TrimSpace(r.Mode))
+	if r.Mode != "allow" && r.Mode != "deny" {
+		return errors.New(`mode: must be "allow" or "deny"`)
+	}
+
+	r.When = strings.TrimSpace(r.When)
+	if r.When == "" {
+		return errors.New("when: expression must be specified")
+	}
+
+	if r.Mode == "deny" {
+		if r.User = strings.TrimSpace(r.User); r.User != "" {
+			return errors.New(`user: must not be set in "deny" mode`)
+		}
+		if r.Roles = strings.TrimSpace(r.Roles); r.Roles != "" {
+			return errors.New(`roles: must not be set in "deny" mode`)
+		}
+	}
+	return nil
+}
+
 // Load reads a YAML configuration file from path, applies defaults, normalizes
 // values, and performs basic validation. It returns a fully-populated Config.
 func Load(path string) (Config, error) {
@@ -247,8 +281,7 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parse yaml: %w", err)
 	}
 
-	// Apply defaults and validation logic.
-	cfg.setDefaults()
+	// Apply defaults, normalize values, and validate.
 	if err := cfg.validate(); err != nil {
 		return Config{}, err
 	}
