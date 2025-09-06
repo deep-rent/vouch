@@ -234,13 +234,26 @@ func (t *Token) validate() error {
 	return nil
 }
 
+// Mode enumerates the decision a Rule applies when its condition is met.
+// A rule either allows (optionally authenticating as a user) or denies
+// the incoming request.
+const (
+	// modeAllow grants access and may authenticate the request on behalf of
+	// the specified user with optional roles.
+	modeAllow = "allow"
+	// modeDeny denies access and prevents the request from proceeding.
+	modeDeny = "deny"
+)
+
 // Rule represents a single, uncompiled authorization rule loaded from config.
 // Expressions in When, User, and Roles are plain strings that must be compiled
 // before use.
 type Rule struct {
-	// Mode selects the decision when the rule matches.
+	// mode selects the decision when the rule matches.
 	// Supported values: "allow" or "deny".
-	Mode string `yaml:"mode"`
+	mode string `yaml:"mode"`
+	// Deny is true if mode is modeDeny, false if mode is modeAllow.
+	Deny bool `yaml:"-"`
 	// When specifies the condition under which the rule applies.
 	// This expression is mandatory for every rule and must always evaluate to
 	// a boolean.
@@ -261,22 +274,32 @@ type Rule struct {
 
 // validate applies defaults and checks the configuration for correctness.
 func (r *Rule) validate() error {
-	r.Mode = strings.ToLower(strings.TrimSpace(r.Mode))
-	if r.Mode != "allow" && r.Mode != "deny" {
-		return errors.New(`mode: must be "allow" or "deny"`)
+	switch strings.ToLower(strings.TrimSpace(r.mode)) {
+	case modeAllow:
+		r.Deny = false
+	case modeDeny:
+		r.Deny = true
+	default:
+		return fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
 	}
-
+	r.mode = ""
 	r.When = strings.TrimSpace(r.When)
 	if r.When == "" {
 		return errors.New("when: expression must be specified")
 	}
 
-	if r.Mode == "deny" {
-		if r.User = strings.TrimSpace(r.User); r.User != "" {
-			return errors.New(`user: must not be set in "deny" mode`)
+	r.User = strings.TrimSpace(r.User)
+	if r.User != "" && r.Deny {
+		return fmt.Errorf("user: must not be set in %q mode", modeDeny)
+	}
+
+	r.Roles = strings.TrimSpace(r.Roles)
+	if r.Roles != "" {
+		if r.Deny {
+			return fmt.Errorf("roles: must not be set in %q mode", modeDeny)
 		}
-		if r.Roles = strings.TrimSpace(r.Roles); r.Roles != "" {
-			return errors.New(`roles: must not be set in "deny" mode`)
+		if r.User == "" {
+			return errors.New("roles: cannot be set without user")
 		}
 	}
 	return nil

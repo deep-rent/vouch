@@ -22,17 +22,6 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// Mode enumerates the decision a rule applies when its condition is met.
-// A rule either allows (optionally authenticating as a user) or denies
-// the incoming request.
-const (
-	// ModeAllow grants access and may authenticate the request on behalf of
-	// the specified user with optional roles.
-	ModeAllow = "allow"
-	// ModeDeny denies access and prevents the request from proceeding.
-	ModeDeny = "deny"
-)
-
 // rule is a compiled authorization rule.
 // Its expressions are compiled once and evaluated for each request against an
 // Environment. When the rule matches, it either denies the request or
