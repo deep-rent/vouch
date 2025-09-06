@@ -118,12 +118,16 @@ func TestLogger(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("VOUCH_LOG", tc.env)
 			log := logger()
+			handler, ok := log.Handler().(*slog.JSONHandler)
+			if !ok {
+				t.Fatalf("expected a *slog.JSONHandler, got %T", log.Handler())
+			}
 			// Check if the handler has the correct level enabled.
-			if !log.Handler().Enabled(context.Background(), tc.want) {
+			if !handler.Enabled(context.Background(), tc.want) {
 				t.Errorf("logger level %v should be enabled", tc.want)
 			}
 			// Check that a level below the desired one is disabled.
-			if tc.want > slog.LevelDebug && log.Handler().Enabled(context.Background(), tc.want-1) {
+			if tc.want > slog.LevelDebug && handler.Enabled(context.Background(), tc.want-1) {
 				t.Errorf("logger level below %v should be disabled", tc.want)
 			}
 		})
