@@ -29,31 +29,49 @@ func TestParse(t *testing.T) {
 		name string
 		args []string
 		env  string
-		want string
+		want flags
 	}{
 		{
 			name: "default path",
 			args: []string{"vouch"},
 			env:  "",
-			want: "./config.yaml",
+			want: flags{path: "./config.yaml"},
 		},
 		{
-			name: "env var overrides default",
+			name: "environment variable overrides default",
 			args: []string{"vouch"},
 			env:  "env.yaml",
-			want: "env.yaml",
+			want: flags{path: "env.yaml"},
 		},
 		{
-			name: "flag overrides env var",
+			name: "short flag overrides environment variable",
 			args: []string{"vouch", "-c", "arg.yaml"},
 			env:  "env.yaml",
-			want: "arg.yaml",
+			want: flags{path: "arg.yaml"},
 		},
 		{
-			name: "flag without env var",
-			args: []string{"vouch", "-c", "arg.yaml"},
+			name: "long flag overrides environment variable",
+			args: []string{"vouch", "--config", "arg.yaml"},
+			env:  "env.yaml",
+			want: flags{path: "arg.yaml"},
+		},
+		{
+			name: "long flag with equals overrides environment variable",
+			args: []string{"vouch", "--config=arg.yaml"},
+			env:  "env.yaml",
+			want: flags{path: "arg.yaml"},
+		},
+		{
+			name: "short version flag",
+			args: []string{"vouch", "-v"},
 			env:  "",
-			want: "arg.yaml",
+			want: flags{path: "./config.yaml", version: true},
+		},
+		{
+			name: "long version flag",
+			args: []string{"vouch", "--version"},
+			env:  "",
+			want: flags{path: "./config.yaml", version: true},
 		},
 	}
 
@@ -71,8 +89,11 @@ func TestParse(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse() error = %v", err)
 			}
-			if f.path != tc.want {
-				t.Errorf("parse() path = %q, want %q", f.path, tc.want)
+			if f.path != tc.want.path {
+				t.Errorf("parse() path = %q, want %q", f.path, tc.want.path)
+			}
+			if f.version != tc.want.version {
+				t.Errorf("parse() version = %v, want %v", f.version, tc.want.version)
 			}
 		})
 	}
