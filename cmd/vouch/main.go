@@ -103,6 +103,7 @@ func logger() *slog.Logger {
 	))
 }
 
+// main is the entry point for this command.
 func main() {
 	log := logger()
 	slog.SetDefault(log)
@@ -112,7 +113,7 @@ func main() {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0) // Print help exits successfully.
 		}
-		log.Error("failed to parse command line arguments", "error", err)
+		log.Error("invalid arguments", "error", err)
 		os.Exit(2)
 	}
 
@@ -126,6 +127,8 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// run executes the main application logic.
 
 func run(f *flags) error {
 	log := slog.Default()
@@ -160,13 +163,13 @@ func run(f *flags) error {
 	)
 
 	// Run the server and handle termination signals for graceful shutdown.
-	fatal := make(chan error, 1)
+	errch := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
 			"listen", cfg.Proxy.Listen,
 			"target", cfg.Proxy.Target,
 		)
-		fatal <- srv.Start(cfg.Proxy.Listen)
+		errch <- srv.Start(cfg.Proxy.Listen)
 	}()
 
 	ctx, stop := signal.NotifyContext(
@@ -177,7 +180,7 @@ func run(f *flags) error {
 	defer stop()
 
 	select {
-	case err := <-fatal:
+	case err := <-errch:
 		// Ensure background work is stopped if the server exits.
 		appCancel()
 		if err != nil {
@@ -196,7 +199,7 @@ func run(f *flags) error {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
 		}
-		<-fatal // Wait for server to stop.
+		<-errch // Wait for server to stop.
 		log.Info("server stopped")
 	}
 	return nil
