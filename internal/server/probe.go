@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -27,10 +28,10 @@ type probe struct {
 	cli *http.Client // small client for readiness checks
 }
 
-// newProbe constructs a probe for the given upstream health endpoint.
-func newProbe(url string) *probe {
+// newProbe constructs a probe for the given CouchDB API URL (upstream target).
+func newProbe(target *url.URL) *probe {
 	return &probe{
-		url: url,
+		url: target.JoinPath("_up").String(),
 		cli: &http.Client{Timeout: 2 * time.Second},
 	}
 }

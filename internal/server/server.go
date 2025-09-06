@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -36,22 +35,13 @@ type Server struct {
 
 // New constructs a Server that forwards to the given CouchDB target address.
 // Middlewares are applied outermost-first around the proxy handler.
-func New(target string, mws ...middleware.Middleware) (*Server, error) {
-	h, err := proxy.New(target)
-	if err != nil {
-		return nil, fmt.Errorf("create proxy: %w", err)
-	}
-	// Build upstream health URL used by the /ready handler.
-	url, err := url.JoinPath(target, "_up")
-	if err != nil {
-		return nil, fmt.Errorf("build up url: %w", err)
-	}
+func New(target *url.URL, mws ...middleware.Middleware) *Server {
 	s := &Server{
 		mux:   http.NewServeMux(),
-		probe: newProbe(url),
+		probe: newProbe(target),
 	}
-	s.routes(h, mws...)
-	return s, nil
+	s.routes(proxy.New(target), mws...)
+	return s
 }
 
 // routes registers public health endpoints and the proxy handler.

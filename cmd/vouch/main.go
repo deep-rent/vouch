@@ -139,15 +139,11 @@ func main() {
 	listen := cfg.Proxy.Listen
 
 	// Wire proxy and middleware into the server.
-	srv, err := server.New(
+	srv := server.New(
 		target,
 		middleware.Recover(log),
 		middleware.Forward(log, grd, headers),
 	)
-	if err != nil {
-		log.Error("failed to create server", "error", err)
-		os.Exit(1)
-	}
 
 	// Run the server and handle termination signals for graceful shutdown.
 	fatal := make(chan error, 1)

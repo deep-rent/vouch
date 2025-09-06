@@ -17,7 +17,6 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -59,13 +58,8 @@ const (
 // address. It applies sane defaults for CouchDB, strips sensitive headers, and
 // enriches forwarding headers (X-Forwarded-*). Upstream errors are mapped to
 // 502/504 as appropriate; client cancellations are silently ignored.
-func New(target string) (http.Handler, error) {
-	u, err := url.Parse(target)
-	if err != nil {
-		return nil, fmt.Errorf("invalid target: %v", err)
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(u)
+func New(target *url.URL) http.Handler {
+	proxy := httputil.NewSingleHostReverseProxy(target)
 	// Tune transport for upstream CouchDB.
 	proxy.Transport = transport()
 	// Helpful for long-lived responses such as the _changes feed.
@@ -112,5 +106,5 @@ func New(target string) (http.Handler, error) {
 		http.Error(res, http.StatusText(code), code)
 	}
 
-	return proxy, nil
+	return proxy
 }

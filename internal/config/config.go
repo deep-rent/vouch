@@ -66,9 +66,11 @@ type Proxy struct {
 	// Listen is the TCP address the server listens on, in the form host:port.
 	// Defaults to "":8080".
 	Listen string `yaml:"listen"`
+	// target will be mapped to Target after parsing.
+	target string `yaml:"target"`
 	// Target is the CouchDB URL to which requests are proxied.
 	// Defaults to "http://localhost:5984".
-	Target string `yaml:"target"`
+	Target *url.URL `yaml:"-"`
 	// Headers customizes the proxy headers sent to CouchDB.
 	// If omitted, the CouchDB-compatible defaults are used.
 	Headers Headers `yaml:"headers"`
@@ -79,8 +81,15 @@ func (p *Proxy) validate() error {
 	if strings.TrimSpace(p.Listen) == "" {
 		p.Listen = ":8080"
 	}
-	if strings.TrimSpace(p.Target) == "" {
-		p.Target = "http://localhost:5984"
+	if strings.TrimSpace(p.target) == "" {
+		p.target = "http://localhost:5984"
+	}
+	u, err := url.Parse(p.target)
+	if err != nil {
+		return fmt.Errorf("target: invalid url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("target: illegal url scheme %q", u.Scheme)
 	}
 	return p.Headers.validate()
 }
