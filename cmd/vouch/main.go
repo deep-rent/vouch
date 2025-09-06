@@ -71,7 +71,7 @@ func parse() (*flags, error) {
 		}
 	}
 
-	err := f.Parse(os.Args[1:])
+	err := f.Parse(args)
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +188,12 @@ func main() {
 	case <-ctx.Done():
 		// Stop background work first, then shut down the server.
 		appCancel()
-		dur := 10 * time.Second
-		timeout, cancel := context.WithTimeout(context.Background(), dur)
+		timeout := 10 * time.Second
+		wt, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		log.Info("shutting down", "timeout", dur.String())
-		err := srv.Shutdown(timeout)
+		log.Info("shutting down", "timeout", timeout.String())
+		err := srv.Shutdown(wt)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
 			os.Exit(1)
