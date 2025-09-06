@@ -45,17 +45,17 @@ type Config struct {
 // validate applies defaults and checks the configuration for correctness.
 func (c *Config) validate() error {
 	if err := c.Proxy.validate(); err != nil {
-		return fmt.Errorf("proxy: %w", err)
+		return fmt.Errorf("proxy.%w", err)
 	}
 	if err := c.Token.validate(); err != nil {
-		return fmt.Errorf("token: %w", err)
+		return fmt.Errorf("token.%w", err)
 	}
 	if len(c.Rules) == 0 {
 		return errors.New("rules: at least one rule must be specified")
 	}
 	for i := range c.Rules {
 		if err := c.Rules[i].validate(); err != nil {
-			return fmt.Errorf("rules[%d]: %w", i, err)
+			return fmt.Errorf("rules[%d].%w", i, err)
 		}
 	}
 	return nil
@@ -91,7 +91,11 @@ func (p *Proxy) validate() error {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("target: illegal url scheme %q", u.Scheme)
 	}
-	return p.Headers.validate()
+	p.Target = u
+	if err := p.Headers.validate(); err != nil {
+		return fmt.Errorf("headers.%w", err)
+	}
+	return nil
 }
 
 // Headers customizes the proxy headers forwarded to CouchDB.
@@ -181,11 +185,11 @@ type Keys struct {
 func (k *Keys) validate() error {
 	k.Static = strings.TrimSpace(k.Static)
 	if err := k.Remote.validate(); err != nil {
-		return fmt.Errorf("remote: %w", err)
+		return fmt.Errorf("remote.%w", err)
 	}
 
 	if k.Static == "" && k.Remote.Endpoint == "" {
-		return fmt.Errorf("keys: at least one of %q or %q must be set",
+		return fmt.Errorf("at least one of %q or %q must be set",
 			"static", "remote.endpoint",
 		)
 	}
@@ -216,7 +220,7 @@ type Token struct {
 // validate applies defaults and checks the configuration for correctness.
 func (t *Token) validate() error {
 	if err := t.Keys.validate(); err != nil {
-		return fmt.Errorf("keys: %w", err)
+		return fmt.Errorf("keys.%w", err)
 	}
 	if t.Leeway < 0 {
 		return errors.New("leeway: must be non-negative")
