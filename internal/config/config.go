@@ -114,7 +114,9 @@ type Headers struct {
 	// Default: "X-Auth-CouchDB-Token".
 	Token string `yaml:"token"`
 	// Anonymous allows forwarding requests without an authenticated user.
-	// If false, anonymous requests are rejected with 401 Unauthorized.
+	// A request is considered anonymous if the deciding rule does not set
+	// a user or if the user expression yields an empty string. If false,
+	// such requests are denied with 401 Unauthorized.
 	Anonymous bool `yaml:"anonymous"`
 }
 
@@ -242,12 +244,12 @@ type Rule struct {
 	// This expression is mandatory for every rule and must always evaluate to
 	// a boolean.
 	When string `yaml:"when"`
-	// User is an optional expression that determines the CouchDB user nameto
+	// User is an optional expression that determines the CouchDB user name to
 	// authenticate as. This field is only used in "allow" mode. If specified,
 	// the expression must return a string. It must be left undefined in "deny"
 	// mode. An empty or missing result will cause the request to be forwarded
-	// anonymously, provided that the configuration allows it.
-	// Example: 'Claim("sub")'
+	// anonymously, provided that the configuration allows it (see
+	// Headers.Anonymous).
 	User string `yaml:"user"`
 	// Roles is an optional expression that specifies CouchDB roles for
 	// authentication. This field is only used in "allow" mode. The expression
