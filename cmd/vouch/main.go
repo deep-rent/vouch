@@ -50,13 +50,27 @@ type flags struct {
 func parse() (*flags, error) {
 	path := strings.TrimSpace(os.Getenv("VOUCH_CONFIG"))
 	if path == "" {
-		// The default config file path.
+		// Fall back to the default config file path.
 		path = "./config.yaml"
 	}
 	p := new(flags)
 	f := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError)
-	f.StringVar(&p.path, "c", path, "Path to the YAML config file")
-	f.BoolVar(&p.version, "v", false, "Show version and exit")
+	f.StringVar(&p.path, "c", path, "Path to the YAML config file (alias: --config)")
+	f.BoolVar(&p.version, "v", false, "Show version and exit (alias: --version)")
+
+	// Map long-form aliases to their short-form counterparts.
+	args := os.Args[1:]
+	for i, arg := range args {
+		switch {
+		case arg == "--config":
+			args[i] = "-c"
+		case strings.HasPrefix(arg, "--config="):
+			args[i] = "-c=" + strings.TrimPrefix(arg, "--config=")
+		case arg == "--version":
+			args[i] = "-v"
+		}
+	}
+
 	err := f.Parse(os.Args[1:])
 	if err != nil {
 		return nil, err
