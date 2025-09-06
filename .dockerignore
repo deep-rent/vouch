@@ -4,3 +4,7 @@
 !/go.sum
 !/cmd/
 !/internal/
+
+.DS_Store
+*~
+Thumbs.db
