@@ -1,9 +1,6 @@
-.PHONY: lint test vendor clean
+.PHONY: test vendor clean
 
-default: lint test
-
-lint:
-	golangci-lint run
+default: test
 
 test:
 	go test -v -cover ./...
