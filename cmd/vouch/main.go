@@ -104,15 +104,13 @@ func logger() *slog.Logger {
 }
 
 func main() {
-	// Set up structured logging before doing any work.
 	log := logger()
 	slog.SetDefault(log)
 
 	f, err := parse()
 	if err != nil {
-		// Print help exits successfully.
 		if errors.Is(err, flag.ErrHelp) {
-			os.Exit(0)
+			os.Exit(0) // Print help exits successfully.
 		}
 		log.Error("failed to parse command line arguments", "error", err)
 		os.Exit(2)
@@ -123,18 +121,24 @@ func main() {
 		os.Exit(0)
 	}
 
+	if err := run(f); err != nil {
+		log.Error("application error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(f *flags) error {
+	log := slog.Default()
 	log.Info("loading config", "path", f.path)
 
 	// Load and validate the configuration.
 	cfg, err := config.Load(f.path)
 	if err != nil {
-		log.Error("couldn't load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("couldn't load config: %w", err)
 	}
 
 	// Warn if CouchDB proxy signing is not configured.
-	headers := cfg.Proxy.Headers
-	if headers.Secret == "" {
+	if cfg.Proxy.Headers.Secret == "" {
 		log.Warn("proxy signing secret not configured")
 	}
 
@@ -145,28 +149,24 @@ func main() {
 	// Construct the authentication and authorization guard.
 	grd, err := auth.NewGuard(appCtx, cfg)
 	if err != nil {
-		log.Error("failed to init guard", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to init guard: %w", err)
 	}
-
-	target := cfg.Proxy.Target
-	listen := cfg.Proxy.Listen
 
 	// Wire proxy and middleware into the server.
 	srv := server.New(
-		target,
+		cfg.Proxy.Target,
 		middleware.Recover(log),
-		middleware.Forward(log, grd, headers),
+		middleware.Forward(log, grd, cfg.Proxy.Headers),
 	)
 
 	// Run the server and handle termination signals for graceful shutdown.
 	fatal := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
-			"listen", listen,
-			"target", target,
+			"listen", cfg.Proxy.Listen,
+			"target", cfg.Proxy.Target,
 		)
-		fatal <- srv.Start(listen)
+		fatal <- srv.Start(cfg.Proxy.Listen)
 	}()
 
 	ctx, stop := signal.NotifyContext(
@@ -181,8 +181,7 @@ func main() {
 		// Ensure background work is stopped if the server exits.
 		appCancel()
 		if err != nil {
-			log.Error("server exited with error", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("server exited with error: %w", err)
 		}
 		log.Info("server stopped")
 	case <-ctx.Done():
@@ -196,9 +195,9 @@ func main() {
 		err := srv.Shutdown(wt)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
-			os.Exit(1)
 		}
-		<-fatal
+		<-fatal // Wait for server to stop.
 		log.Info("server stopped")
 	}
+	return nil
 }
