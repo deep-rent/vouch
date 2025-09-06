@@ -62,6 +62,9 @@ func TestParse(t *testing.T) {
 			os.Args = tc.args
 			if tc.env != "" {
 				t.Setenv("VOUCH_CONFIG", tc.env)
+			} else {
+				// Unset to avoid interference from previous tests.
+				os.Unsetenv("VOUCH_CONFIG")
 			}
 
 			f, err := parse()
