@@ -127,19 +127,20 @@ type Remote struct {
 	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
 	// Required if no static key set is provided.
 	Endpoint string `yaml:"endpoint"`
+	// interval will be mapped to Interval after parsing.
+	interval int64 `yaml:"interval"`
 	// Interval is the poll interval measured in minutes.
 	// Default to 30 (minutes).
-	Interval time.Duration `yaml:"interval"`
+	Interval time.Duration `yaml:"-"`
 }
 
 // setDefaults applies default values to the configuration.
 func (r *Remote) setDefaults() {
 	r.Endpoint = strings.TrimSpace(r.Endpoint)
-	if r.Interval == 0 {
-		r.Interval = 30 * time.Minute
-	} else {
-		r.Interval = time.Duration(r.Interval) * time.Minute
+	if r.interval <= 0 {
+		r.interval = 30
 	}
+	r.Interval = time.Duration(r.interval) * time.Minute
 }
 
 // Keys configures sources of JWK material used to verify token signatures.
@@ -180,9 +181,11 @@ type Token struct {
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
 	Audience string `yaml:"audience"`
+	// leeway will be mapped to Leeway after parsing.
+	leeway int64 `yaml:"leeway"`
 	// Leeway is the allowed clock skew interpreted as seconds.
 	// Defaults to 0 (no additional skew).
-	Leeway time.Duration `yaml:"leeway"`
+	Leeway time.Duration `yaml:"-"`
 	// Clock allows injecting a custom clock for testing purposes.
 	// Not configurable via YAML.
 	Clock jwt.Clock `yaml:"-"`
@@ -193,7 +196,7 @@ func (t *Token) setDefaults() {
 	t.Keys.setDefaults()
 	t.Issuer = strings.TrimSpace(t.Issuer)
 	t.Audience = strings.TrimSpace(t.Audience)
-	t.Leeway = time.Duration(t.Leeway) * time.Second
+	t.Leeway = time.Duration(t.leeway) * time.Second
 }
 
 // validate checks the configuration for correctness.
