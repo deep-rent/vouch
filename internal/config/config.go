@@ -211,7 +211,8 @@ type Token struct {
 	Audience string `yaml:"audience"`
 	// leeway will be mapped to Leeway after parsing.
 	leeway int64 `yaml:"leeway"`
-	// Leeway is the allowed clock skew interpreted as seconds.
+	// Leeway is the allowed clock skew interpreted as seconds. Concerns
+	// validation of the "exp", "nbf", and "iat" claims.
 	// Defaults to 0 (no additional skew).
 	Leeway time.Duration `yaml:"-"`
 	// Clock allows injecting a custom clock for testing purposes.
