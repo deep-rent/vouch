@@ -125,11 +125,11 @@ func main() {
 	}
 
 	// Application-scoped context for background components.
-	ctx_, cancel_ := context.WithCancel(context.Background())
-	defer cancel_()
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
 
 	// Construct the authentication and authorization guard.
-	grd, err := auth.NewGuard(ctx_, cfg)
+	grd, err := auth.NewGuard(appCtx, cfg)
 	if err != nil {
 		log.Error("failed to init guard", "error", err)
 		os.Exit(1)
@@ -165,7 +165,7 @@ func main() {
 	select {
 	case err := <-fatal:
 		// Ensure background work is stopped if the server exits.
-		cancel_()
+		appCancel()
 		if err != nil {
 			log.Error("server exited with error", "error", err)
 			os.Exit(1)
@@ -173,7 +173,7 @@ func main() {
 		log.Info("server stopped")
 	case <-ctx.Done():
 		// Stop background work first, then shut down the server.
-		cancel_()
+		appCancel()
 		dur := 10 * time.Second
 		timeout, cancel := context.WithTimeout(context.Background(), dur)
 		defer cancel()
