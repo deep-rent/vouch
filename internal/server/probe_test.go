@@ -161,7 +161,7 @@ func TestProbeHealthy(t *testing.T) {
 	p := newProbe(u)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/healthz", nil)
+	req := httptest.NewRequest("GET", "/healthy", nil)
 	p.healthy(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
