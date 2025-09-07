@@ -279,6 +279,8 @@ func (r *Rule) validate() error {
 		r.Deny = false
 	case modeDeny:
 		r.Deny = true
+	case "":
+		return fmt.Errorf("mode: must be specified")
 	default:
 		return fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
 	}
