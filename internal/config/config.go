@@ -123,6 +123,9 @@ type Headers struct {
 // validate applies defaults and checks the configuration for correctness.
 func (h *Headers) validate() error {
 	h.Secret = strings.TrimSpace(h.Secret)
+	if h.Secret == "" {
+		h.Secret = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
+	}
 	if user := strings.TrimSpace(h.User); user == "" {
 		h.User = "X-Auth-CouchDB-UserName"
 	} else {
