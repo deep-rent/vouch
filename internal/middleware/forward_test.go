@@ -15,14 +15,13 @@
 package middleware
 
 import (
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/logger"
 	"github.com/deep-rent/vouch/internal/token"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,10 +34,6 @@ type testGuard struct {
 
 func (g testGuard) Check(*http.Request) (auth.Scope, error) {
 	return g.scope, g.err
-}
-
-func newLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestForwardSuccessAuthenticated(t *testing.T) {
@@ -65,7 +60,7 @@ func TestForwardSuccessAuthenticated(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "http://example/db/doc", nil)
 	// Simulate malicious client‑supplied headers (must be stripped).
@@ -106,7 +101,7 @@ func TestForwardSuccessAuthenticatedNoRolesNoSecret(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -138,7 +133,7 @@ func TestForwardSuccessAnonymousAllowed(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -164,7 +159,7 @@ func TestForwardAnonymousRejected(t *testing.T) {
 		t.Fatalf("handler should not be called for rejected anonymous request")
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -188,7 +183,7 @@ func TestForwardForbidden(t *testing.T) {
 		t.Fatalf("handler should not be called for forbidden request")
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -212,7 +207,7 @@ func TestForwardUnauthorizedChallenge(t *testing.T) {
 		t.Fatalf("handler should not be called for unauthorized request")
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -237,7 +232,7 @@ func TestForwardInternalError(t *testing.T) {
 		t.Fatalf("handler should not be called on internal error")
 	})
 
-	mw := Forward(newLogger(), guard, cfg)(next)
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
