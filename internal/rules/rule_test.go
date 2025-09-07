@@ -36,10 +36,10 @@ func compile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
 
 func TestRuleEvalWhen(t *testing.T) {
 	tests := []struct {
-		name    string
-		expr    string
-		want    bool
-		wantErr bool
+		name string
+		expr string
+		want bool
+		fail bool
 	}{
 		{"returns true", "true", true, false},
 		{"returns false", "false", false, false},
@@ -51,7 +51,7 @@ func TestRuleEvalWhen(t *testing.T) {
 			r := &rule{when: compile(t, tc.expr)}
 			got, err := r.evalWhen(Environment{})
 
-			if tc.wantErr {
+			if tc.fail {
 				assert.Error(t, err)
 				return
 			}
@@ -63,10 +63,10 @@ func TestRuleEvalWhen(t *testing.T) {
 
 func TestRuleEvalUser(t *testing.T) {
 	tests := []struct {
-		name    string
-		rule    *rule
-		want    string
-		wantErr bool
+		name string
+		rule *rule
+		want string
+		fail bool
 	}{
 		{"nil expression", &rule{user: nil}, "", false},
 		{"string expression", &rule{user: compile(t, `"alice"`)}, "alice", false},
@@ -77,7 +77,7 @@ func TestRuleEvalUser(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := tc.rule.evalUser(Environment{})
 
-			if tc.wantErr {
+			if tc.fail {
 				assert.Error(t, err)
 				return
 			}
@@ -89,10 +89,10 @@ func TestRuleEvalUser(t *testing.T) {
 
 func TestRuleEvalRoles(t *testing.T) {
 	tests := []struct {
-		name    string
-		rule    *rule
-		want    string
-		wantErr bool
+		name string
+		rule *rule
+		want string
+		fail bool
 	}{
 		{"nil expression", &rule{roles: nil}, "", false},
 		{"string slice", &rule{roles: compile(t, `["a","b"]`)}, "a,b", false},
@@ -105,7 +105,7 @@ func TestRuleEvalRoles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := tc.rule.evalRoles(Environment{})
 
-			if tc.wantErr {
+			if tc.fail {
 				assert.Error(t, err)
 				return
 			}
@@ -117,10 +117,10 @@ func TestRuleEvalRoles(t *testing.T) {
 
 func TestRuleEval(t *testing.T) {
 	tests := []struct {
-		name    string
-		rule    rule
-		want    result
-		wantErr bool
+		name string
+		rule rule
+		want result
+		fail bool
 	}{
 		{
 			name: "skip when condition is false",
@@ -163,9 +163,9 @@ func TestRuleEval(t *testing.T) {
 			want: result{},
 		},
 		{
-			name:    "error on invalid when expression",
-			rule:    rule{when: compile(t, "1")},
-			wantErr: true,
+			name: "error on invalid when expression",
+			rule: rule{when: compile(t, "1")},
+			fail: true,
 		},
 		{
 			name: "error on invalid user expression",
@@ -173,7 +173,7 @@ func TestRuleEval(t *testing.T) {
 				when: compile(t, "true"),
 				user: compile(t, "1"),
 			},
-			wantErr: true,
+			fail: true,
 		},
 		{
 			name: "error on invalid roles expression",
@@ -182,7 +182,7 @@ func TestRuleEval(t *testing.T) {
 				user:  compile(t, `"charlie"`),
 				roles: compile(t, "1"),
 			},
-			wantErr: true,
+			fail: true,
 		},
 	}
 
@@ -190,7 +190,7 @@ func TestRuleEval(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := tc.rule.Eval(Environment{})
 
-			if tc.wantErr {
+			if tc.fail {
 				assert.Error(t, err)
 				assert.Empty(t, got, "result should be zero value on error")
 				return
