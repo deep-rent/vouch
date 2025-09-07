@@ -31,12 +31,14 @@ import (
 // incoming access tokens. Implementations may load keys from disk, fetch them
 // remotely, or aggregate multiple sources.
 type Provider interface {
+	// Keys returns the current JWK set. It may fetch or refresh keys as needed.
 	Keys(ctx context.Context) (jwk.Set, error)
 }
 
 // ProviderFunc is a small adapter for functional implementations of Provider.
 type ProviderFunc func(ctx context.Context) (jwk.Set, error)
 
+// Keys implements the Provider interface.
 func (f ProviderFunc) Keys(ctx context.Context) (jwk.Set, error) { return f(ctx) }
 
 // static implements Provider by serving keys from a static JWKS document
