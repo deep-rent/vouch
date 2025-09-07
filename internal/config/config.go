@@ -156,12 +156,14 @@ type Remote struct {
 // validate applies defaults and checks the configuration for correctness.
 func (r *Remote) validate() error {
 	r.Endpoint = strings.TrimSpace(r.Endpoint)
-	u, err := url.Parse(r.Endpoint)
-	if err != nil {
-		return fmt.Errorf("endpoint: invalid url: %w", err)
-	}
-	if u.Scheme != "https" && u.Scheme != "http" {
-		return fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
+	if r.Endpoint != "" {
+		u, err := url.Parse(r.Endpoint)
+		if err != nil {
+			return fmt.Errorf("endpoint: invalid url: %w", err)
+		}
+		if u.Scheme != "https" && u.Scheme != "http" {
+			return fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
+		}
 	}
 	if r.IntervalMin < 0 {
 		return errors.New("interval: must be non-negative")
