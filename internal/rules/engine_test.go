@@ -19,6 +19,7 @@ import (
 
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/expr-lang/expr"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,11 @@ func TestNewEngine(t *testing.T) {
 
 func TestEngineEval(t *testing.T) {
 	env := func() Environment {
+		tok, err := jwt.NewBuilder().Subject("bob").Build()
+		require.NoError(t, err)
+
 		return Environment{
+			tok:    tok,
 			Method: "GET",
 			Path:   "/db/doc",
 			DB:     "db",
@@ -137,6 +142,30 @@ func TestEngineEval(t *testing.T) {
 		res, err := e.Eval(env()) // Method is GET
 		require.NoError(t, err)
 		assert.False(t, res.Pass)
+	})
+
+	t.Run("claim extraction works", func(t *testing.T) {
+		e, err := NewEngine([]config.Rule{
+			{When: "true", User: `Claim("sub")`},
+		})
+		require.NoError(t, err)
+
+		res, err := e.Eval(env())
+		require.NoError(t, err)
+		assert.True(t, res.Pass)
+		assert.Equal(t, "bob", res.User)
+	})
+
+	t.Run("claim extraction with default", func(t *testing.T) {
+		e, err := NewEngine([]config.Rule{
+			{When: "true", User: `Claim("unknown") ?? "default"`},
+		})
+		require.NoError(t, err)
+
+		res, err := e.Eval(env())
+		require.NoError(t, err)
+		assert.True(t, res.Pass)
+		assert.Equal(t, "default", res.User)
 	})
 
 	t.Run("runtime error propagates", func(t *testing.T) {
