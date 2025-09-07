@@ -1,8 +1,9 @@
 *
 !.dockerignore
+!/cmd/
+!/container/
 !/go.mod
 !/go.sum
-!/cmd/
 !/internal/
 
 .DS_Store
