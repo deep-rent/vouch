@@ -19,10 +19,11 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// mustCompile compiles an expression or fails the test.
-func mustCompile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
+func compile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
 	t.Helper()
 	p, err := expr.Compile(src, append(
 		[]expr.Option{expr.Env(Environment{})}, opts...,
@@ -33,177 +34,170 @@ func mustCompile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
 	return p
 }
 
-func env() Environment { return Environment{} }
+func TestRuleEvalWhen(t *testing.T) {
+	tests := []struct {
+		name    string
+		expr    string
+		want    bool
+		wantErr bool
+	}{
+		{"returns true", "true", true, false},
+		{"returns false", "false", false, false},
+		{"wrong type", `"not-bool"`, false, true},
+	}
 
-func TestEvalWhen_ReturnsBool(t *testing.T) {
-	r := &rule{when: mustCompile(t, "true")}
-	got, err := r.evalWhen(env())
-	if err != nil {
-		t.Fatalf("eval when: %v", err)
-	}
-	if !got {
-		t.Fatalf("want true")
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &rule{when: compile(t, tc.expr)}
+			got, err := r.evalWhen(Environment{})
 
-	r = &rule{when: mustCompile(t, "false")}
-	got, err = r.evalWhen(env())
-	if err != nil {
-		t.Fatalf("eval when: %v", err)
-	}
-	if got {
-		t.Fatalf("want false")
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 
-func TestEvalWhen_WrongType(t *testing.T) {
-	r := &rule{when: mustCompile(t, `"not-bool"`)} // compiles but returns string
-	_, err := r.evalWhen(env())
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected error for non-bool when")
+func TestRuleEvalUser(t *testing.T) {
+	tests := []struct {
+		name    string
+		rule    *rule
+		want    string
+		wantErr bool
+	}{
+		{"nil expression", &rule{user: nil}, "", false},
+		{"string expression", &rule{user: compile(t, `"alice"`)}, "alice", false},
+		{"wrong type", &rule{user: compile(t, "42")}, "", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.rule.evalUser(Environment{})
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 
-func TestEvalUser_StringAndEmpty(t *testing.T) {
-	r := &rule{user: nil}
-	u, err := r.evalUser(env())
-	if err != nil {
-		t.Fatalf("eval user (nil): %v", err)
-	}
-	if u != "" {
-		t.Fatalf("want empty user, got %q", u)
+func TestRuleEvalRoles(t *testing.T) {
+	tests := []struct {
+		name    string
+		rule    *rule
+		want    string
+		wantErr bool
+	}{
+		{"nil expression", &rule{roles: nil}, "", false},
+		{"string slice", &rule{roles: compile(t, `["a","b"]`)}, "a,b", false},
+		{"empty slice", &rule{roles: compile(t, `[]`)}, "", false},
+		{"non-slice type", &rule{roles: compile(t, `"admin"`)}, "", true},
+		{"slice with non-string", &rule{roles: compile(t, `["a", 1]`)}, "", true},
 	}
 
-	r = &rule{user: mustCompile(t, `"alice"`)}
-	u, err = r.evalUser(env())
-	if err != nil {
-		t.Fatalf("eval user: %v", err)
-	}
-	if u != "alice" {
-		t.Fatalf("want alice, got %q", u)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.rule.evalRoles(Environment{})
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 
-func TestEvalUser_WrongType(t *testing.T) {
-	r := &rule{user: mustCompile(t, "42")} // non-string
-	_, err := r.evalUser(env())
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected error for non-string user")
+func TestRuleEval(t *testing.T) {
+	tests := []struct {
+		name    string
+		rule    rule
+		want    result
+		wantErr bool
+	}{
+		{
+			name: "skip when condition is false",
+			rule: rule{when: compile(t, "false")},
+			want: result{Skip: true},
+		},
+		{
+			name: "deny when condition is true and deny mode is on",
+			rule: rule{deny: true, when: compile(t, "true")},
+			want: result{Deny: true},
+		},
+		{
+			name: "allow with user and roles",
+			rule: rule{
+				when:  compile(t, "true"),
+				user:  compile(t, `"alice"`),
+				roles: compile(t, `["reader","writer"]`),
+			},
+			want: result{User: "alice", Roles: "reader,writer"},
+		},
+		{
+			name: "allow with user and no roles",
+			rule: rule{
+				when: compile(t, "true"),
+				user: compile(t, `"bob"`),
+			},
+			want: result{User: "bob"},
+		},
+		{
+			name: "allow with roles and no user",
+			rule: rule{
+				when:  compile(t, "true"),
+				roles: compile(t, `["editor"]`),
+			},
+			want: result{Roles: "editor"},
+		},
+		{
+			name: "allow with no user or roles",
+			rule: rule{when: compile(t, "true")},
+			want: result{},
+		},
+		{
+			name:    "error on invalid when expression",
+			rule:    rule{when: compile(t, "1")},
+			wantErr: true,
+		},
+		{
+			name: "error on invalid user expression",
+			rule: rule{
+				when: compile(t, "true"),
+				user: compile(t, "1"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "error on invalid roles expression",
+			rule: rule{
+				when:  compile(t, "true"),
+				user:  compile(t, `"charlie"`),
+				roles: compile(t, "1"),
+			},
+			wantErr: true,
+		},
 	}
-}
 
-func TestEvalRoles_CommaJoinedAndEmpty(t *testing.T) {
-	r := &rule{roles: nil}
-	rs, err := r.evalRoles(env())
-	if err != nil {
-		t.Fatalf("eval roles (nil): %v", err)
-	}
-	if rs != "" {
-		t.Fatalf("want empty roles, got %q", rs)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.rule.Eval(Environment{})
 
-	r = &rule{roles: mustCompile(t, `["reader","writer","admin"]`)}
-	rs, err = r.evalRoles(env())
-	if err != nil {
-		t.Fatalf("eval roles: %v", err)
-	}
-	if rs != "reader,writer,admin" {
-		t.Fatalf("want reader,writer,admin; got %q", rs)
-	}
-}
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Empty(t, got, "result should be zero value on error")
+				return
+			}
 
-func TestEvalRoles_NonSlice(t *testing.T) {
-	r := &rule{roles: mustCompile(t, `"admin"`)} // not a slice
-	_, err := r.evalRoles(env())
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected error for roles returning non-slice")
-	}
-}
-
-func TestEvalRoles_ElementWrongType(t *testing.T) {
-	r := &rule{roles: mustCompile(t, `["reader", 1, "writer"]`)} // 1 is not string
-	_, err := r.evalRoles(env())
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected error for roles element type")
-	}
-}
-
-func TestRuleEval_SkipWhenFalse(t *testing.T) {
-	r := &rule{
-		deny:  false,
-		when:  mustCompile(t, "false"),
-		user:  mustCompile(t, `"alice"`),    // should not be evaluated
-		roles: mustCompile(t, `["reader"]`), // should not be evaluated
-	}
-	outcome, err := r.Eval(env())
-	if err != nil {
-		t.Fatalf("Eval: %v", err)
-	}
-	if !outcome.Skip || outcome.Deny || outcome.User != "" || outcome.Roles != "" {
-		t.Fatalf("want skip=true, deny=false, empty user/roles; got %+v", outcome)
-	}
-}
-
-func TestRuleEval_DenyWhenMatched(t *testing.T) {
-	r := &rule{
-		deny:  true,
-		when:  mustCompile(t, "true"),
-		user:  mustCompile(t, `"alice"`),    // must not be evaluated
-		roles: mustCompile(t, `["reader"]`), // must not be evaluated
-	}
-	outcome, err := r.Eval(env())
-	if err != nil {
-		t.Fatalf("Eval: %v", err)
-	}
-	if outcome.Skip || !outcome.Deny || outcome.User != "" || outcome.Roles != "" {
-		t.Fatalf("want skip=false, deny=true, empty user/roles; got %+v", outcome)
-	}
-}
-
-func TestRuleEval_AllowWithUserAndRoles(t *testing.T) {
-	r := &rule{
-		deny:  false,
-		when:  mustCompile(t, "true"),
-		user:  mustCompile(t, `"alice"`),
-		roles: mustCompile(t, `["reader","writer"]`),
-	}
-	outcome, err := r.Eval(env())
-	if err != nil {
-		t.Fatalf("Eval: %v", err)
-	}
-	if outcome.Skip || outcome.Deny {
-		t.Fatalf("want applied allow rule; got skip=%v deny=%v", outcome.Skip, outcome.Deny)
-	}
-	if outcome.User != "alice" || outcome.Roles != "reader,writer" {
-		t.Fatalf("want user=alice roles=reader,writer; got user=%q roles=%q", outcome.User, outcome.Roles)
-	}
-}
-
-func TestRuleEval_UserErrorPropagates(t *testing.T) {
-	r := &rule{
-		deny:  false,
-		when:  mustCompile(t, "true"),
-		user:  mustCompile(t, "42"), // invalid type
-		roles: mustCompile(t, `["reader"]`),
-	}
-	_, err := r.Eval(env())
-	if err == nil {
-		t.Fatal("expected error from user evaluation")
-	}
-}
-
-func TestRuleEval_RolesErrorPropagates(t *testing.T) {
-	r := &rule{
-		deny:  false,
-		when:  mustCompile(t, "true"),
-		user:  mustCompile(t, `"alice"`),
-		roles: mustCompile(t, `["reader", 1]`), // invalid element
-	}
-	outcome, err := r.Eval(env())
-	if err == nil {
-		t.Fatal("expected error from roles evaluation")
-	}
-	// On error, the outcome should be a zero value.
-	if outcome.User != "" {
-		t.Fatalf("user should be empty on roles error, got %q", outcome.User)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
