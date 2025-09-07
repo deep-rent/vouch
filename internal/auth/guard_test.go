@@ -15,7 +15,6 @@
 package auth
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,8 +32,6 @@ func TestScopeIsAnonymous(t *testing.T) {
 }
 
 func TestGuardCheck(t *testing.T) {
-	sentinel := errors.New("sentinel")
-
 	tests := []struct {
 		name      string
 		parserErr error
@@ -55,13 +52,13 @@ func TestGuardCheck(t *testing.T) {
 		},
 		{
 			name:      "parser other error",
-			parserErr: sentinel,
-			wantErr:   sentinel,
+			parserErr: assert.AnError,
+			wantErr:   assert.AnError,
 		},
 		{
 			name:      "engine error",
-			engineErr: sentinel,
-			wantErr:   sentinel,
+			engineErr: assert.AnError,
+			wantErr:   assert.AnError,
 		},
 		{
 			name:      "forbidden (pass false)",
