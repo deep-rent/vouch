@@ -29,7 +29,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
@@ -165,13 +164,8 @@ func run(f *flags) error {
 	case <-ctx.Done():
 		// Stop background work first, then shut down the server.
 		appCancel()
-		timeout := 10 * time.Second
-		wt, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		log.Info("shutting down", "timeout", timeout.String())
-		err := srv.Shutdown(wt)
-		if err != nil && !errors.Is(err, context.Canceled) {
+		log.Info("server shutting down")
+		if err := srv.Shutdown(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
 		}
 		<-errch // Wait for server to stop.
