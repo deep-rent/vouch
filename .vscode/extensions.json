@@ -2,6 +2,7 @@
   "recommendations": [
     "github.vscode-github-actions",
     "golang.go",
-    "vivaxy.vscode-conventional-commits"
+    "vivaxy.vscode-conventional-commits",
+    "webnative.webnative"
   ]
 }
