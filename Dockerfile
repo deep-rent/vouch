@@ -1,13 +1,5 @@
 # syntax=docker/dockerfile:1.7
 
-# Usage:
-# VERSION=$(git describe --tags --always --dirty)
-# docker buildx build \
-#   --platform linux/amd64,linux/arm64 \
-#   --build-arg "VERSION=${VERSION}" \
-#   -t ghcr.io/deep-rent/vouch:latest \
-#   . --push
-
 ARG GO_VERSION=1.25
 ARG VERSION=dev
 
