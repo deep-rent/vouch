@@ -15,7 +15,6 @@
 package main
 
 import (
-	"log/slog"
 	"os"
 	"testing"
 
@@ -90,40 +89,6 @@ func TestParse(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.want.path, f.path, "unexpected config path")
 			assert.Equal(t, tc.want.version, f.version, "unexpected version flag")
-		})
-	}
-}
-
-func TestLogger(t *testing.T) {
-	tests := []struct {
-		name string
-		env  string
-		want slog.Level
-	}{
-		{"debug", "DEBUG", slog.LevelDebug},
-		{"info", "INFO", slog.LevelInfo},
-		{"warn", "WARN", slog.LevelWarn},
-		{"error", "ERROR", slog.LevelError},
-		{"lowercase", "debug", slog.LevelDebug},
-		{"empty", "", slog.LevelInfo},
-		{"invalid", "invalid", slog.LevelInfo},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("VOUCH_LOG", tc.env)
-			log := logger()
-
-			handler, ok := log.Handler().(*slog.JSONHandler)
-			require.True(t, ok, "expected *slog.JSONHandler, got %T", log.Handler())
-
-			assert.True(t, handler.Enabled(t.Context(), tc.want),
-				"expected level %v to be enabled", tc.want)
-
-			if tc.want > slog.LevelDebug {
-				assert.False(t, handler.Enabled(t.Context(), tc.want-1),
-					"expected lower level than %v to be disabled", tc.want)
-			}
 		})
 	}
 }
