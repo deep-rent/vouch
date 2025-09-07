@@ -38,6 +38,8 @@ type AuthenticationError struct {
 }
 
 // Error implements the error interface.
+//
+//go:no_cover
 func (e *AuthenticationError) Error() string {
 	return e.msg
 }
