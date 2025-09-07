@@ -28,7 +28,7 @@ import (
 // Forward authenticates the request using Guard and, on success, injects proxy
 // authentication headers (user, roles, optional HMAC token) for CouchDB.
 // It also handles authorization failures and token challenges.
-func Forward(log *slog.Logger, grd *auth.Guard, cfg config.Headers) Middleware {
+func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 	// Optional signer for CouchDB proxy auth token.
 	var sign *hash.Signer
 	if secret := cfg.Secret; secret != "" {

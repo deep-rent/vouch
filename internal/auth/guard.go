@@ -55,14 +55,33 @@ var ErrForbidden = &AuthorizationError{msg: "insufficient permissions"}
 
 // Guard validates incoming HTTP requests by parsing a Bearer token and
 // evaluating authorization rules to determine the CouchDB user/roles to apply.
-type Guard struct {
+type Guard interface {
+	// Check parses and validates the Bearer token from req, evaluates the rules,
+	// and returns the target CouchDB user/roles on success. It returns:
+	//
+	//   - token.ErrMissingToken or token.ErrInvalidToken if authentication fails.
+	//   - ErrForbidden when the request does not pass authorization.
+	//   - Other errors may be returned from the key provider lookup.
+	Check(req *http.Request) (Scope, error)
+}
+
+// GuardFunc is an adapter to allow the use of ordinary functions as Guards.
+type GuardFunc func(req *http.Request) (Scope, error)
+
+// Check implements the Guard interface.
+func (f GuardFunc) Check(req *http.Request) (Scope, error) {
+	return f(req)
+}
+
+// guard is the default Guard implementation.
+type guard struct {
 	parser *token.Parser
 	engine *rules.Engine
 }
 
 // NewGuard constructs a Guard from configuration by wiring a token parser and
 // compiling the authorization rules.
-func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
+func NewGuard(ctx context.Context, cfg config.Config) (Guard, error) {
 	parser, err := token.NewParser(ctx, cfg.Token)
 	if err != nil {
 		return nil, fmt.Errorf("create parser: %w", err)
@@ -71,7 +90,7 @@ func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create engine: %w", err)
 	}
-	return &Guard{
+	return &guard{
 		parser: parser,
 		engine: engine,
 	}, nil
@@ -83,7 +102,7 @@ func NewGuard(ctx context.Context, cfg config.Config) (*Guard, error) {
 //   - token.ErrMissingToken or token.ErrInvalidToken if authentication fails.
 //   - ErrForbidden when the request does not pass authorization.
 //   - Other errors may be returned from the key provider lookup.
-func (g *Guard) Check(req *http.Request) (Scope, error) {
+func (g *guard) Check(req *http.Request) (Scope, error) {
 	// Parse and validate the access token from the Authorization header.
 	tok, err := g.parser.Parse(req)
 	if err != nil {
