@@ -66,8 +66,8 @@ type Proxy struct {
 	// Listen is the TCP address the server listens on, in the form host:port.
 	// Defaults to "":8080".
 	Listen string `yaml:"listen"`
-	// target will be mapped to Target after parsing.
-	target string `yaml:"target"`
+	// TargetRaw will be mapped to Target after parsing.
+	TargetRaw string `yaml:"target"`
 	// Target is the CouchDB URL to which requests are proxied.
 	// Defaults to "http://localhost:5984".
 	Target *url.URL `yaml:"-"`
@@ -81,10 +81,10 @@ func (p *Proxy) validate() error {
 	if strings.TrimSpace(p.Listen) == "" {
 		p.Listen = ":8080"
 	}
-	if strings.TrimSpace(p.target) == "" {
-		p.target = "http://localhost:5984"
+	if strings.TrimSpace(p.TargetRaw) == "" {
+		p.TargetRaw = "http://localhost:5984"
 	}
-	u, err := url.Parse(p.target)
+	u, err := url.Parse(p.TargetRaw)
 	if err != nil {
 		return fmt.Errorf("target: invalid url: %w", err)
 	}
@@ -146,8 +146,8 @@ type Remote struct {
 	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
 	// Required if no static key set is provided.
 	Endpoint string `yaml:"endpoint"`
-	// interval will be mapped to Interval after parsing.
-	interval int64 `yaml:"interval"`
+	// IntervalMin will be mapped to Interval after parsing.
+	IntervalMin int64 `yaml:"interval"`
 	// Interval is the poll interval measured in minutes.
 	// Defaults to 30 (minutes).
 	Interval time.Duration `yaml:"-"`
@@ -163,12 +163,12 @@ func (r *Remote) validate() error {
 	if u.Scheme != "https" && u.Scheme != "http" {
 		return fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
 	}
-	if r.interval < 0 {
+	if r.IntervalMin < 0 {
 		return errors.New("interval: must be non-negative")
-	} else if r.interval == 0 {
-		r.interval = 30
+	} else if r.IntervalMin == 0 {
+		r.IntervalMin = 30
 	}
-	r.Interval = time.Duration(r.interval) * time.Minute
+	r.Interval = time.Duration(r.IntervalMin) * time.Minute
 	return nil
 }
 
@@ -209,8 +209,8 @@ type Token struct {
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
 	Audience string `yaml:"audience"`
-	// leeway will be mapped to Leeway after parsing.
-	leeway int64 `yaml:"leeway"`
+	// LeewaySec will be mapped to Leeway after parsing.
+	LeewaySec int64 `yaml:"leeway"`
 	// Leeway is the allowed clock skew interpreted as seconds. Concerns
 	// validation of the "exp", "nbf", and "iat" claims.
 	// Defaults to 0 (no additional skew).
@@ -230,7 +230,7 @@ func (t *Token) validate() error {
 	}
 	t.Issuer = strings.TrimSpace(t.Issuer)
 	t.Audience = strings.TrimSpace(t.Audience)
-	t.Leeway = time.Duration(t.leeway) * time.Second
+	t.Leeway = time.Duration(t.LeewaySec) * time.Second
 	return nil
 }
 
@@ -249,9 +249,9 @@ const (
 // Expressions in When, User, and Roles are plain strings that must be compiled
 // before use.
 type Rule struct {
-	// mode selects the decision when the rule matches.
+	// Mode selects the decision when the rule matches.
 	// Supported values: "allow" or "deny".
-	mode string `yaml:"mode"`
+	Mode string `yaml:"mode"`
 	// Deny is true if mode is modeDeny, false if mode is modeAllow.
 	Deny bool `yaml:"-"`
 	// When specifies the condition under which the rule applies.
@@ -274,7 +274,7 @@ type Rule struct {
 
 // validate applies defaults and checks the configuration for correctness.
 func (r *Rule) validate() error {
-	switch strings.ToLower(strings.TrimSpace(r.mode)) {
+	switch strings.ToLower(strings.TrimSpace(r.Mode)) {
 	case modeAllow:
 		r.Deny = false
 	case modeDeny:
@@ -284,7 +284,7 @@ func (r *Rule) validate() error {
 	default:
 		return fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
 	}
-	r.mode = ""
+	r.Mode = ""
 	r.When = strings.TrimSpace(r.When)
 	if r.When == "" {
 		return errors.New("when: expression must be specified")
