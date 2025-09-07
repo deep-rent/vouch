@@ -21,7 +21,18 @@ import (
 	"strings"
 )
 
-// New sets up and returns a structured logger.
+// New returns a structured JSON logger configured at the requested
+// level. The argument is case-insensitive and trimmed. Supported values:
+//
+//	debug  -> slog.LevelDebug
+//	info   -> slog.LevelInfo (default for empty/unknown)
+//	warn   -> slog.LevelWarn
+//	error  -> slog.LevelError
+//	silent -> returns the result of Silent() (no output)
+//
+// Any unknown or empty value falls back to INFO. Passing "silent"
+// returns a discard logger, allowing callers to suppress output
+// without branching.
 func New(v string) *slog.Logger {
 	var level slog.Level
 	switch strings.ToUpper(strings.TrimSpace(v)) {
@@ -46,7 +57,8 @@ func New(v string) *slog.Logger {
 	))
 }
 
-// Silent produces a logger that discards all output.
+// Silent returns a slog.Logger whose handler discards all output.
+// Useful for tests or environments where logging must be disabled.
 func Silent() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
