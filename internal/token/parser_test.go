@@ -26,6 +26,7 @@ import (
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/key"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,7 +137,8 @@ func TestNewParser(t *testing.T) {
 			Keys:     config.Keys{Static: path},
 			Issuer:   "iss",
 			Audience: "aud",
-			Leeway:   2 * time.Second,
+			Leeway:   1 * time.Second,
+			Clock:    jwt.ClockFunc(func() time.Time { return time.UnixMilli(1) }),
 		}
 
 		p, err := NewParser(context.Background(), cfg)
@@ -145,7 +147,7 @@ func TestNewParser(t *testing.T) {
 
 		internal, ok := p.(*parser)
 		require.True(t, ok, "expected *parser concrete type")
-		assert.Len(t, internal.opts, 3)
+		assert.Len(t, internal.opts, 4)
 	})
 
 	t.Run("error invalid static path", func(t *testing.T) {
