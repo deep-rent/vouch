@@ -15,7 +15,9 @@
 package main
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -140,4 +142,24 @@ rules:
 	case <-time.After(3 * time.Second):
 		t.Fatal("run did not return after signal")
 	}
+}
+
+func TestMainVersionFlag(t *testing.T) {
+	if os.Getenv("TEST_MAIN_VERSION") == "1" {
+		// Child process path: run main() with -v to trigger version output & exit(0).
+		os.Args = []string{"vouch", "-v"}
+		main()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run", "TestMainVersionFlag")
+	cmd.Env = append(os.Environ(), "TEST_MAIN_VERSION=1")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	err := cmd.Run()
+	require.NoError(t, err, "expected main to exit with code 0 for -v flag")
+
+	assert.Contains(t, out.String(), "version:", "expected version line in output")
 }
