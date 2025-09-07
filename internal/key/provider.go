@@ -52,6 +52,9 @@ func (s *static) Keys(ctx context.Context) (jwk.Set, error) {
 	return s.set, nil
 }
 
+// Ensure static satisfies the Provider contract.
+var _ Provider = (*static)(nil)
+
 // newStatic constructs a static key Provider from a JWKS file at path.
 // The file must exist and be a regular file. The JWKS is parsed eagerly.
 func newStatic(path string) (Provider, error) {
@@ -82,6 +85,9 @@ type remote struct {
 func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 	return r.cache.Lookup(ctx, r.url)
 }
+
+// Ensure remote satisfies the Provider contract.
+var _ Provider = (*remote)(nil)
 
 // newRemote constructs a remote key Provider backed by jwk.Cache and a tuned
 // HTTP client. The cache is registered to poll cfg.Endpoint at cfg.Interval.
@@ -135,6 +141,9 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 	}
 	return agg, nil
 }
+
+// Ensure composite satisfies the Provider contract.
+var _ Provider = (*composite)(nil)
 
 // NewProvider builds a Provider from configuration:
 //   - If only static is configured, returns a static provider.
