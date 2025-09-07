@@ -1,6 +1,9 @@
 {
   "editor.formatOnSave": true,
   "editor.formatOnType": true,
+  "files.associations": {
+    "*.yaml.*": "yaml"
+  },
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
   },
