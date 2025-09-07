@@ -15,10 +15,13 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/rules"
 	"github.com/deep-rent/vouch/internal/token"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -115,4 +118,48 @@ func TestGuardCheck(t *testing.T) {
 			assert.Equal(t, tc.wantScope, scope)
 		})
 	}
+}
+
+func TestNewGuard(t *testing.T) {
+	origParser := newParser
+	origEngine := newEngine
+	t.Cleanup(func() {
+		newParser = origParser
+		newEngine = origEngine
+	})
+
+	t.Run("parser error", func(t *testing.T) {
+		newParser = func(context.Context, config.Token) (token.Parser, error) {
+			return nil, errors.New("pfail")
+		}
+		_, err := NewGuard(context.Background(), config.Config{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "create parser")
+	})
+
+	t.Run("engine error", func(t *testing.T) {
+		newParser = func(context.Context, config.Token) (token.Parser, error) {
+			return token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, nil }), nil
+		}
+		newEngine = func([]config.Rule) (rules.Engine, error) {
+			return nil, errors.New("efail")
+		}
+		_, err := NewGuard(context.Background(), config.Config{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "create engine")
+	})
+
+	t.Run("success", func(t *testing.T) {
+		newParser = func(context.Context, config.Token) (token.Parser, error) {
+			return token.ParserFunc(func(*http.Request) (jwt.Token, error) { return jwt.NewBuilder().Build() }), nil
+		}
+		newEngine = func([]config.Rule) (rules.Engine, error) {
+			return rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
+				return rules.Result{Pass: true}, nil
+			}), nil
+		}
+		g, err := NewGuard(context.Background(), config.Config{Rules: []config.Rule{{When: "true"}}})
+		require.NoError(t, err)
+		require.NotNil(t, g)
+	})
 }
