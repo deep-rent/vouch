@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vouch
+  namespace: data
+spec:
+  selector:
+    app: couchdb
+  ports:
+    - port: 80
+      targetPort: http
+      name: http

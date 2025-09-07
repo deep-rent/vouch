@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: couchdb
+  namespace: data
+spec:
+  serviceName: couchdb-internal
+  replicas: 1
+  selector:
+    matchLabels:
+      app: couchdb
+  template:
+    metadata:
+      labels:
+        app: couchdb
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: couchdb
+          image: couchdb:3.5
+          ports:
+            - containerPort: 5984
+              name: couchdb
+          envFrom:
+            - secretRef:
+                name: couchdb
+          volumeMounts:
+            - name: data
+              mountPath: /opt/couchdb/data
+            - name: couchdb-localini
+              mountPath: /opt/couchdb/etc/local.d/local.ini
+              subPath: local.ini
+          readinessProbe:
+            httpGet:
+              path: /_up
+              port: couchdb
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        - name: vouch
+          image: ghcr.io/deep-rent/vouch:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VOUCH_LOG
+              value: info
+            - name: VOUCH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vouch
+                  key: VOUCH_SECRET
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: vouch-config
+              mountPath: /config/config.yaml
+              subPath: config.yaml
+            - name: vouch-config
+              mountPath: /config/jwks.json
+              subPath: jwks.json
+          readinessProbe:
+            httpGet:
+              path: /healthy
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthy
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: vouch-config
+          configMap:
+            name: vouch-config
+        - name: couchdb-config
+          configMap:
+            name: couchdb-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
