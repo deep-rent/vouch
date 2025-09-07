@@ -33,6 +33,7 @@ import (
 
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/logger"
 	"github.com/deep-rent/vouch/internal/middleware"
 	"github.com/deep-rent/vouch/internal/server"
 )
@@ -78,34 +79,9 @@ func parse() (*flags, error) {
 	return p, nil
 }
 
-// logger sets up and returns a structured logger.
-func logger() *slog.Logger {
-	// Determine the logging verbosity level from the environment variable.
-	v := strings.TrimSpace(os.Getenv("VOUCH_LOG"))
-	var level slog.Level
-	switch strings.ToUpper(v) {
-	case "DEBUG":
-		level = slog.LevelDebug
-	case "INFO":
-		level = slog.LevelInfo
-	case "WARN":
-		level = slog.LevelWarn
-	case "ERROR":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
-	}
-	return slog.New(slog.NewJSONHandler(
-		os.Stdout,
-		&slog.HandlerOptions{
-			Level: level,
-		},
-	))
-}
-
 // main is the entry point for this command.
 func main() {
-	log := logger()
+	log := logger.New(os.Getenv("VOUCH_LOG"))
 	slog.SetDefault(log)
 
 	f, err := parse()
