@@ -16,8 +16,9 @@ package hash
 
 import (
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
+	"hash"
 )
 
 // Signer computes deterministic HMAC tags using a static secret.
@@ -25,13 +26,14 @@ import (
 // the communication between the proxy and CouchDB.
 type Signer struct {
 	key []byte
+	alg func() hash.Hash
 }
 
-// Sign returns the lowercase hex-encoded HMAC-SHA1 of the provided user
+// Sign returns the lowercase hex-encoded HMAC-SHA256 of the provided user
 // name using the underlying secret key. The output is deterministic for
 // the same input and key.
 func (s *Signer) Sign(user string) string {
-	mac := hmac.New(sha1.New, s.key)
+	mac := hmac.New(s.alg, s.key)
 	// Writing cannot fail for in-memory hashes, so the write error is
 	// intentionally ignored.
 	_, _ = mac.Write([]byte(user))
@@ -43,5 +45,6 @@ func (s *Signer) Sign(user string) string {
 func New(secret string) *Signer {
 	return &Signer{
 		key: []byte(secret),
+		alg: sha256.New,
 	}
 }

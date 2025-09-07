@@ -22,6 +22,6 @@ import (
 
 func TestMatch(t *testing.T) {
 	s := New("secret")
-	got := s.Sign("user")
-	require.Equal(t, "027da48c8c642ca4c58eb982eec81915179e77a3", got)
+	got := s.Sign("test")
+	require.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", got)
 }
