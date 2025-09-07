@@ -15,6 +15,7 @@
 package logger
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -32,6 +33,8 @@ func New(v string) *slog.Logger {
 		level = slog.LevelWarn
 	case "ERROR":
 		level = slog.LevelError
+	case "SILENT":
+		return Silent()
 	default:
 		level = slog.LevelInfo
 	}
@@ -41,4 +44,9 @@ func New(v string) *slog.Logger {
 			Level: level,
 		},
 	))
+}
+
+// Silent produces a logger that discards all output.
+func Silent() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
