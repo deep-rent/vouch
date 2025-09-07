@@ -60,40 +60,62 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 	api := httptest.NewServer(s.mux)
 	defer api.Close()
 
-	res, err := http.Get(api.URL + "/healthy")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	body, _ := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	assert.Equal(t, "healthy", string(body))
-	mu.Lock()
-	assert.Empty(t, calls)
-	mu.Unlock()
+	reset := func() {
+		mu.Lock()
+		calls = nil
+		mu.Unlock()
+		mw = nil
+	}
 
-	res, err = http.Get(api.URL + "/ready")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	mu.Lock()
-	require.Contains(t, calls, "GET /_up")
-	mu.Unlock()
+	t.Run("healthy does not hit upstream", func(t *testing.T) {
+		reset()
+		res, err := http.Get(api.URL + "/healthy")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		body, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		assert.Equal(t, "healthy", string(body))
+		mu.Lock()
+		assert.Empty(t, calls)
+		mu.Unlock()
+		assert.Empty(t, mw, "middleware should not run for /healthy")
+	})
 
-	res, err = http.Get(api.URL + "/db/doc")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	mu.Lock()
-	require.Contains(t, calls, "GET /db/doc")
-	mu.Unlock()
-	assert.Equal(t, []string{"m1", "m2"}, mw)
+	t.Run("ready triggers upstream _up check", func(t *testing.T) {
+		reset()
+		res, err := http.Get(api.URL + "/ready")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		mu.Lock()
+		require.Contains(t, calls, "GET /_up")
+		mu.Unlock()
+		assert.Empty(t, mw, "middleware should not run for /ready")
+	})
 
-	mw = nil
-	req, _ := http.NewRequest(http.MethodOptions, api.URL+"/any/path", nil)
-	res, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Empty(t, mw)
-	mu.Lock()
-	require.Contains(t, calls, "OPTIONS /any/path")
-	mu.Unlock()
+	t.Run("proxy GET applies middleware and forwards", func(t *testing.T) {
+		reset()
+		res, err := http.Get(api.URL + "/db/doc")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+
+		mu.Lock()
+		require.Contains(t, calls, "GET /db/doc")
+		mu.Unlock()
+		assert.Equal(t, []string{"m1", "m2"}, mw, "middleware order mismatch")
+	})
+
+	t.Run("OPTIONS bypasses middleware but is forwarded", func(t *testing.T) {
+		reset()
+		req, _ := http.NewRequest(http.MethodOptions, api.URL+"/any/path", nil)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+
+		assert.Empty(t, mw, "middleware should not run for OPTIONS")
+		mu.Lock()
+		require.Contains(t, calls, "OPTIONS /any/path")
+		mu.Unlock()
+	})
 }
 
 func TestServerReadyFailure(t *testing.T) {
