@@ -1,6 +1,7 @@
 VERSION ?= $(or $(shell git describe --tags --always --dirty 2>/dev/null),dev)
 
 # Go parameters
+BINDIR ?= bin
 BINARY_NAME=vouch
 BINARY_PATH=./cmd/vouch
 LDFLAGS = -ldflags="-s -w -X 'main.version=${VERSION}'"
@@ -21,10 +22,13 @@ cover: test ## Open the HTML coverage report
     go tool cover -html=coverage.out
 
 build: ## Build the application binary
-		go build -trimpath $(LDFLAGS) -o $(BINARY_NAME) $(BINARY_PATH)
+		go build -trimpath $(LDFLAGS) -o $(BINDIR)/$(BINARY_NAME) $(BINARY_PATH)
+
+release: BINDIR=dist
+release: clean build ## Build release artifact into dist/
 
 clean: ## Remove the built binary and test cache
-		rm -f $(BINARY_NAME) coverage.out
+		rm -f $(BINDIR)/$(BINARY_NAME) coverage.out
 		go clean -testcache
 
 # lint: ## Run golangci-lint
