@@ -69,6 +69,8 @@ type Guard interface {
 type GuardFunc func(req *http.Request) (Scope, error)
 
 // Check implements the Guard interface.
+//
+//go:no_cover
 func (f GuardFunc) Check(req *http.Request) (Scope, error) {
 	return f(req)
 }
