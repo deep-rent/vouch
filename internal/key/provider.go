@@ -39,6 +39,8 @@ type Provider interface {
 type ProviderFunc func(ctx context.Context) (jwk.Set, error)
 
 // Keys implements the Provider interface.
+//
+//go:no_cover
 func (f ProviderFunc) Keys(ctx context.Context) (jwk.Set, error) { return f(ctx) }
 
 // static implements Provider by serving keys from a static JWKS document
