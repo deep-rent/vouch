@@ -12,11 +12,6 @@ services:
       - "5984:5984"
     volumes:
       - ./container/couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://admin:admin@localhost:5984/_up"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
   vouch:
     build:
@@ -25,10 +20,8 @@ services:
       args:
         - VERSION=dev
     container_name: vouch
-    restart: unless-stopped
     depends_on:
-      couchdb:
-        condition: service_healthy
+      - couchdb
     environment:
       - VOUCH_LOG=INFO
     volumes:
