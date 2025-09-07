@@ -31,31 +31,30 @@ type Result struct {
 }
 
 // Engine evaluates a list of authorization rules in order.
-type Engine struct {
+type Engine interface {
+	// Eval scans rules in order and returns the first allow decision alongside
+	// the user and role(s) to forward to CouchDB. If a deny rule matches, access
+	// is denied immediately. If no rule matches, access is denied by default.
+	//
+	// On denial (explicit or implicit), a zero-value Result and nil error are
+	// returned so the caller can decide how to respond upstream.
+	Eval(env Environment) (Result, error)
+}
+
+// EngineFunc is an adapter to allow the use of ordinary functions as Engines.
+type EngineFunc func(env Environment) (Result, error)
+
+// Eval implements the Engine interface.
+func (f EngineFunc) Eval(env Environment) (Result, error) {
+	return f(env)
+}
+
+// engine is the default Engine implementation.
+type engine struct {
 	rules []rule
 }
 
-// NewEngine compiles the provided declarative rules and returns an Engine.
-// The given slice must not be empty.
-func NewEngine(rules []config.Rule) (*Engine, error) {
-	if len(rules) == 0 {
-		return nil, errors.New("at least one rule is required")
-	}
-	compiler := NewCompiler()
-	compiled, err := compiler.Compile(rules)
-	if err != nil {
-		return nil, err
-	}
-	return &Engine{rules: compiled}, nil
-}
-
-// Eval scans rules in order and returns the first allow decision alongside
-// the user and role(s) to forward to CouchDB. If a deny rule matches, access
-// is denied immediately. If no rule matches, access is denied by default.
-//
-// On denial (explicit or implicit), a zero-value Result and nil error are
-// returned so the caller can decide how to respond upstream.
-func (a *Engine) Eval(env Environment) (Result, error) {
+func (a *engine) Eval(env Environment) (Result, error) {
 	for _, r := range a.rules {
 		o, err := r.Eval(env)
 		if err != nil {
@@ -77,4 +76,21 @@ func (a *Engine) Eval(env Environment) (Result, error) {
 	}
 	// No rule matched, so we deny by default.
 	return Result{Pass: false}, nil
+}
+
+// Ensure engine satisfies the Engine contract.
+var _ Engine = (*engine)(nil)
+
+// NewEngine compiles the provided declarative rules and returns an Engine.
+// The given slice must not be empty.
+func NewEngine(rules []config.Rule) (Engine, error) {
+	if len(rules) == 0 {
+		return nil, errors.New("at least one rule is required")
+	}
+	compiler := NewCompiler()
+	compiled, err := compiler.Compile(rules)
+	if err != nil {
+		return nil, err
+	}
+	return &engine{rules: compiled}, nil
 }

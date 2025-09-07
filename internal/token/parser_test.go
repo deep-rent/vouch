@@ -53,7 +53,7 @@ func TestBearer(t *testing.T) {
 
 func TestParse_MissingHeader(t *testing.T) {
 	t.Parallel()
-	p := &Parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -66,7 +66,7 @@ func TestParse_MissingHeader(t *testing.T) {
 
 func TestParse_EmptyAfterBearer(t *testing.T) {
 	t.Parallel()
-	p := &Parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -81,7 +81,7 @@ func TestParse_EmptyAfterBearer(t *testing.T) {
 func TestParse_PropagatesErrors(t *testing.T) {
 	t.Parallel()
 	sentinel := errors.New("sentinel")
-	p := &Parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return nil, sentinel
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -95,7 +95,7 @@ func TestParse_PropagatesErrors(t *testing.T) {
 
 func TestParse_RaisesCorrectErrors(t *testing.T) {
 	t.Parallel()
-	p := &Parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -113,7 +113,7 @@ func TestParse_PassesRequestContextToProvider(t *testing.T) {
 	const marker = "seen"
 	seen := false
 
-	p := &Parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
 		if v, _ := ctx.Value(pointer{}).(string); v == marker {
 			seen = true
 		}

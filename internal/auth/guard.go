@@ -75,25 +75,8 @@ func (f GuardFunc) Check(req *http.Request) (Scope, error) {
 
 // guard is the default Guard implementation.
 type guard struct {
-	parser *token.Parser
-	engine *rules.Engine
-}
-
-// NewGuard constructs a Guard from configuration by wiring a token parser and
-// compiling the authorization rules.
-func NewGuard(ctx context.Context, cfg config.Config) (Guard, error) {
-	parser, err := token.NewParser(ctx, cfg.Token)
-	if err != nil {
-		return nil, fmt.Errorf("create parser: %w", err)
-	}
-	engine, err := rules.NewEngine(cfg.Rules)
-	if err != nil {
-		return nil, fmt.Errorf("create engine: %w", err)
-	}
-	return &guard{
-		parser: parser,
-		engine: engine,
-	}, nil
+	parser token.Parser
+	engine rules.Engine
 }
 
 // Check parses and validates the Bearer token from req, evaluates the rules,
@@ -122,5 +105,25 @@ func (g *guard) Check(req *http.Request) (Scope, error) {
 	return Scope{
 		User:  res.User,
 		Roles: res.Roles,
+	}, nil
+}
+
+// Ensure guard satisfies the Guard contract.
+var _ Guard = (*guard)(nil)
+
+// NewGuard constructs a Guard from configuration by wiring a token parser and
+// compiling the authorization rules.
+func NewGuard(ctx context.Context, cfg config.Config) (Guard, error) {
+	parser, err := token.NewParser(ctx, cfg.Token)
+	if err != nil {
+		return nil, fmt.Errorf("create parser: %w", err)
+	}
+	engine, err := rules.NewEngine(cfg.Rules)
+	if err != nil {
+		return nil, fmt.Errorf("create engine: %w", err)
+	}
+	return &guard{
+		parser: parser,
+		engine: engine,
 	}, nil
 }

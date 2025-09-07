@@ -36,7 +36,7 @@ func TestNewEngine(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, e)
-		require.Len(t, e.rules, 1)
+		require.Len(t, e.(*engine).rules, 1)
 	})
 }
 
@@ -145,7 +145,7 @@ func TestEngineEval(t *testing.T) {
 		prog, err := expr.Compile("1", expr.Env(Environment{})) // returns int
 		require.NoError(t, err)
 		badRule := rule{when: prog} // deny=false, triggers type error in evalWhen
-		e := &Engine{rules: []rule{badRule}}
+		e := &engine{rules: []rule{badRule}}
 
 		res, err := e.Eval(env())
 		require.Error(t, err)

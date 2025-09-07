@@ -62,36 +62,29 @@ var ErrInvalidToken = &AuthenticationError{
 // Parser extracts and validates Bearer tokens from HTTP requests.
 // It obtains verification keys from the provided key.Provider and applies
 // optional verification constraints derived from config.Token.
-type Parser struct {
-	keys key.Provider      // JWK provider used for signature verification
-	opts []jwt.ParseOption // additional parsing/validation options
+type Parser interface {
+	// Parse extracts a Bearer token from the request's Authorization header and
+	// validates it using the current JWKS and configured constraints.
+	// Returns:
+	//   - ErrMissingToken when the header is absent, malformed, or uses a
+	//     different scheme.
+	//   - ErrInvalidToken when parsing/validation fails.
+	//   - Other errors may be returned from the key provider lookup.
+	Parse(req *http.Request) (jwt.Token, error)
 }
 
-// NewParser constructs a Parser configured from the configuration.
-// It prepares validation options (leeway, issuer, audience, clock) and
-// builds a key provider to retrieve the JWKS used for verification.
-func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
-	keys, err := key.NewProvider(ctx, cfg.Keys)
-	if err != nil {
-		return nil, fmt.Errorf("create key provider: %w", err)
-	}
-	opts := make([]jwt.ParseOption, 0, 4)
-	if v := cfg.Leeway; v != 0 {
-		opts = append(opts, jwt.WithAcceptableSkew(v))
-	}
-	if v := strings.TrimSpace(cfg.Issuer); v != "" {
-		opts = append(opts, jwt.WithIssuer(v))
-	}
-	if v := strings.TrimSpace(cfg.Audience); v != "" {
-		opts = append(opts, jwt.WithAudience(v))
-	}
-	if v := cfg.Clock; v != nil {
-		opts = append(opts, jwt.WithClock(v))
-	}
-	return &Parser{
-		keys: keys,
-		opts: opts,
-	}, nil
+// ParserFunc is an adapter to allow the use of ordinary functions as Parsers.
+type ParserFunc func(req *http.Request) (jwt.Token, error)
+
+// Parse implements the Parser interface.
+func (f ParserFunc) Parse(req *http.Request) (jwt.Token, error) {
+	return f(req)
+}
+
+// parser is the default Parser implementation.
+type parser struct {
+	keys key.Provider      // JWK provider used for signature verification
+	opts []jwt.ParseOption // additional parsing/validation options
 }
 
 // Parse extracts a Bearer token from req's Authorization header and validates
@@ -101,7 +94,7 @@ func NewParser(ctx context.Context, cfg config.Token) (*Parser, error) {
 //     different scheme.
 //   - ErrInvalidToken when parsing/validation fails.
 //   - Other errors may be returned from the key provider lookup.
-func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
+func (p *parser) Parse(req *http.Request) (jwt.Token, error) {
 	raw := bearer(req.Header.Get(Header))
 	if raw == "" {
 		return nil, ErrMissingToken
@@ -121,7 +114,7 @@ func (p *Parser) Parse(req *http.Request) (jwt.Token, error) {
 // parse is an internal helper that applies the provided key set and
 // context, plus the parser's configured options, to parse and
 // validate the token string.
-func (p *Parser) parse(
+func (p *parser) parse(
 	ctx context.Context, set jwk.Set, s string,
 ) (jwt.Token, error) {
 	opts := make([]jwt.ParseOption, 0, len(p.opts)+2)
@@ -129,6 +122,36 @@ func (p *Parser) parse(
 	opts = append(opts, p.opts...)
 
 	return jwt.ParseString(s, opts...)
+}
+
+// Ensure parser satisfies the Parser contract.
+var _ Parser = (*parser)(nil)
+
+// NewParser constructs a Parser configured from the configuration.
+// It prepares validation options (leeway, issuer, audience, clock) and
+// builds a key provider to retrieve the JWKS used for verification.
+func NewParser(ctx context.Context, cfg config.Token) (Parser, error) {
+	keys, err := key.NewProvider(ctx, cfg.Keys)
+	if err != nil {
+		return nil, fmt.Errorf("create key provider: %w", err)
+	}
+	opts := make([]jwt.ParseOption, 0, 4)
+	if v := cfg.Leeway; v != 0 {
+		opts = append(opts, jwt.WithAcceptableSkew(v))
+	}
+	if v := strings.TrimSpace(cfg.Issuer); v != "" {
+		opts = append(opts, jwt.WithIssuer(v))
+	}
+	if v := strings.TrimSpace(cfg.Audience); v != "" {
+		opts = append(opts, jwt.WithAudience(v))
+	}
+	if v := cfg.Clock; v != nil {
+		opts = append(opts, jwt.WithClock(v))
+	}
+	return &parser{
+		keys: keys,
+		opts: opts,
+	}, nil
 }
 
 // bearer extracts the token from the Authorization header value.
