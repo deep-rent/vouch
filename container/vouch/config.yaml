@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../config.schema.json
 proxy:
   listen: :8080
   target: http://localhost:5984
