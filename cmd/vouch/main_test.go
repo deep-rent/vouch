@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,14 +99,6 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func writeConfig(t *testing.T, body string) string {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
-	return path
-}
-
 func TestRunConfigLoadError(t *testing.T) {
 	f := &flags{path: "does-not-exist.yaml"}
 	err := run(f)
@@ -114,33 +107,57 @@ func TestRunConfigLoadError(t *testing.T) {
 }
 
 func TestRunInterruptGraceful(t *testing.T) {
-	// Use dynamic port (127.0.0.1:0) to let server start.
-	cfg := `
-proxy:
-  listen: 127.0.0.1:0
+	if os.Getenv("TEST_RUN_INTERRUPT_CHILD") == "1" {
+		cfgPath := os.Getenv("TEST_CONFIG_PATH")
+		f := &flags{path: cfgPath}
+		err := run(f)
+		if err != nil {
+			t.Fatalf("run returned error: %v", err)
+		}
+		return
+	}
+
+	// Prepare minimal static config with an absolute JWKS path (so the child
+	// process finds the file regardless of its working directory).
+	dir := t.TempDir()
+	jwksPath := filepath.Join(dir, "keys.jwks")
+	jwks := `{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"k1"}]}`
+	require.NoError(t, os.WriteFile(jwksPath, []byte(jwks), 0o600))
+
+	cfg := fmt.Sprintf(`
 token:
   keys:
-    remote:
-      endpoint: https://example.com/jwks
+    static: %q
 rules:
   - mode: allow
     when: "true"
-`
-	f := &flags{path: writeConfig(t, cfg)}
-	done := make(chan error, 1)
-	go func() {
-		done <- run(f)
-	}()
+`, jwksPath)
+	cfgPath := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(cfg), 0o600))
 
-	// Give the server a moment to start, then send SIGTERM.
+	cmd := exec.Command(os.Args[0], "-test.run", "^TestRunInterruptGraceful$")
+	cmd.Env = append(os.Environ(),
+		"TEST_RUN_INTERRUPT_CHILD=1",
+		"TEST_CONFIG_PATH="+cfgPath,
+	)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	require.NoError(t, cmd.Start())
+
 	time.Sleep(200 * time.Millisecond)
-	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGTERM))
+
+	require.NoError(t, cmd.Process.Signal(syscall.SIGTERM))
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
 
 	select {
 	case err := <-done:
-		require.NoError(t, err, "graceful shutdown should not return error")
+		require.NoError(t, err, "child output:\n%s", out.String())
 	case <-time.After(3 * time.Second):
-		t.Fatal("run did not return after signal")
+		t.Fatalf("timeout waiting for graceful shutdown; output:\n%s", out.String())
 	}
 }
 
