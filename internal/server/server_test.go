@@ -30,7 +30,10 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 	var mu sync.Mutex
 	var calls []string
 
-	srv := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(
+		res http.ResponseWriter,
+		req *http.Request,
+	) {
 		mu.Lock()
 		calls = append(calls, req.Method+" "+req.URL.Path)
 		mu.Unlock()
