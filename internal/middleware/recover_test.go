@@ -29,16 +29,13 @@ func TestRecoverPanic(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	// Handler that panics
-	panicHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom!")
 	})
 
-	mw := Recover(log)(panicHandler)
-
+	mw := Recover(log)(h)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/panic", nil)
-
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/panic", nil))
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	out := buf.String()
