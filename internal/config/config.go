@@ -122,8 +122,9 @@ type Headers struct {
 
 // validate applies defaults and checks the configuration for correctness.
 func (h *Headers) validate() error {
-	h.Secret = strings.TrimSpace(h.Secret)
-	if h.Secret == "" {
+	if secret := strings.TrimSpace(h.Secret); secret != "" {
+		h.Secret = secret
+	} else {
 		h.Secret = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
 	}
 	if user := strings.TrimSpace(h.User); user == "" {
