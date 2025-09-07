@@ -82,8 +82,9 @@ func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 }
 
 // newRemote constructs a remote key Provider backed by jwk.Cache and a tuned
-// HTTP client. The cache is registered to poll cfg.Endpoint at the configured
-// interval and is pre-warmed asynchronously to reduce first-request latency.
+// HTTP client. The cache is registered to poll cfg.Endpoint at cfg.Interval.
+// It uses a short timeout for the initial registration fetch so that
+// permanently failing endpoints do not block startup indefinitely.
 func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
 		Timeout: 30 * time.Second,
@@ -92,19 +93,16 @@ func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create cache: %w", err)
 	}
+	wt, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
 	if err := cache.Register(
-		ctx,
+		wt,
 		cfg.Endpoint,
 		jwk.WithMinInterval(cfg.Interval),
 	); err != nil {
 		return nil, fmt.Errorf("register url: %w", err)
 	}
 
-	go func() {
-		wt, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		_, _ = cache.Lookup(wt, cfg.Endpoint)
-	}()
 	return &remote{cache, cfg.Endpoint}, nil
 }
 
