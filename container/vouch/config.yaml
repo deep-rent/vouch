@@ -1,0 +1,20 @@
+proxy:
+  listen: :8080
+  target: http://localhost:5984
+  headers:
+    secret: vouch
+    user: X-Vouch-User
+    roles: X-Vouch-Roles
+    token: X-Vouch-Token
+    anonymous: false
+token:
+  issuer: auth
+  audience: couchdb
+  leeway: 60
+  keys:
+    static: /app/jwks.json
+rules:
+  - when: 'Claim("adm") == true'
+    mode: allow
+    user: 'Claim("sub") ?? ""'
+    roles: '["_admin"]'
