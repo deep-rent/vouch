@@ -79,10 +79,10 @@ func TestConcurrentGetPut(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(goros)
 
-	for i := 0; i < goros; i++ {
+	for range goros {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iters; j++ {
+			for range iters {
 				b := p.Get()
 				if len(b) != sz || cap(b) != sz {
 					t.Errorf("unexpected buffer size len=%d cap=%d", len(b), cap(b))
