@@ -13,3 +13,146 @@
 // limitations under the License.
 
 package rules
+
+import (
+	"testing"
+
+	"github.com/deep-rent/vouch/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewCompiler(t *testing.T) {
+	c := NewCompiler()
+	require.NotNil(t, c, "compiler should not be nil")
+	assert.NotNil(t, c.when, "when options should be initialized")
+	assert.NotNil(t, c.user, "user options should be initialized")
+	assert.NotNil(t, c.roles, "roles options should be initialized")
+}
+
+func TestCompilerCompile(t *testing.T) {
+	tests := []struct {
+		name  string
+		rules []config.Rule
+		count int
+		fail  bool
+		err   string
+	}{
+		{
+			name: "valid allow rule with all fields",
+			rules: []config.Rule{
+				{Deny: false, When: "true", User: `"alice"`, Roles: `["admin"]`},
+			},
+			count: 1,
+		},
+		{
+			name: "valid allow rule with only when",
+			rules: []config.Rule{
+				{Deny: false, When: "true"},
+			},
+			count: 1,
+		},
+		{
+			name: "valid deny rule",
+			rules: []config.Rule{
+				{Deny: true, When: "Method == 'DELETE'"},
+			},
+			count: 1,
+		},
+		{
+			name: "multiple valid rules",
+			rules: []config.Rule{
+				{Deny: false, When: "true", User: `"alice"`},
+				{Deny: true, When: "false"},
+			},
+			count: 2,
+		},
+		{
+			name: "invalid when expression (syntax)",
+			rules: []config.Rule{
+				{Deny: false, When: "true &&"},
+			},
+			fail: true,
+			err:  "rules[0].when: unexpected token EOF",
+		},
+		{
+			name: "invalid when expression (type)",
+			rules: []config.Rule{
+				{Deny: false, When: `"a string"`},
+			},
+			fail: true,
+			err:  "rules[0].when: expected bool, but got string",
+		},
+		{
+			name: "invalid user expression (syntax)",
+			rules: []config.Rule{
+				{Deny: false, When: "true", User: "len()"},
+			},
+			fail: true,
+			err:  "rules[0].user: invalid number of arguments",
+		},
+		{
+			name: "invalid user expression (type)",
+			rules: []config.Rule{
+				{Deny: false, When: "true", User: "123"},
+			},
+			fail: true,
+			err:  "rules[0].user: expected string, but got int",
+		},
+		{
+			name: "valid roles expression with trailing comma",
+			rules: []config.Rule{
+				{Deny: false, When: "true", Roles: `["a",]`},
+			},
+			count: 1,
+		},
+		{
+			name: "invalid roles expression (type)",
+			rules: []config.Rule{
+				{Deny: false, When: "true", Roles: `"not a slice"`},
+			},
+			fail: true,
+			err:  "rules[0].roles: expected slice, but got string",
+		},
+		{
+			name: "error in second rule",
+			rules: []config.Rule{
+				{Deny: false, When: "true"},
+				{Deny: true, When: "123"},
+			},
+			fail: true,
+			err:  "rules[1].when: expected bool, but got int",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewCompiler()
+			compiled, err := c.Compile(tc.rules)
+
+			if tc.fail {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, compiled, tc.count)
+
+			for i, r := range tc.rules {
+				assert.Equal(t, r.Deny, compiled[i].deny)
+				assert.NotNil(t, compiled[i].when)
+				if r.User != "" {
+					assert.NotNil(t, compiled[i].user)
+				} else {
+					assert.Nil(t, compiled[i].user)
+				}
+				if r.Roles != "" {
+					assert.NotNil(t, compiled[i].roles)
+				} else {
+					assert.Nil(t, compiled[i].roles)
+				}
+			}
+		})
+	}
+}
