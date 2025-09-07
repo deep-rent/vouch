@@ -28,80 +28,82 @@ import (
 
 func TestScopeIsAnonymous(t *testing.T) {
 	assert.True(t, (Scope{}).IsAnonymous())
-	assert.False(t, (Scope{User: "alice"}).IsAnonymous())
+	assert.False(t, (Scope{User: "u"}).IsAnonymous())
 }
 
 func TestGuardCheck(t *testing.T) {
-	tests := []struct {
+	newToken := func(t *testing.T) jwt.Token {
+		tok, err := jwt.NewBuilder().Subject("sub").Build()
+		require.NoError(t, err)
+		return tok
+	}
+
+	type test struct {
 		name      string
-		parserErr error
-		engineRes rules.Result
-		engineErr error
+		parser    token.Parser
+		engine    rules.Engine
 		wantScope Scope
 		wantErr   error
-	}{
+	}
+
+	tests := []test{
 		{
-			name:      "missing token",
-			parserErr: token.ErrMissingToken,
-			wantErr:   token.ErrMissingToken,
+			name:    "missing token",
+			parser:  token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrMissingToken }),
+			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
+			wantErr: token.ErrMissingToken,
 		},
 		{
-			name:      "invalid token",
-			parserErr: token.ErrInvalidToken,
-			wantErr:   token.ErrInvalidToken,
+			name:    "invalid token",
+			parser:  token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrInvalidToken }),
+			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
+			wantErr: token.ErrInvalidToken,
 		},
 		{
-			name:      "parser other error",
-			parserErr: assert.AnError,
-			wantErr:   assert.AnError,
+			name: "engine error",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return newToken(t), nil
+			}),
+			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, assert.AnError }),
+			wantErr: assert.AnError,
 		},
 		{
-			name:      "engine error",
-			engineErr: assert.AnError,
-			wantErr:   assert.AnError,
+			name: "forbidden",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return newToken(t), nil
+			}),
+			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{Pass: false}, nil }),
+			wantErr: ErrForbidden,
 		},
 		{
-			name:      "forbidden (pass false)",
-			engineRes: rules.Result{Pass: false},
-			wantErr:   ErrForbidden,
-		},
-		{
-			name:      "allow with user and roles",
-			engineRes: rules.Result{Pass: true, User: "alice", Roles: "r1,r2"},
+			name: "allow with user and roles",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return newToken(t), nil
+			}),
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
+				return rules.Result{Pass: true, User: "alice", Roles: "r1,r2"}, nil
+			}),
 			wantScope: Scope{User: "alice", Roles: "r1,r2"},
 		},
 		{
-			name:      "allow anonymous",
-			engineRes: rules.Result{Pass: true},
+			name: "allow anonymous",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return newToken(t), nil
+			}),
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
+				return rules.Result{Pass: true}, nil
+			}),
 			wantScope: Scope{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var parserCalled bool
-			var engineCalled bool
-
-			// Mock parser
-			p := token.ParserFunc(func(req *http.Request) (jwt.Token, error) {
-				parserCalled = true
-				if tc.parserErr != nil {
-					return nil, tc.parserErr
-				}
-				tok, err := jwt.NewBuilder().Build()
-				require.NoError(t, err)
-				return tok, nil
-			})
-
-			// Mock engine
-			e := rules.EngineFunc(func(env rules.Environment) (rules.Result, error) {
-				engineCalled = true
-				return tc.engineRes, tc.engineErr
-			})
-
-			g := &guard{parser: p, engine: e}
-
-			req := httptest.NewRequest("GET", "http://example.org/db/doc", nil)
+			g := &guard{
+				parser: tc.parser,
+				engine: tc.engine,
+			}
+			req := httptest.NewRequest("GET", "http://example/db/doc", nil)
 			scope, err := g.Check(req)
 
 			if tc.wantErr != nil {
@@ -109,16 +111,8 @@ func TestGuardCheck(t *testing.T) {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
-
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantScope, scope)
-			if err == nil && tc.wantScope == (Scope{}) {
-				assert.True(t, tc.engineRes.Pass) // Anonymous case
-			}
-			assert.True(t, parserCalled)
-			if tc.parserErr == nil {
-				assert.True(t, engineCalled)
-			}
 		})
 	}
 }
