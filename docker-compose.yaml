@@ -26,6 +26,7 @@ services:
       - VOUCH_LOG=INFO
     volumes:
       - ./container/vouch/config.yaml:/app/config.yaml:ro
+      - ./container/vouch/jwks.json:/app/jwks.json:ro
     ports:
       - "8080:8080"
     healthcheck:
