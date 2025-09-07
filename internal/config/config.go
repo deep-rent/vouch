@@ -240,11 +240,11 @@ func (t *Token) validate() error {
 // A rule either allows (optionally authenticating as a user) or denies
 // the incoming request.
 const (
-	// modeAllow grants access and may authenticate the request on behalf of
+	// ModeAllow grants access and may authenticate the request on behalf of
 	// the specified user with optional roles.
-	modeAllow = "allow"
-	// modeDeny denies access and prevents the request from proceeding.
-	modeDeny = "deny"
+	ModeAllow = "allow"
+	// ModeDeny denies access and prevents the request from proceeding.
+	ModeDeny = "deny"
 )
 
 // Rule represents a single, uncompiled authorization rule loaded from config.
@@ -254,7 +254,7 @@ type Rule struct {
 	// Mode selects the decision when the rule matches.
 	// Supported values: "allow" or "deny".
 	Mode string `yaml:"mode"`
-	// Deny is true if mode is modeDeny, false if mode is modeAllow.
+	// Deny is true if mode is ModeDeny, false if mode is ModeAllow.
 	Deny bool `yaml:"-"`
 	// When specifies the condition under which the rule applies.
 	// This expression is mandatory for every rule and must always evaluate to
@@ -277,14 +277,14 @@ type Rule struct {
 // validate applies defaults and checks the configuration for correctness.
 func (r *Rule) validate() error {
 	switch strings.ToLower(strings.TrimSpace(r.Mode)) {
-	case modeAllow:
+	case ModeAllow:
 		r.Deny = false
-	case modeDeny:
+	case ModeDeny:
 		r.Deny = true
 	case "":
 		return fmt.Errorf("mode: must be specified")
 	default:
-		return fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
+		return fmt.Errorf("mode: must be %q or %q", ModeAllow, ModeDeny)
 	}
 	r.Mode = ""
 	r.When = strings.TrimSpace(r.When)
@@ -294,13 +294,13 @@ func (r *Rule) validate() error {
 
 	r.User = strings.TrimSpace(r.User)
 	if r.User != "" && r.Deny {
-		return fmt.Errorf("user: must not be set in %q mode", modeDeny)
+		return fmt.Errorf("user: must not be set in %q mode", ModeDeny)
 	}
 
 	r.Roles = strings.TrimSpace(r.Roles)
 	if r.Roles != "" {
 		if r.Deny {
-			return fmt.Errorf("roles: must not be set in %q mode", modeDeny)
+			return fmt.Errorf("roles: must not be set in %q mode", ModeDeny)
 		}
 		if r.User == "" {
 			return errors.New("roles: cannot be set without user")
