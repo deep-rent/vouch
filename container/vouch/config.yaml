@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../config.schema.json
 proxy:
   listen: :8080
-  target: http://localhost:5984
+  target: http://couchdb:5984
   headers:
     secret: vouch
     user: X-Vouch-User
