@@ -60,6 +60,13 @@ func TestCompilerCompile(t *testing.T) {
 			count: 1,
 		},
 		{
+			name: "deny rule with user and roles ignores them",
+			rules: []config.Rule{
+				{Deny: true, When: "true", User: `"alice"`, Roles: `["admin"]`},
+			},
+			count: 1,
+		},
+		{
 			name: "multiple valid rules",
 			rules: []config.Rule{
 				{Deny: false, When: "true", User: `"alice"`},
@@ -142,12 +149,12 @@ func TestCompilerCompile(t *testing.T) {
 			for i, r := range tc.rules {
 				assert.Equal(t, r.Deny, compiled[i].deny)
 				assert.NotNil(t, compiled[i].when)
-				if r.User != "" {
+				if !r.Deny && r.User != "" {
 					assert.NotNil(t, compiled[i].user)
 				} else {
 					assert.Nil(t, compiled[i].user)
 				}
-				if r.Roles != "" {
+				if !r.Deny && r.Roles != "" {
 					assert.NotNil(t, compiled[i].roles)
 				} else {
 					assert.Nil(t, compiled[i].roles)
