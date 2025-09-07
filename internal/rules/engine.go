@@ -45,8 +45,6 @@ type Engine interface {
 type EngineFunc func(env Environment) (Result, error)
 
 // Eval implements the Engine interface.
-//
-//go:no_cover
 func (f EngineFunc) Eval(env Environment) (Result, error) {
 	return f(env)
 }

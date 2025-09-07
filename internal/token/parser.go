@@ -38,8 +38,6 @@ type AuthenticationError struct {
 }
 
 // Error implements the error interface.
-//
-//go:no_cover
 func (e *AuthenticationError) Error() string {
 	return e.msg
 }
@@ -79,8 +77,6 @@ type Parser interface {
 type ParserFunc func(req *http.Request) (jwt.Token, error)
 
 // Parse implements the Parser interface.
-//
-//go:no_cover
 func (f ParserFunc) Parse(req *http.Request) (jwt.Token, error) {
 	return f(req)
 }
