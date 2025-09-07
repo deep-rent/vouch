@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 )
 
 // New returns a structured JSON logger configured at the requested
@@ -53,6 +54,15 @@ func New(v string) *slog.Logger {
 		os.Stdout,
 		&slog.HandlerOptions{
 			Level: level,
+			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+				// Truncate the time attribute to whole seconds.
+				if attr.Key == slog.TimeKey {
+					if t, ok := attr.Value.Any().(time.Time); ok {
+						attr.Value = slog.TimeValue(t.Truncate(time.Second))
+					}
+				}
+				return attr
+			},
 		},
 	))
 }
