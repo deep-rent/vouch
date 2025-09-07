@@ -2,17 +2,20 @@ name: vouch-stack
 
 services:
   couchdb:
-    image: couchdb:3.5
+    build:
+      context: ./container/couchdb
+      dockerfile: Dockerfile
     container_name: couchdb
     restart: unless-stopped
     environment:
-      - COUCHDB_USER=admin
-      - COUCHDB_PASSWORD=admin
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: admin
     ports:
       - "5984:5984"
     volumes:
-      - ./container/couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini:ro
-
+      - couchdb-data:/opt/couchdb/data
+      - ./container/couchdb/local.ini:/tmp/configs/local.ini:ro
+    entrypoint: /usr/local/bin/entrypoint-wrapper.sh
   vouch:
     build:
       context: .
@@ -23,7 +26,7 @@ services:
     depends_on:
       - couchdb
     environment:
-      - VOUCH_LOG=INFO
+      VOUCH_LOG: info
     volumes:
       - ./container/vouch/config.yaml:/app/config.yaml:ro
       - ./container/vouch/jwks.json:/app/jwks.json:ro
@@ -35,6 +38,9 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
+
+volumes:
+  couchdb-data:
 
 networks:
   default:
