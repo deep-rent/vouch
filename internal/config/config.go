@@ -227,7 +227,7 @@ func (t *Token) validate() error {
 	if err := t.Keys.validate(); err != nil {
 		return fmt.Errorf("keys.%w", err)
 	}
-	if t.Leeway < 0 {
+	if t.LeewaySec < 0 {
 		return errors.New("leeway: must be non-negative")
 	}
 	t.Issuer = strings.TrimSpace(t.Issuer)
