@@ -27,9 +27,9 @@ import (
 )
 
 // transport returns an HTTP transport tuned for CouchDB upstreams.
-// - Enables HTTP/2 where possible
-// - Disables transparent decompression to preserve upstream encoding
-// - Sets conservative timeouts and generous connection pooling
+// - Enables HTTP/2 where possible.
+// - Disables transparent decompression to preserve upstream encoding.
+// - Sets conservative timeouts and generous connection pooling.
 func transport() *http.Transport {
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
