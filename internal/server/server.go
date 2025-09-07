@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
@@ -28,9 +29,10 @@ import (
 // Server wraps an http.Server and reverse proxy, wiring middleware and
 // exposing health/readiness endpoints.
 type Server struct {
-	srv   *http.Server
+	srv   *http.Server // guarded by mu
 	mux   *http.ServeMux
 	probe *probe
+	mu    sync.Mutex
 }
 
 // New constructs a Server that forwards to the given CouchDB target address.
@@ -62,6 +64,11 @@ func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 // Start runs the HTTP server on addr and blocks until the server stops.
 // It returns nil on graceful shutdown, or the terminal error otherwise.
 func (s *Server) Start(addr string) error {
+	s.mu.Lock()
+	if s.srv != nil {
+		s.mu.Unlock()
+		return nil
+	}
 	s.srv = &http.Server{
 		Addr:              addr,
 		Handler:           s.mux,
@@ -71,6 +78,7 @@ func (s *Server) Start(addr string) error {
 		IdleTimeout:       90 * time.Second,
 		MaxHeaderBytes:    1 << 16, // 64 KB
 	}
+	s.mu.Unlock()
 
 	err := s.srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
@@ -81,8 +89,13 @@ func (s *Server) Start(addr string) error {
 
 // Shutdown attempts a graceful server shutdown within ctx.
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.srv == nil {
+	s.mu.Lock()
+	srv := s.srv
+	s.mu.Unlock()
+	if srv == nil {
 		return nil
 	}
-	return s.srv.Shutdown(ctx)
+	wt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(wt)
 }
