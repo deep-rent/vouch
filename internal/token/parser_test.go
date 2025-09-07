@@ -45,7 +45,6 @@ func TestBearer(t *testing.T) {
 		{name: "token with spaces", auth: "Bearer   tok en   ", want: "tok en"},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := bearer(tc.auth)
 			assert.Equal(t, tc.want, got)
