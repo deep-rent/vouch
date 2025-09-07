@@ -3,6 +3,7 @@
 *.cjs      text
 *.go       text
 *.gz       binary
+*.ini      text
 *.js       text
 *.json     text
 *.lock     text
