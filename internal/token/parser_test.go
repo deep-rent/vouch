@@ -18,8 +18,12 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/key"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/assert"
@@ -119,4 +123,40 @@ func TestParsePassesRequestContextToProvider(t *testing.T) {
 
 	_, _ = p.Parse(req)
 	assert.True(t, seen, "provider did not receive the request context")
+}
+
+func TestNewParser(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		const jwks = `{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"k1"}]}`
+		dir := t.TempDir()
+		path := filepath.Join(dir, "keys.jwks")
+		require.NoError(t, os.WriteFile(path, []byte(jwks), 0o600))
+
+		cfg := config.Token{
+			Keys:     config.Keys{Static: path},
+			Issuer:   "iss",
+			Audience: "aud",
+			Leeway:   2 * time.Second,
+		}
+
+		p, err := NewParser(context.Background(), cfg)
+		require.NoError(t, err)
+		require.NotNil(t, p)
+
+		internal, ok := p.(*parser)
+		require.True(t, ok, "expected *parser concrete type")
+		assert.Len(t, internal.opts, 3)
+	})
+
+	t.Run("error invalid static path", func(t *testing.T) {
+		cfg := config.Token{
+			Keys: config.Keys{
+				Static: filepath.Join(t.TempDir(), "missing.jwks"),
+			},
+		}
+		p, err := NewParser(context.Background(), cfg)
+		require.Error(t, err)
+		assert.Nil(t, p)
+		assert.Contains(t, err.Error(), "create key provider")
+	})
 }
