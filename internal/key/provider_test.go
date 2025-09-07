@@ -15,7 +15,6 @@
 package key
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +45,9 @@ const (
   }`
 )
 
-func createJWKSFile(t *testing.T, data string) string {
+// writeJWKS creates a temporary file containing the given JWKS and returns
+// the absolute file path.
+func writeJWKS(t *testing.T, data string) string {
 	t.Helper()
 	f, err := os.CreateTemp(t.TempDir(), "test-*.jwks")
 	require.NoError(t, err)
@@ -56,20 +57,29 @@ func createJWKSFile(t *testing.T, data string) string {
 	return f.Name()
 }
 
+// serveJWKS starts a test HTTP server that serves the given JWKS under the
+// base URL. The caller is responsible for closing the server.
+func serveJWKS(_ *testing.T, data string) *httptest.Server {
+	h := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(res, data)
+	})
+	return httptest.NewServer(h)
+}
+
 func TestNewStatic(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		path := createJWKSFile(t, jwksStatic)
+		path := writeJWKS(t, jwksStatic)
 		p, err := newStatic(path)
 		require.NoError(t, err)
 		require.NotNil(t, p)
 
-		keys, err := p.Keys(context.Background())
+		keys, err := p.Keys(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, 1, keys.Len())
 	})
 
 	t.Run("file not found", func(t *testing.T) {
-		_, err := newStatic("non-existent-file.jwks")
+		_, err := newStatic("missing.jwks.json")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "stat file")
 	})
@@ -80,8 +90,8 @@ func TestNewStatic(t *testing.T) {
 		assert.ErrorContains(t, err, "is not regular")
 	})
 
-	t.Run("invalid jwks content", func(t *testing.T) {
-		path := createJWKSFile(t, `{"keys": "invalid"}`)
+	t.Run("invalid jwks data", func(t *testing.T) {
+		path := writeJWKS(t, `{"keys": "invalid"}`)
 		_, err := newStatic(path)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "parse jwk")
@@ -91,9 +101,7 @@ func TestNewStatic(t *testing.T) {
 func TestNewRemote(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctx := t.Context()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, jwksRemote)
-		}))
+		srv := serveJWKS(t, jwksRemote)
 		defer srv.Close()
 
 		cfg := config.Remote{
@@ -130,13 +138,8 @@ func TestNewRemote(t *testing.T) {
 }
 
 func TestNewProvider(t *testing.T) {
-	path := createJWKSFile(t, jwksStatic)
-	srv := httptest.NewServer(http.HandlerFunc(func(
-		res http.ResponseWriter,
-		req *http.Request,
-	) {
-		fmt.Fprint(res, jwksRemote)
-	}))
+	src := writeJWKS(t, jwksStatic)
+	srv := serveJWKS(t, jwksRemote)
 	defer srv.Close()
 
 	tests := []struct {
@@ -149,7 +152,9 @@ func TestNewProvider(t *testing.T) {
 	}{
 		{
 			name: "static only",
-			cfg:  config.Keys{Static: path},
+			cfg: config.Keys{
+				Static: src,
+			},
 			impl: &static{},
 			keys: 1,
 		},
@@ -167,7 +172,7 @@ func TestNewProvider(t *testing.T) {
 		{
 			name: "static and remote",
 			cfg: config.Keys{
-				Static: path,
+				Static: src,
 				Remote: config.Remote{
 					Endpoint: srv.URL,
 					Interval: 1 * time.Second,
@@ -185,7 +190,7 @@ func TestNewProvider(t *testing.T) {
 		{
 			name: "static provider fails",
 			cfg: config.Keys{
-				Static: filepath.Join(t.TempDir(), "non-existent.jwks"),
+				Static: filepath.Join(t.TempDir(), "missing.jwks.json"),
 			},
 			fail: true,
 			err:  "static keys",
