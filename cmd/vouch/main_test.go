@@ -108,8 +108,7 @@ func TestRunConfigLoadError(t *testing.T) {
 
 func TestRunInterruptGraceful(t *testing.T) {
 	if os.Getenv("TEST_RUN_INTERRUPT_CHILD") == "1" {
-		cfgPath := os.Getenv("TEST_CONFIG_PATH")
-		f := &flags{path: cfgPath}
+		f := &flags{path: os.Getenv("TEST_CONFIG_PATH")}
 		err := run(f)
 		if err != nil {
 			t.Fatalf("run returned error: %v", err)
@@ -117,8 +116,6 @@ func TestRunInterruptGraceful(t *testing.T) {
 		return
 	}
 
-	// Prepare minimal static config with an absolute JWKS path (so the child
-	// process finds the file regardless of its working directory).
 	dir := t.TempDir()
 	jwksPath := filepath.Join(dir, "keys.jwks")
 	jwks := `{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"k1"}]}`
@@ -163,7 +160,6 @@ rules:
 
 func TestMainVersionFlag(t *testing.T) {
 	if os.Getenv("TEST_MAIN_VERSION") == "1" {
-		// Child process path: run main() with -v to trigger version output & exit(0).
 		os.Args = []string{"vouch", "-v"}
 		main()
 		return
