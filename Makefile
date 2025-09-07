@@ -15,13 +15,16 @@ PLATFORMS ?= linux/amd64,linux/arm64
 all: test build ## Run tests and build the binary
 
 test: ## Run tests with race detector and coverage
-		go test -v -race -cover ./...
+		go test -v -race -cover -coverprofile=coverage.out ./...
+
+cover: test ## Open the HTML coverage report
+    go tool cover -html=coverage.out
 
 build: ## Build the application binary
 		go build -trimpath $(LDFLAGS) -o $(BINARY_NAME) $(BINARY_PATH)
 
 clean: ## Remove the built binary and test cache
-    rm -f $(BINARY_NAME)
+    rm -f $(BINARY_NAME) coverage.out
     go clean -testcache
 
 # lint: ## Run golangci-lint
