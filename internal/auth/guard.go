@@ -113,14 +113,20 @@ func (g *guard) Check(req *http.Request) (Scope, error) {
 // Ensure guard satisfies the Guard contract.
 var _ Guard = (*guard)(nil)
 
+// seams (overridable in tests)
+var (
+	newParser = token.NewParser
+	newEngine = rules.NewEngine
+)
+
 // NewGuard constructs a Guard from configuration by wiring a token parser and
 // compiling the authorization rules.
 func NewGuard(ctx context.Context, cfg config.Config) (Guard, error) {
-	parser, err := token.NewParser(ctx, cfg.Token)
+	parser, err := newParser(ctx, cfg.Token)
 	if err != nil {
 		return nil, fmt.Errorf("create parser: %w", err)
 	}
-	engine, err := rules.NewEngine(cfg.Rules)
+	engine, err := newEngine(cfg.Rules)
 	if err != nil {
 		return nil, fmt.Errorf("create engine: %w", err)
 	}
