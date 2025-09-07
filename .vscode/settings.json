@@ -2,7 +2,8 @@
   "editor.formatOnSave": true,
   "editor.formatOnType": true,
   "files.associations": {
-    "*.yaml.*": "yaml"
+    "*.yaml.*": "yaml",
+    "**/charts/**/*.yaml": "helm",
   },
   "files.encoding": "utf8",
   "[json]": {
