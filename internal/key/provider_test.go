@@ -16,8 +16,7 @@ package key
 
 import (
 	"context"
-	"encoding/base64"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,232 +25,201 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func createJWKS(kid string) []byte {
-	k := base64.RawURLEncoding.EncodeToString([]byte("secret"))
-	s := `{"kty":"oct","kid":"` + kid + `","k":"` + k + `"}`
-	return []byte(`{"keys":[` + s + `]}`)
-}
+const (
+	jwksStatic = `{
+    "keys": [{
+      "kty": "oct",
+      "kid": "static-key-1",
+      "k": "AyM1SysPpbyDfgZld3umj1qzKObwVMkoqQ-EstJQLr_T-1qS0gZH75aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow"
+    }]
+  }`
+	jwksRemote = `{
+    "keys": [{
+      "kty": "oct",
+      "kid": "remote-key-1",
+      "k": "GcE_p-Jc3gY5f7tXMLt0bn_m2w_e2Z2a53S-4_s-GjA"
+    }]
+  }`
+)
 
-func createFile(t *testing.T, kid string) string {
+func createJWKSFile(t *testing.T, data string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "jwks.json")
-	if err := os.WriteFile(path, createJWKS(kid), 0o600); err != nil {
-		t.Fatalf("write jwks: %v", err)
-	}
-	return path
+	f, err := os.CreateTemp(t.TempDir(), "test-*.jwks")
+	require.NoError(t, err)
+	_, err = f.WriteString(data)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	return f.Name()
 }
 
-func serveJWKS(t *testing.T, kid string) (url string, stop func()) {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/jwk-set+json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(createJWKS(kid))
-	}))
-	return srv.URL, srv.Close
-}
+func TestNewStatic(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		path := createJWKSFile(t, jwksStatic)
+		p, err := newStatic(path)
+		require.NoError(t, err)
+		require.NotNil(t, p)
 
-func assertHas(t *testing.T, set jwk.Set, kids ...string) {
-	t.Helper()
-
-	exp := make(map[string]struct{}, set.Len())
-	for i := 0; i < set.Len(); i++ {
-		k, ok := set.Key(i)
-		if !ok {
-			t.Fatalf("key index %d out of range", i)
-		}
-		var kid string
-		_ = k.Get(jwk.KeyIDKey, &kid)
-		if kid != "" {
-			exp[kid] = struct{}{}
-		}
-	}
-
-	for _, kid := range kids {
-		if _, ok := exp[kid]; !ok {
-			t.Fatalf("expected kid %q in set, have %v", kid, exp)
-		}
-	}
-}
-
-func TestStaticProvider_Success(t *testing.T) {
-	kid := "static"
-	file := createFile(t, kid)
-
-	p, err := newStatic(file)
-	if err != nil {
-		t.Fatalf("create static: %v", err)
-	}
-
-	set, err := p.Keys(context.Background())
-	if err != nil {
-		t.Fatalf("get keys: %v", err)
-	}
-	if set.Len() != 1 {
-		t.Fatalf("got %d keys, want 1", set.Len())
-	}
-	assertHas(t, set, kid)
-}
-
-func TestStaticProvider_MissingFile(t *testing.T) {
-	if _, err := newStatic("missing.json"); err == nil {
-		t.Fatal("expected error for missing file")
-	}
-}
-
-func TestStaticProvider_NonRegularFile(t *testing.T) {
-	if _, err := newStatic(t.TempDir()); err == nil {
-		t.Fatal("expected error for non-regular file")
-	}
-}
-
-func TestStaticProvider_InvalidJSON(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "jwks.json")
-	if err := os.WriteFile(file, []byte("{invalid}"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-	if _, err := newStatic(file); err == nil {
-		t.Fatal("expected error for invalid jwks json")
-	}
-}
-
-func TestRemoteProvider_Success(t *testing.T) {
-	kid := "remote"
-	url, stop := serveJWKS(t, kid)
-	t.Cleanup(stop)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	p, err := newRemote(ctx, config.Remote{
-		Endpoint: url,
-		Interval: 500 * time.Millisecond,
+		keys, err := p.Keys(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 1, keys.Len())
 	})
-	if err != nil {
-		t.Fatalf("create remote: %v", err)
-	}
 
-	set, err := p.Keys(ctx)
-	if err != nil {
-		t.Fatalf("get keys: %v", err)
-	}
-	if set.Len() != 1 {
-		t.Fatalf("got %d keys, want 1", set.Len())
-	}
-	assertHas(t, set, kid)
+	t.Run("file not found", func(t *testing.T) {
+		_, err := newStatic("non-existent-file.jwks")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "stat file")
+	})
+
+	t.Run("path is directory", func(t *testing.T) {
+		_, err := newStatic(t.TempDir())
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "is not regular")
+	})
+
+	t.Run("invalid jwks content", func(t *testing.T) {
+		path := createJWKSFile(t, `{"keys": "invalid"}`)
+		_, err := newStatic(path)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "parse jwk")
+	})
 }
 
-func TestCompositeProvider_MergesSets(t *testing.T) {
-	prv := func(kid string) Provider {
-		set, err := jwk.Parse(createJWKS(kid))
-		if err != nil {
-			t.Fatalf("parse jwks: %v", err)
+func TestNewRemote(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		ctx := t.Context()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, jwksRemote)
+		}))
+		defer srv.Close()
+
+		cfg := config.Remote{
+			Endpoint: srv.URL,
+			Interval: 1 * time.Second,
 		}
-		return ProviderFunc(func(context.Context) (jwk.Set, error) {
-			return set, nil
+		p, err := newRemote(ctx, cfg)
+		require.NoError(t, err)
+		require.NotNil(t, p)
+
+		keys, err := p.Keys(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, keys.Len())
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		ctx := t.Context()
+		srv := httptest.NewServer(http.HandlerFunc(func(
+			res http.ResponseWriter,
+			req *http.Request,
+		) {
+			res.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		cfg := config.Remote{
+			Endpoint: srv.URL,
+			Interval: 1 * time.Second,
+		}
+		_, err := newRemote(ctx, cfg)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "register url")
+	})
+}
+
+func TestNewProvider(t *testing.T) {
+	path := createJWKSFile(t, jwksStatic)
+	srv := httptest.NewServer(http.HandlerFunc(func(
+		res http.ResponseWriter,
+		req *http.Request,
+	) {
+		fmt.Fprint(res, jwksRemote)
+	}))
+	defer srv.Close()
+
+	tests := []struct {
+		name string
+		cfg  config.Keys
+		impl any
+		keys int
+		fail bool
+		err  string
+	}{
+		{
+			name: "static only",
+			cfg:  config.Keys{Static: path},
+			impl: &static{},
+			keys: 1,
+		},
+		{
+			name: "remote only",
+			cfg: config.Keys{
+				Remote: config.Remote{
+					Endpoint: srv.URL,
+					Interval: 1 * time.Second,
+				},
+			},
+			impl: &remote{},
+			keys: 1,
+		},
+		{
+			name: "static and remote",
+			cfg: config.Keys{
+				Static: path,
+				Remote: config.Remote{
+					Endpoint: srv.URL,
+					Interval: 1 * time.Second,
+				},
+			},
+			impl: &composite{},
+			keys: 2,
+		},
+		{
+			name: "no provider configured",
+			cfg:  config.Keys{},
+			fail: true,
+			err:  "no key source provided",
+		},
+		{
+			name: "static provider fails",
+			cfg: config.Keys{
+				Static: filepath.Join(t.TempDir(), "non-existent.jwks"),
+			},
+			fail: true,
+			err:  "static keys",
+		},
+		{
+			name: "remote provider fails (initial fetch)",
+			cfg: config.Keys{
+				Remote: config.Remote{
+					Endpoint: "http://127.0.0.1:9",
+					Interval: 1 * time.Second,
+				},
+			},
+			fail: true,
+			err:  "remote keys",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			p, err := NewProvider(ctx, tc.cfg)
+
+			if tc.fail {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.IsType(t, tc.impl, p)
+
+			keys, err := p.Keys(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tc.keys, keys.Len())
 		})
 	}
-	c := &composite{stores: []Provider{
-		prv("k1"),
-		prv("k2"),
-	}}
-	set, err := c.Keys(context.Background())
-	if err != nil {
-		t.Fatalf("Keys: %v", err)
-	}
-	assertHas(t, set, "k1", "k2")
-}
-
-func TestCompositeProvider_PropagatesError(t *testing.T) {
-	oops := errors.New("oops")
-	jwks, err := jwk.Parse(createJWKS("ok"))
-	if err != nil {
-		t.Fatalf("parse jwks: %v", err)
-	}
-	c := &composite{stores: []Provider{
-		ProviderFunc(func(context.Context) (jwk.Set, error) { return jwks, nil }),
-		ProviderFunc(func(context.Context) (jwk.Set, error) { return nil, oops }),
-	}}
-	if _, err := c.Keys(context.Background()); err == nil {
-		t.Fatal("expected error from composite.Keys")
-	}
-}
-
-func TestNewProvider_NoneConfigured(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	p, err := NewProvider(ctx, config.Keys{})
-	if err != nil {
-		t.Fatalf("create provider: %v", err)
-	}
-	if p != nil {
-		t.Fatalf("expected nil provider when neither static nor remote set")
-	}
-}
-
-func TestNewProvider_StaticOnly(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	path := createFile(t, "static")
-	p, err := NewProvider(ctx, config.Keys{Static: path})
-	if err != nil {
-		t.Fatalf("create provider (static): %v", err)
-	}
-	set, err := p.Keys(ctx)
-	if err != nil {
-		t.Fatalf("get keys (static): %v", err)
-	}
-	assertHas(t, set, "static")
-}
-
-func TestNewProvider_RemoteOnly(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	url, stop := serveJWKS(t, "remote")
-	t.Cleanup(stop)
-
-	p, err := NewProvider(ctx, config.Keys{
-		Remote: config.Remote{
-			Endpoint: url,
-			Interval: 500 * time.Millisecond,
-		},
-	})
-	if err != nil {
-		t.Fatalf("create provider (remote): %v", err)
-	}
-	set, err := p.Keys(ctx)
-	if err != nil {
-		t.Fatalf("get keys (remote): %v", err)
-	}
-	assertHas(t, set, "remote")
-}
-
-func TestNewProvider_Composite(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	url, stop := serveJWKS(t, "remote")
-	t.Cleanup(stop)
-
-	p, err := NewProvider(ctx, config.Keys{
-		Static: createFile(t, "static"),
-		Remote: config.Remote{
-			Endpoint: url,
-			Interval: 500 * time.Millisecond,
-		},
-	})
-	if err != nil {
-		t.Fatalf("create provider (composite): %v", err)
-	}
-	set, err := p.Keys(ctx)
-	if err != nil {
-		t.Fatalf("get keys (composite): %v", err)
-	}
-	assertHas(t, set, "static", "remote")
 }
