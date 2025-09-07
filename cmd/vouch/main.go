@@ -105,7 +105,6 @@ func main() {
 }
 
 // run executes the main application logic.
-
 func run(f *flags) error {
 	log := slog.Default()
 	log.Info("loading config", "path", f.path)
