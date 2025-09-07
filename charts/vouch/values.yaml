@@ -1,0 +1,59 @@
+proxy:
+  listen: ":8080"
+  target: "http://localhost:5984"
+  headers:
+    user: X-Vouch-User
+    roles: X-Vouch-Roles
+    token: X-Vouch-Token
+    anonymous: false
+token:
+  # issuer: https://auth.example.com/
+  # audience: couchdb
+  # leeway: 60
+  keys:
+    static: []
+    # remote:
+    #   endpoint: https://auth.example.com/.well-known/jwks.json
+    #   interval: 30
+rules: []
+
+couchdb:
+  sidecars:
+  - name: vouch
+    image: ghcr.io/deep-rent/vouch:0.1.0
+    imagePullPolicy: IfNotPresent
+    ports:
+      - containerPort: 8080
+        name: vouch
+    env:
+      - name: VOUCH_LOG
+        value: info
+      - name: VOUCH_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: vouch-secret
+            key: secret
+    volumeMounts:
+      - name: config-volume
+        mountPath: /app/config.yaml
+        subPath: config.yaml
+      - name: jwks-volume
+        mountPath: /app/jwks.json
+        subPath: jwks.json
+    extraVolumes:
+      - name: vouch-jwks
+        secret:
+          secretName: vouch-vouch-jwks
+  couchdbConfig:
+    chttpd:
+      authentication_handlers: '{chttpd_auth, cookie_authentication_handler}, {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}'
+      require_valid_user_except_for_up: true
+    chttpd_auth:
+      proxy_use_secret: true
+      # secret:
+      hash_algorithms: sha256
+      x_auth_username: X-Vouch-User
+      x_auth_roles: X-Vouch-Roles
+      x_auth_token: X-Vouch-Token
+    httpd:
+      WWW-Authenticate: 'Basic realm="administrator"'

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: vouch
+version: '1.0.0'
+appVersion: '0.1.0'
+description: Deploys a Vouch reverse proxy alongside CouchDB.
+maintainers:
+  - name: Tarik Hrnjica
+    email: tarik.hrnjica@deep.rent
+dependencies:
+  - name: couchdb
+    version: 4.6.2
+    repository: https://apache.github.io/couchdb-helm
+keywords:
+  - auth
+  - couchdb
+  - proxy
+  - vouch
+home: https://github.com/deep-rent/vouch
+sources:
+  - https://github.com/deep-rent/vouch
