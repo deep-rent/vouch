@@ -40,9 +40,10 @@ func NewCompiler() *Compiler {
 		expr.Optimize(true),
 	}
 	opts := func(add ...expr.Option) []expr.Option {
-		out := make([]expr.Option, len(base)+len(add))
-		copy(out, base)
-		return append(out, add...)
+		out := make([]expr.Option, 0, len(base)+len(add))
+		out = append(out, base...)
+		out = append(out, add...)
+		return out
 	}
 	return &Compiler{
 		when:  opts(expr.AsBool()),
