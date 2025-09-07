@@ -22,6 +22,8 @@ import (
 
 	"github.com/deep-rent/vouch/internal/key"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBearer(t *testing.T) {
@@ -33,25 +35,25 @@ func TestBearer(t *testing.T) {
 	}{
 		{name: "empty", auth: "", want: ""},
 		{name: "spaces", auth: "   ", want: ""},
-		{name: "wrong-scheme", auth: "Basic abc", want: ""},
-		{name: "no-token", auth: "Bearer", want: ""},
-		{name: "only-spaces-after", auth: "Bearer    ", want: ""},
+		{name: "wrong scheme", auth: "Basic abc", want: ""},
+		{name: "no token", auth: "Bearer", want: ""},
+		{name: "only spaces after", auth: "Bearer    ", want: ""},
 		{name: "valid", auth: "Bearer token", want: "token"},
 		{name: "case-insensitive", auth: "bearer token", want: "token"},
-		{name: "leading-trailing-spaces", auth: "  Bearer token  ", want: "token"},
-		{name: "multiple-spaces", auth: "BEARER    token", want: "token"},
-		{name: "token-with-spaces", auth: "Bearer   tok en   ", want: "tok en"},
+		{name: "leading trailing spaces", auth: "  Bearer token  ", want: "token"},
+		{name: "multiple spaces", auth: "BEARER    token", want: "token"},
+		{name: "token with spaces", auth: "Bearer   tok en   ", want: "tok en"},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			if got := bearer(tc.auth); got != tc.want {
-				t.Fatalf("bearer(%q) = %q, want %q", tc.auth, got, tc.want)
-			}
+			got := bearer(tc.auth)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestParse_MissingHeader(t *testing.T) {
+func TestParseMissingHeader(t *testing.T) {
 	t.Parallel()
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
@@ -59,12 +61,10 @@ func TestParse_MissingHeader(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	_, err := p.Parse(req)
-	if err != ErrMissingToken {
-		t.Fatalf("got err = %v, want ErrMissingToken", err)
-	}
+	require.ErrorIs(t, err, ErrMissingToken)
 }
 
-func TestParse_EmptyAfterBearer(t *testing.T) {
+func TestParseEmptyAfterBearer(t *testing.T) {
 	t.Parallel()
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
@@ -73,12 +73,10 @@ func TestParse_EmptyAfterBearer(t *testing.T) {
 	req.Header.Set(Header, "Bearer  ")
 
 	_, err := p.Parse(req)
-	if err != ErrMissingToken {
-		t.Fatalf("got err = %v, want ErrMissingToken", err)
-	}
+	require.ErrorIs(t, err, ErrMissingToken)
 }
 
-func TestParse_PropagatesErrors(t *testing.T) {
+func TestParsePropagatesErrors(t *testing.T) {
 	t.Parallel()
 	sentinel := errors.New("sentinel")
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
@@ -88,12 +86,10 @@ func TestParse_PropagatesErrors(t *testing.T) {
 	req.Header.Set(Header, "Bearer token")
 
 	_, err := p.Parse(req)
-	if err != sentinel {
-		t.Fatalf("got err = %v, want %v", err, sentinel)
-	}
+	require.ErrorIs(t, err, sentinel)
 }
 
-func TestParse_RaisesCorrectErrors(t *testing.T) {
+func TestParseRaisesCorrectErrors(t *testing.T) {
 	t.Parallel()
 	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
@@ -102,30 +98,26 @@ func TestParse_RaisesCorrectErrors(t *testing.T) {
 	req.Header.Set(Header, "Bearer invalid")
 
 	_, err := p.Parse(req)
-	if err != ErrInvalidToken {
-		t.Fatalf("got err = %v, want ErrInvalidToken", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestParse_PassesRequestContextToProvider(t *testing.T) {
+func TestParsePassesRequestContextToProvider(t *testing.T) {
 	t.Parallel()
-	type pointer struct{}
+	type markerKey struct{}
 	const marker = "seen"
 	seen := false
 
 	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
-		if v, _ := ctx.Value(pointer{}).(string); v == marker {
+		if v, _ := ctx.Value(markerKey{}).(string); v == marker {
 			seen = true
 		}
 		return jwk.NewSet(), nil
 	})}
 
 	base := httptest.NewRequest("GET", "/", nil)
-	req := base.WithContext(context.WithValue(base.Context(), pointer{}, marker))
+	req := base.WithContext(context.WithValue(base.Context(), markerKey{}, marker))
 	req.Header.Set(Header, "Bearer invalid")
 
 	_, _ = p.Parse(req)
-	if !seen {
-		t.Fatal("provider did not receive the request context")
-	}
+	assert.True(t, seen, "provider did not receive the request context")
 }
