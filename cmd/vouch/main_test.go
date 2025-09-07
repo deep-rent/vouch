@@ -16,7 +16,10 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,5 +93,51 @@ func TestParse(t *testing.T) {
 			assert.Equal(t, tc.want.path, f.path, "unexpected config path")
 			assert.Equal(t, tc.want.version, f.version, "unexpected version flag")
 		})
+	}
+}
+
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	return path
+}
+
+func TestRunConfigLoadError(t *testing.T) {
+	f := &flags{path: "does-not-exist.yaml"}
+	err := run(f)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "couldn't load config")
+}
+
+func TestRunInterruptGraceful(t *testing.T) {
+	// Use dynamic port (127.0.0.1:0) to let server start.
+	cfg := `
+proxy:
+  listen: 127.0.0.1:0
+token:
+  keys:
+    remote:
+      endpoint: https://example.com/jwks
+rules:
+  - mode: allow
+    when: "true"
+`
+	f := &flags{path: writeConfig(t, cfg)}
+	done := make(chan error, 1)
+	go func() {
+		done <- run(f)
+	}()
+
+	// Give the server a moment to start, then send SIGTERM.
+	time.Sleep(200 * time.Millisecond)
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGTERM))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "graceful shutdown should not return error")
+	case <-time.After(3 * time.Second):
+		t.Fatal("run did not return after signal")
 	}
 }
