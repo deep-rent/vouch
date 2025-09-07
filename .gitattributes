@@ -1,5 +1,6 @@
 *          text=auto
 .husky/*   text eol=lf
+*.bat      text eol=crlf
 *.cjs      text
 *.go       text
 *.gz       binary
@@ -10,6 +11,7 @@
 *.md       text diff=markdown
 *.mjs      text
 *.png      binary
+*.sh       text eol=lf
 *.svg      text
 *.yaml     text
 *.yml      text
