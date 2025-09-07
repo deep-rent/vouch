@@ -64,7 +64,7 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 	require.NoError(t, err)
 	s := New(u, m1, m2)
 
-	api := httptest.NewServer(s.mux)
+	api := httptest.NewServer(s.(*server).mux)
 	defer api.Close()
 
 	reset := func() {
@@ -141,7 +141,7 @@ func TestServerReadyFailure(t *testing.T) {
 	u, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	s := New(u)
-	api := httptest.NewServer(s.mux)
+	api := httptest.NewServer(s.(*server).mux)
 	defer api.Close()
 
 	res, err := http.Get(api.URL + "/ready")
@@ -151,7 +151,7 @@ func TestServerReadyFailure(t *testing.T) {
 }
 
 func TestShutdownWithoutStartIsNoop(t *testing.T) {
-	s := &Server{}
+	s := &server{}
 	err := s.Shutdown(t.Context())
 	require.NoError(t, err)
 }

@@ -28,7 +28,16 @@ import (
 
 // Server wraps an http.Server and reverse proxy, wiring middleware and
 // exposing health/readiness endpoints.
-type Server struct {
+type Server interface {
+	// Start runs the HTTP server on addr and blocks until the server stops.
+	// It returns nil on graceful shutdown, or the terminal error otherwise.
+	Start(addr string) error
+	// Shutdown attempts to stop the server gracefully within the given context.
+	Shutdown(ctx context.Context) error
+}
+
+// server is the concrete implementation of Server.
+type server struct {
 	srv   *http.Server // guarded by mu
 	mux   *http.ServeMux
 	probe *probe
@@ -37,8 +46,8 @@ type Server struct {
 
 // New constructs a Server that forwards to the given CouchDB target address.
 // Middlewares are applied outermost-first around the proxy handler.
-func New(target *url.URL, mws ...middleware.Middleware) *Server {
-	s := &Server{
+func New(target *url.URL, mws ...middleware.Middleware) Server {
+	s := &server{
 		mux:   http.NewServeMux(),
 		probe: newProbe(target),
 	}
@@ -47,7 +56,7 @@ func New(target *url.URL, mws ...middleware.Middleware) *Server {
 }
 
 // routes registers public health endpoints and the proxy handler.
-func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
+func (s *server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Unprotected readiness and liveness probes.
 	s.mux.HandleFunc("GET /ready", s.probe.ready)
 	s.mux.HandleFunc("HEAD /ready", s.probe.ready)
@@ -61,9 +70,7 @@ func (s *Server) routes(h http.Handler, mws ...middleware.Middleware) {
 	s.mux.Handle("/", middleware.Chain(h, mws...))
 }
 
-// Start runs the HTTP server on addr and blocks until the server stops.
-// It returns nil on graceful shutdown, or the terminal error otherwise.
-func (s *Server) Start(addr string) error {
+func (s *server) Start(addr string) error {
 	s.mu.Lock()
 	if s.srv != nil {
 		s.mu.Unlock()
@@ -87,8 +94,7 @@ func (s *Server) Start(addr string) error {
 	return nil
 }
 
-// Shutdown attempts a graceful server shutdown within ctx.
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	srv := s.srv
 	s.mu.Unlock()
