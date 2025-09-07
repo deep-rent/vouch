@@ -10,6 +10,8 @@ services:
       - COUCHDB_PASSWORD=admin
     ports:
       - "5984:5984"
+    volumes:
+      - ./container/couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://admin:admin@localhost:5984/_up"]
       interval: 10s
