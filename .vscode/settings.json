@@ -4,6 +4,7 @@
   "files.associations": {
     "*.yaml.*": "yaml"
   },
+  "files.encoding": "utf8",
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
   },
