@@ -60,7 +60,10 @@ func TestProxyDirectorAndForwardingHeaders(t *testing.T) {
 
 	assert.Empty(t, got.Header.Get(token.Header))
 	assert.Equal(t, "client.example.local", got.Header.Get(HeaderForwardedHost))
-	assert.Contains(t, got.Header.Values(HeaderForwardedFor), "203.0.113.10")
+	// Forwarded-For may contain a comma‑separated list; just assert our client IP is present.
+	ff := got.Header.Get(HeaderForwardedFor)
+	assert.NotEmpty(t, ff)
+	assert.Contains(t, ff, "203.0.113.10")
 	assert.Equal(t, "http", got.Header.Get(HeaderForwardedProto))
 }
 
