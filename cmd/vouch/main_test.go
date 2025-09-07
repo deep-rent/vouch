@@ -15,14 +15,16 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
-	args := os.Args // Hold and restore original arguments.
+	args := os.Args
 	defer func() { os.Args = args }()
 
 	tests := []struct {
@@ -76,25 +78,19 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			os.Args = tc.args
 			if tc.env != "" {
 				t.Setenv("VOUCH_CONFIG", tc.env)
 			} else {
-				// Unset to avoid interference from previous tests.
 				os.Unsetenv("VOUCH_CONFIG")
 			}
 
 			f, err := parse()
-			if err != nil {
-				t.Fatalf("parse() error = %v", err)
-			}
-			if f.path != tc.want.path {
-				t.Errorf("parse() path = %q, want %q", f.path, tc.want.path)
-			}
-			if f.version != tc.want.version {
-				t.Errorf("parse() version = %v, want %v", f.version, tc.want.version)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want.path, f.path, "unexpected config path")
+			assert.Equal(t, tc.want.version, f.version, "unexpected version flag")
 		})
 	}
 }
@@ -118,17 +114,16 @@ func TestLogger(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("VOUCH_LOG", tc.env)
 			log := logger()
+
 			handler, ok := log.Handler().(*slog.JSONHandler)
-			if !ok {
-				t.Fatalf("expected a *slog.JSONHandler, got %T", log.Handler())
-			}
-			// Check if the handler has the correct level enabled.
-			if !handler.Enabled(context.Background(), tc.want) {
-				t.Errorf("logger level %v should be enabled", tc.want)
-			}
-			// Check that a level below the desired one is disabled.
-			if tc.want > slog.LevelDebug && handler.Enabled(context.Background(), tc.want-1) {
-				t.Errorf("logger level below %v should be disabled", tc.want)
+			require.True(t, ok, "expected *slog.JSONHandler, got %T", log.Handler())
+
+			assert.True(t, handler.Enabled(t.Context(), tc.want),
+				"expected level %v to be enabled", tc.want)
+
+			if tc.want > slog.LevelDebug {
+				assert.False(t, handler.Enabled(t.Context(), tc.want-1),
+					"expected lower level than %v to be disabled", tc.want)
 			}
 		})
 	}
