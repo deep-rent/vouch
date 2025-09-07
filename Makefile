@@ -1,12 +1,52 @@
-.PHONY: test vendor clean
+VERSION ?= $(shell git describe --tags --always --dirty)
 
-default: test
+# Go parameters
+BINARY_NAME=vouch
+BINARY_PATH=./cmd/vouch
+LDFLAGS = -ldflags="-s -w -X 'main.version=${VERSION}'"
 
-test:
-	go test -v -cover ./...
+# Docker parameters
+IMAGE ?= ghcr.io/deep-rent/vouch
+PLATFORMS ?= linux/amd64,linux/arm64
 
-vendor:
-	go mod vendor
+.DEFAULT_GOAL := help
+.PHONY: all test build clean lint up down logs help
 
-clean:
-	rm -rf ./vendor
+all: test build ## Run tests and build the binary
+
+test: ## Run tests with race detector and coverage
+		go test -v -race -cover ./...
+
+build: ## Build the application binary
+		go build -trimpath $(LDFLAGS) -o $(BINARY_NAME) $(BINARY_PATH)
+
+clean: ## Remove the built binary and test cache
+    rm -f $(BINARY_NAME)
+    go clean -testcache
+
+# lint: ## Run golangci-lint
+#     @command -v golangci-lint >/dev/null 2>&1 || (echo "golangci-lint not found. Please install: https://golangci-lint.run/usage/install/" && exit 1)
+#     golangci-lint run
+
+up: ## Start the docker-compose stack in the background
+    docker compose up --build -d
+
+down: ## Stop and remove the docker-compose stack
+    docker compose down
+
+logs: ## View logs from the docker-compose stack
+    docker compose logs -f
+
+image: ## Build the multi-platform Docker image
+    docker buildx build \
+        --platform $(PLATFORMS) \
+        --build-arg "VERSION=${VERSION}" \
+        -t $(IMAGE):$(VERSION) \
+        -t $(IMAGE):latest \
+        .
+
+help: ## Show this help message
+    @echo "Usage: make <target>"
+    @echo ""
+    @echo "Targets:"
+    @grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
