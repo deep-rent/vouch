@@ -163,3 +163,10 @@ func TestNewGuard(t *testing.T) {
 		require.NotNil(t, g)
 	})
 }
+
+func TestGuardFunc(t *testing.T) {
+	g := GuardFunc(func(*http.Request) (Scope, error) { return Scope{User: "u"}, nil })
+	s, err := g.Check(httptest.NewRequest("GET", "/", nil))
+	require.NoError(t, err)
+	require.Equal(t, "u", s.User)
+}

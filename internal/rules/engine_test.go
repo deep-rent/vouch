@@ -181,3 +181,11 @@ func TestEngineEval(t *testing.T) {
 		assert.Empty(t, res)
 	})
 }
+
+func TestEngineFunc(t *testing.T) {
+	e := EngineFunc(func(Environment) (Result, error) { return Result{Pass: true, User: "x"}, nil })
+	r, err := e.Eval(Environment{})
+	require.NoError(t, err)
+	require.True(t, r.Pass)
+	require.Equal(t, "x", r.User)
+}

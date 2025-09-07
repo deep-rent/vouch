@@ -17,6 +17,7 @@ package token
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -161,4 +162,12 @@ func TestNewParser(t *testing.T) {
 		assert.Nil(t, p)
 		assert.Contains(t, err.Error(), "create key provider")
 	})
+}
+
+func TestParserFunc(t *testing.T) {
+	want, _ := jwt.NewBuilder().Build()
+	p := ParserFunc(func(*http.Request) (jwt.Token, error) { return want, nil })
+	got, err := p.Parse(httptest.NewRequest("GET", "/", nil))
+	require.NoError(t, err)
+	require.Equal(t, want, got)
 }

@@ -15,6 +15,7 @@
 package key
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -227,4 +229,12 @@ func TestNewProvider(t *testing.T) {
 			assert.Equal(t, tc.keys, keys.Len())
 		})
 	}
+}
+
+func TestProviderFunc(t *testing.T) {
+	set := jwk.NewSet()
+	p := ProviderFunc(func(context.Context) (jwk.Set, error) { return set, nil })
+	got, err := p.Keys(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, set, got)
 }
