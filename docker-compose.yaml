@@ -1,0 +1,45 @@
+name: vouch-stack
+
+services:
+  couchdb:
+    image: couchdb:3.5
+    container_name: couchdb
+    restart: unless-stopped
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=admin
+    ports:
+      - "5984:5984"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://admin:admin@localhost:5984/_up"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  vouch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VERSION=dev
+    container_name: vouch
+    restart: unless-stopped
+    depends_on:
+      couchdb:
+        condition: service_healthy
+    environment:
+      - VOUCH_LOG=INFO
+    volumes:
+      - ./container/vouch/config.yaml:/app/config.yaml:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 15s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+networks:
+  default:
+    name: vouch-net
