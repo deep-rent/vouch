@@ -15,12 +15,16 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,4 +154,100 @@ func TestShutdownWithoutStartIsNoop(t *testing.T) {
 	s := &Server{}
 	err := s.Shutdown(t.Context())
 	require.NoError(t, err)
+}
+
+func TestServerStartAndShutdown(t *testing.T) {
+	// Upstream fake CouchDB.
+	srv := httptest.NewServer(http.HandlerFunc(func(
+		res http.ResponseWriter,
+		req *http.Request,
+	) {
+		if req.URL.Path == "/_up" {
+			res.WriteHeader(http.StatusOK)
+			return
+		}
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	// Pick a free port.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	s := New(u)
+
+	errch := make(chan error, 1)
+	go func() {
+		errch <- s.Start(addr)
+	}()
+
+	// Wait until server responds (with timeout).
+	deadline := time.Now().Add(2 * time.Second)
+	var healthy bool
+	for time.Now().Before(deadline) {
+		res, err := http.Get(fmt.Sprintf("http://%s/healthy", addr))
+		if err == nil {
+			_ = res.Body.Close()
+			if res.StatusCode == http.StatusOK {
+				healthy = true
+				break
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	require.True(t, healthy, "server never became healthy")
+
+	// Graceful shutdown.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	require.NoError(t, s.Shutdown(ctx))
+
+	// Start must return nil on graceful shutdown.
+	require.NoError(t, <-errch)
+}
+
+func TestServerStartPortInUse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(
+		res http.ResponseWriter,
+		req *http.Request,
+	) {
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	l, err := net.Listen("tcp", "127.0.0.1:0") // Occupy a port.
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	defer l.Close()
+
+	s := New(u)
+
+	errch := make(chan error, 1)
+	go func() {
+		errch <- s.Start(addr)
+	}()
+
+	// Expect an error (address already in use) shortly.
+	select {
+	case e := <-errch:
+		require.Error(t, e)
+	default:
+		// Allow a little time if not immediate.
+		select {
+		case e := <-errch:
+			require.Error(t, e)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("expected Start to fail due to port already in use")
+		}
+	}
 }
