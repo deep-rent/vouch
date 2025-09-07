@@ -9,9 +9,9 @@ proxy:
     token: X-Vouch-Token
     anonymous: false
 token:
-  issuer: auth
-  audience: couchdb
-  leeway: 60
+  # issuer: https://auth.example.com/
+  # audience: couchdb
+  # leeway: 60
   keys:
     static: /app/jwks.json
 rules:
