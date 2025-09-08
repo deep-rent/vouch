@@ -24,7 +24,6 @@ import (
 	"github.com/deep-rent/vouch/internal/logger"
 	"github.com/deep-rent/vouch/internal/token"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockGuard struct {
@@ -36,195 +35,183 @@ func (g mockGuard) Check(*http.Request) (auth.Scope, error) {
 	return g.scope, g.err
 }
 
-func TestForwardSuccessAuthenticated(t *testing.T) {
-	cfg := config.Headers{
-		User:   "X-Test-User",
-		Roles:  "X-Test-Roles",
-		Token:  "X-Test-Token",
-		Secret: "secret",
-	}
-
-	guard := mockGuard{
-		scope: auth.Scope{
-			User:  "test",
-			Roles: "foo,bar",
+func TestForward(t *testing.T) {
+	tests := []struct {
+		// inputs
+		name  string
+		cfg   config.Headers
+		scope auth.Scope
+		err   error
+		// expected outputs
+		status    int
+		user      string
+		roles     string
+		token     string
+		next      bool
+		challenge bool
+	}{
+		{
+			name: "authenticated with roles + secret (signed token)",
+			cfg: config.Headers{
+				User:   "X-Test-User",
+				Roles:  "X-Test-Roles",
+				Token:  "X-Test-Token",
+				Secret: "secret",
+			},
+			scope: auth.Scope{User: "test", Roles: "foo,bar"},
+			// Digest observed in existing dedicated test; keep deterministic assertion.
+			token:  "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
+			status: http.StatusOK,
+			user:   "test",
+			roles:  "foo,bar",
+			next:   true,
+		},
+		{
+			name: "authenticated no roles no secret",
+			cfg: config.Headers{
+				User:      "X-Test-User",
+				Roles:     "X-Test-Roles",
+				Token:     "X-Test-Token",
+				Secret:    "",
+				Anonymous: true,
+			},
+			scope:  auth.Scope{User: "user"},
+			status: http.StatusOK,
+			user:   "user",
+			roles:  "",
+			token:  "",
+			next:   true,
+		},
+		{
+			name: "anonymous allowed (secret present) => no auth headers injected",
+			cfg: config.Headers{
+				User:      "X-Test-User",
+				Roles:     "X-Test-Roles",
+				Token:     "X-Test-Token",
+				Secret:    "secret",
+				Anonymous: true,
+			},
+			scope:  auth.Scope{},
+			status: http.StatusOK,
+			user:   "",
+			roles:  "",
+			token:  "",
+			next:   true,
+		},
+		{
+			name: "anonymous rejected (not allowed)",
+			cfg: config.Headers{
+				User:      "X-Test-User",
+				Roles:     "X-Test-Roles",
+				Token:     "X-Test-Token",
+				Anonymous: false,
+			},
+			scope:  auth.Scope{},
+			status: http.StatusUnauthorized,
+			next:   false,
+		},
+		{
+			name: "forbidden error",
+			cfg: config.Headers{
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+			},
+			err:    auth.ErrForbidden,
+			status: http.StatusForbidden,
+			next:   false,
+		},
+		{
+			name: "unauthorized missing token (challenge expected)",
+			cfg: config.Headers{
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+			},
+			err:       token.ErrMissingToken,
+			status:    http.StatusUnauthorized,
+			next:      false,
+			challenge: true,
+		},
+		{
+			name: "internal error",
+			cfg: config.Headers{
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+			},
+			err:    assert.AnError,
+			status: http.StatusInternalServerError,
+			next:   false,
+		},
+		{
+			name: "empty user with anonymous allowed (remains anonymous)",
+			cfg: config.Headers{
+				User:      "X-Test-User",
+				Roles:     "X-Test-Roles",
+				Token:     "X-Test-Token",
+				Secret:    "secret",
+				Anonymous: true,
+			},
+			scope:  auth.Scope{User: ""},
+			status: http.StatusOK,
+			user:   "",
+			roles:  "",
+			token:  "",
+			next:   true,
 		},
 	}
 
-	var seen bool
-	var user, roles, token string
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			guard := mockGuard{scope: tc.scope, err: tc.err}
 
-	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		seen = true
-		user = req.Header.Get(cfg.User)
-		roles = req.Header.Get(cfg.Roles)
-		token = req.Header.Get(cfg.Token)
-		res.WriteHeader(http.StatusOK)
-	})
+			var (
+				seen  bool
+				user  string
+				roles string
+				token string
+			)
 
-	req := httptest.NewRequest("GET", "http://example/db/doc", nil)
-	// Simulate malicious client‑supplied headers (must be stripped).
-	req.Header.Set(cfg.User, "attacker")
-	req.Header.Set(cfg.Roles, "evil")
-	req.Header.Set(cfg.Token, "forged")
+			next := http.HandlerFunc(func(
+				res http.ResponseWriter,
+				req *http.Request,
+			) {
+				seen = true
+				user = req.Header.Get(tc.cfg.User)
+				roles = req.Header.Get(tc.cfg.Roles)
+				token = req.Header.Get(tc.cfg.Token)
+				res.WriteHeader(http.StatusOK)
+			})
 
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+			req := httptest.NewRequest(http.MethodGet, "http://example/db/doc", nil)
 
-	require.True(t, seen, "next handler not invoked")
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "test", user)
-	assert.Equal(t, "foo,bar", roles)
-	assert.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", token)
-}
+			// Simulate malicious attacker-supplied headers (should be cleared).
+			req.Header.Set(tc.cfg.User, "forged")
+			req.Header.Set(tc.cfg.Roles, "forged")
+			req.Header.Set(tc.cfg.Token, "forged")
 
-func TestForwardSuccessAuthenticatedNoRolesNoSecret(t *testing.T) {
-	cfg := config.Headers{
-		User:      "X-Test-User",
-		Roles:     "X-Test-Roles",
-		Token:     "X-Test-Token",
-		Secret:    "",
-		Anonymous: true,
+			rr := httptest.NewRecorder()
+			Forward(logger.Silent(), guard, tc.cfg)(next).ServeHTTP(rr, req)
+
+			assert.Equal(t, tc.status, rr.Code)
+			assert.Equal(t, tc.next, seen, "next handler invocation mismatch")
+
+			if tc.next {
+				assert.Equal(t, tc.user, user, "user header mismatch")
+				assert.Equal(t, tc.roles, roles, "roles header mismatch")
+
+				if tc.token != "" {
+					assert.Equal(t, tc.token, token, "token digest mismatch")
+				} else {
+					assert.Empty(t, token, "token header should be empty")
+				}
+			}
+
+			if tc.challenge {
+				got := rr.Header().Get("WWW-Authenticate")
+				assert.NotEmpty(t, got, "challenge header expected")
+			}
+		})
 	}
-
-	guard := mockGuard{
-		scope: auth.Scope{User: "user"},
-	}
-
-	var seen bool
-	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		seen = true
-		assert.Equal(t, "user", req.Header.Get(cfg.User))
-		assert.Empty(t, req.Header.Get(cfg.Roles))
-		assert.Empty(t, req.Header.Get(cfg.Token))
-		res.WriteHeader(http.StatusOK)
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	require.True(t, seen)
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestForwardSuccessAnonymousAllowed(t *testing.T) {
-	cfg := config.Headers{
-		User:      "X-Test-User",
-		Roles:     "X-Test-Roles",
-		Token:     "X-Test-Token",
-		Secret:    "secret",
-		Anonymous: true,
-	}
-
-	guard := mockGuard{
-		scope: auth.Scope{},
-	}
-
-	var seen bool
-	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		seen = true
-		assert.Empty(t, req.Header.Get(cfg.User))
-		assert.Empty(t, req.Header.Get(cfg.Roles))
-		assert.Empty(t, req.Header.Get(cfg.Token))
-		res.WriteHeader(http.StatusOK)
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	require.True(t, seen)
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestForwardAnonymousRejected(t *testing.T) {
-	cfg := config.Headers{
-		User:      "X-Test-User",
-		Roles:     "X-Test-Roles",
-		Token:     "X-Test-Token",
-		Anonymous: false,
-	}
-
-	guard := mockGuard{
-		scope: auth.Scope{},
-	}
-
-	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatalf("handler should not be called for rejected anonymous request")
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestForwardForbidden(t *testing.T) {
-	cfg := config.Headers{
-		User:  "X-Test-User",
-		Roles: "X-Test-Roles",
-		Token: "X-Test-Token",
-	}
-
-	guard := mockGuard{
-		err: auth.ErrForbidden,
-	}
-
-	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatalf("handler should not be called for forbidden request")
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-}
-
-func TestForwardUnauthorizedChallenge(t *testing.T) {
-	cfg := config.Headers{
-		User:  "X-Test-User",
-		Roles: "X-Test-Roles",
-		Token: "X-Test-Token",
-	}
-
-	guard := mockGuard{
-		err: token.ErrMissingToken,
-	}
-
-	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatalf("handler should not be called for unauthorized request")
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.NotEmpty(t, rr.Header().Get("WWW-Authenticate"))
-}
-
-func TestForwardInternalError(t *testing.T) {
-	cfg := config.Headers{
-		User:  "X-Test-User",
-		Roles: "X-Test-Roles",
-		Token: "X-Test-Token",
-	}
-
-	guard := mockGuard{
-		err: assert.AnError,
-	}
-
-	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatalf("handler should not be called on internal error")
-	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
-	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
