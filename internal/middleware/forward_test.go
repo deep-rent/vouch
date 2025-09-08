@@ -27,40 +27,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testGuard struct {
+type mockGuard struct {
 	scope auth.Scope
 	err   error
 }
 
-func (g testGuard) Check(*http.Request) (auth.Scope, error) {
+func (g mockGuard) Check(*http.Request) (auth.Scope, error) {
 	return g.scope, g.err
 }
 
 func TestForwardSuccessAuthenticated(t *testing.T) {
 	cfg := config.Headers{
-		User:   "X-Auth-CouchDB-UserName",
-		Roles:  "X-Auth-CouchDB-Roles",
-		Token:  "X-Auth-CouchDB-Token",
+		User:   "X-Test-User",
+		Roles:  "X-Test-Roles",
+		Token:  "X-Test-Token",
 		Secret: "secret",
-		// Anonymous default (false) is fine; user is set anyway.
 	}
 
-	guard := testGuard{
-		scope: auth.Scope{User: "user", Roles: "r1,r2"},
+	guard := mockGuard{
+		scope: auth.Scope{
+			User:  "test",
+			Roles: "foo,bar",
+		},
 	}
 
-	var sawHandler bool
-	var receivedUser, receivedRoles, receivedToken string
+	var seen bool
+	var user, roles, token string
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawHandler = true
-		receivedUser = r.Header.Get(cfg.User)
-		receivedRoles = r.Header.Get(cfg.Roles)
-		receivedToken = r.Header.Get(cfg.Token)
-		w.WriteHeader(http.StatusOK)
+	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		seen = true
+		user = req.Header.Get(cfg.User)
+		roles = req.Header.Get(cfg.Roles)
+		token = req.Header.Get(cfg.Token)
+		res.WriteHeader(http.StatusOK)
 	})
-
-	mw := Forward(logger.Silent(), guard, cfg)(next)
 
 	req := httptest.NewRequest("GET", "http://example/db/doc", nil)
 	// Simulate malicious client‑supplied headers (must be stripped).
@@ -68,150 +68,140 @@ func TestForwardSuccessAuthenticated(t *testing.T) {
 	req.Header.Set(cfg.Roles, "evil")
 	req.Header.Set(cfg.Token, "forged")
 
+	mw := Forward(logger.Silent(), guard, cfg)(next)
 	rr := httptest.NewRecorder()
 	mw.ServeHTTP(rr, req)
 
-	require.True(t, sawHandler, "next handler not invoked")
+	require.True(t, seen, "next handler not invoked")
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "user", receivedUser)
-	assert.Equal(t, "r1,r2", receivedRoles)
-	// Deterministic HMAC (aligned with signer_test expectations).
-	assert.Equal(t, "027da48c8c642ca4c58eb982eec81915179e77a3", receivedToken)
+	assert.Equal(t, "test", user)
+	assert.Equal(t, "foo,bar", roles)
+	assert.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", token)
 }
 
 func TestForwardSuccessAuthenticatedNoRolesNoSecret(t *testing.T) {
 	cfg := config.Headers{
-		User:      "X-Auth-CouchDB-UserName",
-		Roles:     "X-Auth-CouchDB-Roles",
-		Token:     "X-Auth-CouchDB-Token",
-		Secret:    "", // disables signing
+		User:      "X-Test-User",
+		Roles:     "X-Test-Roles",
+		Token:     "X-Test-Token",
+		Secret:    "",
 		Anonymous: true,
 	}
 
-	guard := testGuard{
-		scope: auth.Scope{User: "user"}, // no roles
+	guard := mockGuard{
+		scope: auth.Scope{User: "user"},
 	}
 
-	var sawHandler bool
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawHandler = true
-		assert.Equal(t, "user", r.Header.Get(cfg.User))
-		assert.Empty(t, r.Header.Get(cfg.Roles))
-		assert.Empty(t, r.Header.Get(cfg.Token)) // no secret => no token header
-		w.WriteHeader(http.StatusOK)
+	var seen bool
+	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		seen = true
+		assert.Equal(t, "user", req.Header.Get(cfg.User))
+		assert.Empty(t, req.Header.Get(cfg.Roles))
+		assert.Empty(t, req.Header.Get(cfg.Token))
+		res.WriteHeader(http.StatusOK)
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
-	require.True(t, sawHandler)
+	require.True(t, seen)
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestForwardSuccessAnonymousAllowed(t *testing.T) {
 	cfg := config.Headers{
-		User:      "X-Auth-CouchDB-UserName",
-		Roles:     "X-Auth-CouchDB-Roles",
-		Token:     "X-Auth-CouchDB-Token",
+		User:      "X-Test-User",
+		Roles:     "X-Test-Roles",
+		Token:     "X-Test-Token",
 		Secret:    "secret",
-		Anonymous: true, // allow anonymous
+		Anonymous: true,
 	}
 
-	guard := testGuard{
-		scope: auth.Scope{}, // anonymous
+	guard := mockGuard{
+		scope: auth.Scope{},
 	}
 
-	var sawHandler bool
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawHandler = true
-		assert.Empty(t, r.Header.Get(cfg.User))
-		assert.Empty(t, r.Header.Get(cfg.Roles))
-		assert.Empty(t, r.Header.Get(cfg.Token))
-		w.WriteHeader(http.StatusOK)
+	var seen bool
+	next := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		seen = true
+		assert.Empty(t, req.Header.Get(cfg.User))
+		assert.Empty(t, req.Header.Get(cfg.Roles))
+		assert.Empty(t, req.Header.Get(cfg.Token))
+		res.WriteHeader(http.StatusOK)
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
-	require.True(t, sawHandler)
+	require.True(t, seen)
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestForwardAnonymousRejected(t *testing.T) {
 	cfg := config.Headers{
-		User:      "X-Auth-CouchDB-UserName",
-		Roles:     "X-Auth-CouchDB-Roles",
-		Token:     "X-Auth-CouchDB-Token",
+		User:      "X-Test-User",
+		Roles:     "X-Test-Roles",
+		Token:     "X-Test-Token",
 		Anonymous: false,
 	}
 
-	guard := testGuard{
+	guard := mockGuard{
 		scope: auth.Scope{},
 	}
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatalf("handler should not be called for rejected anonymous request")
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 func TestForwardForbidden(t *testing.T) {
 	cfg := config.Headers{
-		User:  "X-Auth-CouchDB-UserName",
-		Roles: "X-Auth-CouchDB-Roles",
-		Token: "X-Auth-CouchDB-Token",
+		User:  "X-Test-User",
+		Roles: "X-Test-Roles",
+		Token: "X-Test-Token",
 	}
 
-	guard := testGuard{
+	guard := mockGuard{
 		err: auth.ErrForbidden,
 	}
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatalf("handler should not be called for forbidden request")
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 func TestForwardUnauthorizedChallenge(t *testing.T) {
 	cfg := config.Headers{
-		User:  "X-Auth-CouchDB-UserName",
-		Roles: "X-Auth-CouchDB-Roles",
-		Token: "X-Auth-CouchDB-Token",
+		User:  "X-Test-User",
+		Roles: "X-Test-Roles",
+		Token: "X-Test-Token",
 	}
 
-	guard := testGuard{
+	guard := mockGuard{
 		err: token.ErrMissingToken,
 	}
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatalf("handler should not be called for unauthorized request")
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.NotEmpty(t, rr.Header().Get("WWW-Authenticate"))
@@ -219,24 +209,22 @@ func TestForwardUnauthorizedChallenge(t *testing.T) {
 
 func TestForwardInternalError(t *testing.T) {
 	cfg := config.Headers{
-		User:  "X-Auth-CouchDB-UserName",
-		Roles: "X-Auth-CouchDB-Roles",
-		Token: "X-Auth-CouchDB-Token",
+		User:  "X-Test-User",
+		Roles: "X-Test-Roles",
+		Token: "X-Test-Token",
 	}
 
-	guard := testGuard{
+	guard := mockGuard{
 		err: assert.AnError,
 	}
 
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatalf("handler should not be called on internal error")
 	})
 
 	mw := Forward(logger.Silent(), guard, cfg)(next)
-
-	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, req)
+	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
