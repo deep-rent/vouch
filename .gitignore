@@ -20,8 +20,10 @@ UserInterfaceState.xcuserstate
 *.vsix
 
 # Go
-*.coverprofile
-# vendor/
+bin/
+coverage.out
+dist/
+vendor/
 
 # Yarn
 .yarn/*

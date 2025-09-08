@@ -1,0 +1,11 @@
+*
+!.dockerignore
+!/cmd/
+!/container/
+!/go.mod
+!/go.sum
+!/internal/
+
+.DS_Store
+*~
+Thumbs.db

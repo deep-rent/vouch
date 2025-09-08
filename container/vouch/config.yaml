@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../config.schema.json
+proxy:
+  listen: :8080
+  target: http://couchdb:5984
+  headers:
+    signer:
+      secret: qm1nf4k8ZHzwf76XFZx4TObkx8E3L5eo
+      algorithm: sha256
+    user: X-Vouch-User
+    roles: X-Vouch-Roles
+    token: X-Vouch-Token
+    anonymous: false
+token:
+  # issuer: https://auth.example.com/
+  # audience: couchdb
+  # leeway: 60
+  keys:
+    static: /app/jwks.json
+rules:
+  - when: 'Claim("adm") == true'
+    mode: allow
+    user: 'Claim("sub") ?? ""'
+    roles: '["_admin"]'

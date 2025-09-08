@@ -1,6 +1,17 @@
 {
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "EditorConfig.EditorConfig",
+  "editor.formatOnType": true,
+  "files.associations": {
+    "*.yaml.*": "yaml",
+    "**/charts/**/*.yaml": "helm",
+  },
+  "files.encoding": "utf8",
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
   "[go]": {
     "editor.defaultFormatter": "golang.go",
     "editor.codeActionsOnSave": {
@@ -12,6 +23,7 @@
   "go.toolsManagement.autoUpdate": true,
   "search.exclude": {
     "**/.yarn": true,
-    "**/vendor": true
+    "**/vendor": true,
+    "**/.pnp.*": true
   },
 }

@@ -1,0 +1,211 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/deep-rent/vouch/main/config.schema.json",
+  "title": "Vouch Configuration",
+  "description": "Schema for the Vouch configuration file.",
+  "type": "object",
+  "properties": {
+    "proxy": {
+      "$ref": "#/definitions/Proxy"
+    },
+    "token": {
+      "$ref": "#/definitions/Token"
+    },
+    "rules": {
+      "description": "An ordered list of authorization rules. The first matching rule decides the outcome.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Rule"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "token",
+    "rules"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Proxy": {
+      "type": "object",
+      "description": "Configures the local HTTP server and reverse proxy behavior.",
+      "properties": {
+        "listen": {
+          "type": "string",
+          "description": "The TCP address the server listens on, in the form 'host:port' or ':port' to listen on all interfaces.",
+          "default": ":8080"
+        },
+        "target": {
+          "type": "string",
+          "description": "The CouchDB URL to which requests are proxied.",
+          "default": "http://localhost:5984",
+          "format": "uri"
+        },
+        "headers": {
+          "$ref": "#/definitions/Headers"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Signer": {
+      "type": "object",
+      "description": "Configures signing of CouchDB proxy authentication tokens.",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "The CouchDB proxy secret used to sign the token header. If empty, the token header will be omitted from forwarded requests.",
+          "minLength": 32,
+          "default": ""
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "The hash algorithm used to protect the token.",
+          "enum": [
+            "sha",
+            "sha224",
+            "sha256",
+            "sha384",
+            "sha512"
+          ],
+          "default": "sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Headers": {
+      "type": "object",
+      "description": "Customizes the proxy headers sent to CouchDB.",
+      "properties": {
+        "signer": {
+          "$ref": "#/definitions/Signer"
+        },
+        "user": {
+          "type": "string",
+          "description": "The proxy header name that carries the CouchDB user name.",
+          "default": "X-Auth-CouchDB-UserName"
+        },
+        "roles": {
+          "type": "string",
+          "description": "The proxy header name that carries comma-separated roles.",
+          "default": "X-Auth-CouchDB-Roles"
+        },
+        "token": {
+          "type": "string",
+          "description": "The proxy header name that carries the signed token.",
+          "default": "X-Auth-CouchDB-Token"
+        },
+        "anonymous": {
+          "type": "boolean",
+          "description": "Allows forwarding requests without an authenticated user.",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "Token": {
+      "type": "object",
+      "description": "Configures how incoming bearer tokens are validated.",
+      "properties": {
+        "keys": {
+          "$ref": "#/definitions/Keys"
+        },
+        "issuer": {
+          "type": "string",
+          "description": "The expected value of the 'iss' claim. If omitted, the issuer is not validated."
+        },
+        "audience": {
+          "type": "string",
+          "description": "The value that the 'aud' claim is expected to contain. If omitted, the audience is not validated."
+        },
+        "leeway": {
+          "type": "integer",
+          "description": "The allowed clock skew interpreted as seconds. Concerns validation of the 'exp', 'nbf', and 'iat' claims.",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "additionalProperties": false
+    },
+    "Keys": {
+      "type": "object",
+      "description": "Configures sources of JWK material used to verify token signatures.",
+      "properties": {
+        "static": {
+          "type": "string",
+          "description": "A filesystem path to a JWKS document."
+        },
+        "remote": {
+          "$ref": "#/definitions/Remote"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "static"
+          ]
+        },
+        {
+          "required": [
+            "remote"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Remote": {
+      "type": "object",
+      "description": "Configures periodic retrieval of a JWKS from a remote endpoint.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "The HTTPS URL from which the JWKS is retrieved.",
+          "format": "uri"
+        },
+        "interval": {
+          "type": "integer",
+          "description": "The poll interval measured in minutes.",
+          "default": 30,
+          "minimum": 1
+        }
+      },
+      "required": [
+        "endpoint"
+      ],
+      "additionalProperties": false
+    },
+    "Rule": {
+      "type": "object",
+      "description": "Represents a single authorization rule.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Selects the decision when the rule matches.",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "when": {
+          "type": "string",
+          "description": "The condition under which the rule applies. Must evaluate to a boolean."
+        },
+        "user": {
+          "type": "string",
+          "description": "An expression that determines the CouchDB user name. Only used in 'allow' mode."
+        },
+        "roles": {
+          "type": "string",
+          "description": "An expression that specifies CouchDB roles. Only used in 'allow' mode."
+        }
+      },
+      "required": [
+        "mode",
+        "when"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
