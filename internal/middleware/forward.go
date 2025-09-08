@@ -54,7 +54,7 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 					log.Error("auth check failed unexpectedly", "error", err)
 					code = http.StatusInternalServerError
 				}
-				http.Error(res, http.StatusText(code), code)
+				sendStatus(res, code)
 				return
 			}
 
@@ -74,8 +74,7 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 				}
 			} else if !cfg.Anonymous {
 				// Anonymous access disabled: require authentication.
-				code := http.StatusUnauthorized
-				http.Error(res, http.StatusText(code), code)
+				sendStatus(res, http.StatusUnauthorized)
 				return
 			}
 
