@@ -39,17 +39,18 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 			// Authenticate and authorize the request.
 			scope, err := grd.Check(req)
 			if err != nil {
-				var code int
-				var unauthorized *token.AuthenticationError
+				var (
+					code         int
+					unauthorized *token.AuthenticationError
+					forbidden    *auth.AuthorizationError
+				)
 				switch {
-				case errors.Is(err, auth.ErrForbidden):
-					code = http.StatusForbidden
 				case errors.As(err, &unauthorized):
-					// Propagate the authentication challenge.
 					res.Header().Set("WWW-Authenticate", unauthorized.Challenge)
 					code = http.StatusUnauthorized
+				case errors.As(err, &forbidden):
+					code = http.StatusForbidden
 				default:
-					// An unexpected internal error was encountered.
 					log.Error("auth check failed unexpectedly", "error", err)
 					code = http.StatusInternalServerError
 				}
