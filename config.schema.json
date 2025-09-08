@@ -32,7 +32,7 @@
       "properties": {
         "listen": {
           "type": "string",
-          "description": "The TCP address the server listens on, in the form host:port.",
+          "description": "The TCP address the server listens on, in the form 'host:port' or ':port' to listen on all interfaces.",
           "default": ":8080"
         },
         "target": {
