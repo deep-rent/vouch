@@ -37,12 +37,13 @@ func writeConfig(t *testing.T) string {
 	require.NoError(t, os.WriteFile(jwksPath, []byte(jwks), 0o600))
 
 	cfg := fmt.Sprintf(`
-token:
-  keys:
-    static: %q
-rules:
-  - mode: allow
-    when: "true"
+guard:
+  token:
+    keys:
+      static: %q
+  rules:
+    - mode: allow
+      when: "true"
 `, jwksPath)
 	path := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(cfg), 0o600))

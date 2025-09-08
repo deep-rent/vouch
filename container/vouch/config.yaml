@@ -1,26 +1,34 @@
 # yaml-language-server: $schema=../../config.schema.json
+local:
+  host: ''
+  port: 8080
 proxy:
-  listen: :8080
-  target: http://couchdb:5984
+  scheme: http
+  host: localhost
+  port: 5984
   headers:
-    signer:
+    user:
+      name: X-Vouch-User
+      anonymous: false
+    roles:
+      name: X-Vouch-Roles
+      default: []
+    token:
+      name: X-Vouch-Token
       secret: qm1nf4k8ZHzwf76XFZx4TObkx8E3L5eo
       algorithm: sha256
-    user: X-Vouch-User
-    roles: X-Vouch-Roles
-    token: X-Vouch-Token
-    anonymous: false
-token:
-  # issuer: https://auth.example.com/
-  # audience: couchdb
-  # leeway: 60
-  keys:
-    static: /app/jwks.json
-    # remote:
-    #   endpoint: https://auth.example.com/.well-known/jwks.json
-    #   interval: 60
-rules:
-  - when: 'Claim("adm") == true'
-    mode: allow
-    user: 'Claim("sub") ?? ""'
-    roles: '["_admin"]'
+guard:
+  token:
+    issuer: http://auth/
+    audience: couchdb
+    leeway: 60
+    keys:
+      static: /app/jwks.json
+      remote:
+        endpoint: http://auth/.well-known/jwks.json
+        interval: 60
+  rules:
+    - when: 'Claim("adm") == true'
+      mode: allow
+      user: 'Claim("sub") ?? ""'
+      roles: '["_admin"]'

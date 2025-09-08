@@ -22,40 +22,68 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/middleware"
 	"github.com/deep-rent/vouch/internal/proxy"
 )
 
-// Server wraps an http.Server and reverse proxy, wiring middleware and
-// exposing health/readiness endpoints.
+// Server wraps an HTTP server that proxies requests to CouchDB.
 type Server interface {
-	// Start runs the HTTP server on addr and blocks until the server stops.
+	// Start runs the HTTP server and blocks until the server stops.
 	// It returns nil on graceful shutdown, or the terminal error otherwise.
-	Start(addr string) error
+	Start() error
 	// Shutdown attempts to stop the server gracefully within the given context.
 	Shutdown(ctx context.Context) error
+	// Listen returns the address the server is listening on.
+	Listen() string
+	// Target returns the CouchDB target address the server proxies to.
+	Target() string
+	// Handler exposes the HTTP handler for testing or embedding.
+	Handler() http.Handler
 }
+
+// ErrAlreadyRunning is returned by Start if the server is already running.
+var ErrAlreadyRunning = errors.New("server already running")
 
 // server is the concrete implementation of Server.
 type server struct {
-	srv *http.Server // guarded by mu
-	mu  sync.Mutex
-	mux *http.ServeMux
+	mux  *http.ServeMux
+	srv  *http.Server
+	out  *url.URL
+	runs bool // guarded by mu
+	mu   sync.Mutex
 }
 
 // New constructs a Server that forwards to the given CouchDB target address.
 // Middlewares are applied outermost-first around the proxy handler.
-func New(target *url.URL, mws ...middleware.Middleware) Server {
+func New(cfg config.Server, mws ...middleware.Middleware) Server {
+	mux := http.NewServeMux()
 	s := &server{
-		mux: http.NewServeMux(),
+		mux: mux,
+		srv: &http.Server{
+			Addr:              cfg.Local.Addr,
+			Handler:           mux,
+			ReadTimeout:       30 * time.Second,
+			ReadHeaderTimeout: 10 * time.Second,
+			WriteTimeout:      0, // Allow streaming responses
+			IdleTimeout:       90 * time.Second,
+			MaxHeaderBytes:    1 << 16, // 64 KB
+		},
+		out: cfg.Proxy.Target,
 	}
-	s.routes(proxy.New(target), mws...)
+	s.routes(mws...)
 	return s
 }
 
+func (s *server) Listen() string        { return s.srv.Addr }
+func (s *server) Target() string        { return s.out.String() }
+func (s *server) Handler() http.Handler { return s.mux }
+
 // routes registers the proxy handler, exempting passthrough routes
 // from middleware protection.
-func (s *server) routes(h http.Handler, mws ...middleware.Middleware) {
+func (s *server) routes(mws ...middleware.Middleware) {
+	h := proxy.New(s.out)
+
 	// Pass CORS preflight straight through to CouchDB.
 	s.mux.Handle("OPTIONS /{path...}", h)
 
@@ -67,24 +95,17 @@ func (s *server) routes(h http.Handler, mws ...middleware.Middleware) {
 	s.mux.Handle("/", middleware.Chain(h, mws...))
 }
 
-func (s *server) Start(addr string) error {
+func (s *server) Start() error {
 	s.mu.Lock()
-	if s.srv != nil {
+	if s.runs {
 		s.mu.Unlock()
-		return nil
+		return ErrAlreadyRunning
 	}
-	s.srv = &http.Server{
-		Addr:              addr,
-		Handler:           s.mux,
-		ReadTimeout:       30 * time.Second,
-		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      0, // Allow streaming responses
-		IdleTimeout:       90 * time.Second,
-		MaxHeaderBytes:    1 << 16, // 64 KB
-	}
+	s.runs = true
+	srv := s.srv
 	s.mu.Unlock()
 
-	err := s.srv.ListenAndServe()
+	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -100,5 +121,12 @@ func (s *server) Shutdown(ctx context.Context) error {
 	}
 	wt, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return srv.Shutdown(wt)
+	err := srv.Shutdown(wt)
+
+	// Allow restart after a graceful shutdown.
+	s.mu.Lock()
+	s.runs = false
+	s.mu.Unlock()
+
+	return err
 }

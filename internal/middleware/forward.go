@@ -30,7 +30,7 @@ import (
 // It also handles authorization failures and token challenges.
 func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 	// Optional signer for CouchDB proxy auth token.
-	s := signer.New(cfg.Signer)
+	s := signer.New(cfg.Token.Signer)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			// An OPTIONS short-circuit is not needed; the server routes OPTIONS to
@@ -59,20 +59,22 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 			}
 
 			// Never leak client-supplied proxy auth headers.
-			req.Header.Del(cfg.User)
-			req.Header.Del(cfg.Roles)
-			req.Header.Del(cfg.Token)
+			req.Header.Del(cfg.User.Name)
+			req.Header.Del(cfg.Roles.Name)
+			req.Header.Del(cfg.Token.Name)
 
 			if !scope.IsAnonymous() {
 				// Authenticated: inject user, roles, and token headers into the request.
-				req.Header.Set(cfg.User, scope.User)
+				req.Header.Set(cfg.User.Name, scope.User)
 				if scope.Roles != "" {
-					req.Header.Set(cfg.Roles, scope.Roles)
+					req.Header.Set(cfg.Roles.Name, scope.Roles)
+				} else if cfg.Roles.Default != "" {
+					req.Header.Set(cfg.Roles.Name, cfg.Roles.Default)
 				}
 				if s != nil {
-					req.Header.Set(cfg.Token, s.Sign(scope.User))
+					req.Header.Set(cfg.Token.Name, s.Sign(scope.User))
 				}
-			} else if !cfg.Anonymous {
+			} else if !cfg.User.Anonymous {
 				// Anonymous access disabled: require authentication.
 				sendStatus(res, http.StatusUnauthorized)
 				return
