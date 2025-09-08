@@ -28,154 +28,70 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Runtime vs wire types
+//
+// The exported (capitalized) types (Config, Proxy, Headers, etc.) are the
+// normalized runtime representations consumed by the rest of the application.
+//
+// YAML is unmarshaled into a parallel set of unexported "wire" structs
+// (config, proxy, headers, etc.) that map 1:1 to the YAML schema and keep raw
+// string or primitive values. Each wire struct has a validate() method that:
+//   1. Supplies defaults
+//   2. Normalizes values (e.g., trim whitespace, canonicalize header names)
+//   3. Performs structural & semantic validation
+//   4. Produces the corresponding exported runtime value
+//
+// No exported type is unmarshaled directly. The flow is:
+//   Load -> decode YAML into wire 'config' -> config.validate() -> runtime Config.
+
 // Config represents the entire application configuration.
 type Config struct {
 	// Proxy configures the local HTTP server and reverse proxy behavior.
-	// If omitted, defaults are applied.
-	Proxy Proxy `yaml:"proxy"`
+	Proxy Proxy
 	// Token configures how incoming bearer tokens are validated.
-	// This section is mandatory.
-	Token Token `yaml:"token"`
-	// Rules defines ordered authorization rules.
-	// The first matching rule decides the outcome. At least one
-	// rule is required.
-	Rules []Rule `yaml:"rules"`
-}
-
-// validate applies defaults and checks the configuration for correctness.
-func (c *Config) validate() error {
-	if err := c.Proxy.validate(); err != nil {
-		return fmt.Errorf("proxy.%w", err)
-	}
-	if err := c.Token.validate(); err != nil {
-		return fmt.Errorf("token.%w", err)
-	}
-	if len(c.Rules) == 0 {
-		return errors.New("rules: at least one rule must be specified")
-	}
-	for i := range c.Rules {
-		if err := c.Rules[i].validate(); err != nil {
-			return fmt.Errorf("rules[%d].%w", i, err)
-		}
-	}
-	return nil
+	Token Token
+	// Rules defines ordered authorization rules. The first matching rule
+	// decides the outcome. At least one rule is required.
+	Rules []Rule
 }
 
 // Proxy configures the HTTP listener and upstream target.
 type Proxy struct {
-	// Listen is the TCP address the server listens on, in the form host:port.
-	// Defaults to "":8080".
-	Listen string `yaml:"listen"`
-	// TargetRaw will be mapped to Target after parsing.
-	TargetRaw string `yaml:"target"`
+	// Listen is the TCP address the server listens on, in the form 'host:port'
+	// or ':port' to listen on all interfaces.
+	Listen string
 	// Target is the CouchDB URL to which requests are proxied.
-	// Defaults to "http://localhost:5984".
-	Target *url.URL `yaml:"-"`
+	Target *url.URL
 	// Headers customizes the proxy headers sent to CouchDB.
-	// If omitted, the CouchDB-compatible defaults are used.
-	Headers Headers `yaml:"headers"`
-}
-
-// validate applies defaults and checks the configuration for correctness.
-func (p *Proxy) validate() error {
-	if strings.TrimSpace(p.Listen) == "" {
-		p.Listen = ":8080"
-	}
-	if strings.TrimSpace(p.TargetRaw) == "" {
-		p.TargetRaw = "http://localhost:5984"
-	}
-	u, err := url.Parse(p.TargetRaw)
-	if err != nil {
-		return fmt.Errorf("target: invalid url: %w", err)
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("target: illegal url scheme %q", u.Scheme)
-	}
-	p.Target = u
-	if err := p.Headers.validate(); err != nil {
-		return fmt.Errorf("headers.%w", err)
-	}
-	return nil
+	Headers Headers
 }
 
 // Headers customizes the proxy headers forwarded to CouchDB.
 type Headers struct {
 	// Secret is the CouchDB proxy secret used to sign the token header.
-	// If empty, signing is disabled (not recommended in production).
-	Secret string `yaml:"secret"`
+	// If empty, signing is disabled.
+	Secret string
 	// User is the proxy header name that carries the CouchDB user name.
-	// Default: "X-Auth-CouchDB-UserName".
-	User string `yaml:"user"`
+	User string
 	// Roles is the proxy header name that carries comma-separated roles.
-	// Default: "X-Auth-CouchDB-Roles".
-	Roles string `yaml:"roles"`
+	Roles string
 	// Token is the proxy header name that carries the signed token proving
 	// the authenticity of the User header.
-	// Default: "X-Auth-CouchDB-Token".
-	Token string `yaml:"token"`
+	Token string
 	// Anonymous allows forwarding requests without an authenticated user.
 	// A request is considered anonymous if the deciding rule does not set
 	// a user or if the user expression yields an empty string. If false,
 	// such requests are denied with 401 Unauthorized.
-	Anonymous bool `yaml:"anonymous"`
-}
-
-// validate applies defaults and checks the configuration for correctness.
-func (h *Headers) validate() error {
-	if secret := strings.TrimSpace(h.Secret); secret != "" {
-		h.Secret = secret
-	} else {
-		h.Secret = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
-	}
-	if user := strings.TrimSpace(h.User); user == "" {
-		h.User = "X-Auth-CouchDB-UserName"
-	} else {
-		h.User = http.CanonicalHeaderKey(user)
-	}
-	if roles := strings.TrimSpace(h.Roles); roles == "" {
-		h.Roles = "X-Auth-CouchDB-Roles"
-	} else {
-		h.Roles = http.CanonicalHeaderKey(roles)
-	}
-	if token := strings.TrimSpace(h.Token); token == "" {
-		h.Token = "X-Auth-CouchDB-Token"
-	} else {
-		h.Token = http.CanonicalHeaderKey(token)
-	}
-	return nil
+	Anonymous bool
 }
 
 // Remote configures periodic retrieval of a JWKS from a remote endpoint.
 type Remote struct {
 	// Endpoint is the HTTPS URL from which the JWKS is retrieved.
 	// Required if no static key set is provided.
-	Endpoint string `yaml:"endpoint"`
-	// IntervalMin will be mapped to Interval after parsing.
-	IntervalMin int64 `yaml:"interval"`
+	Endpoint string
 	// Interval is the poll interval measured in minutes.
-	// Defaults to 30 (minutes).
-	Interval time.Duration `yaml:"-"`
-}
-
-// validate applies defaults and checks the configuration for correctness.
-func (r *Remote) validate() error {
-	r.Endpoint = strings.TrimSpace(r.Endpoint)
-	if r.Endpoint != "" {
-		u, err := url.Parse(r.Endpoint)
-		if err != nil {
-			return fmt.Errorf("endpoint: invalid url: %w", err)
-		}
-		if u.Scheme != "https" && u.Scheme != "http" {
-			return fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
-		}
-	}
-	if r.IntervalMin < 0 {
-		return errors.New("interval: must be non-negative")
-	} else if r.IntervalMin == 0 {
-		r.IntervalMin = 30
-	}
-	r.Interval = time.Duration(r.IntervalMin) * time.Minute
-	return nil
+	Interval time.Duration
 }
 
 // Keys configures sources of JWK material used to verify token signatures.
@@ -183,155 +99,314 @@ func (r *Remote) validate() error {
 type Keys struct {
 	// Static is a filesystem path to a JWKS document.
 	// If not provided, a remote endpoint must be configured.
-	Static string `yaml:"static"`
+	Static string
 	// Remote specifies a JWKS endpoint to fetch and refresh keys from.
 	// If not provided, a static JWKS file must be configured.
-	Remote Remote `yaml:"remote"`
-}
-
-// validate applies defaults and checks the configuration for correctness.
-func (k *Keys) validate() error {
-	k.Static = strings.TrimSpace(k.Static)
-	if err := k.Remote.validate(); err != nil {
-		return fmt.Errorf("remote.%w", err)
-	}
-
-	if k.Static == "" && k.Remote.Endpoint == "" {
-		return fmt.Errorf("at least one of %q or %q must be set",
-			"static", "remote.endpoint",
-		)
-	}
-	return nil
+	Remote Remote
 }
 
 // Token configures the validation of access tokens.
 type Token struct {
 	// Keys specifies the JWK source(s) used for signature verification.
 	// This setting is required.
-	Keys Keys `yaml:"keys"`
+	Keys Keys
 	// Issuer is the expected value of the "iss" claim.
 	// If omitted, the issuer is not validated.
-	Issuer string `yaml:"issuer"`
+	Issuer string
 	// Audience is the value that the "aud" claim is expected to contain.
 	// If omitted, the audience is not validated.
-	Audience string `yaml:"audience"`
-	// LeewaySec will be mapped to Leeway after parsing.
-	LeewaySec int64 `yaml:"leeway"`
+	Audience string
 	// Leeway is the allowed clock skew interpreted as seconds. Concerns
-	// validation of the "exp", "nbf", and "iat" claims.
-	// Defaults to 0 (no additional skew).
-	Leeway time.Duration `yaml:"-"`
-	// Clock allows injecting a custom clock for testing purposes.
-	// Not configurable via YAML.
-	Clock jwt.Clock `yaml:"-"`
+	// validation of the "exp", "nbf", and "iat" claims. This value is
+	// always non-negative.
+	Leeway time.Duration
+	// Clock allows injecting a custom reference clock for testing purposes.
+	Clock jwt.Clock
 }
-
-// validate applies defaults and checks the configuration for correctness.
-func (t *Token) validate() error {
-	if err := t.Keys.validate(); err != nil {
-		return fmt.Errorf("keys.%w", err)
-	}
-	if t.LeewaySec < 0 {
-		return errors.New("leeway: must be non-negative")
-	}
-	t.Issuer = strings.TrimSpace(t.Issuer)
-	t.Audience = strings.TrimSpace(t.Audience)
-	t.Leeway = time.Duration(t.LeewaySec) * time.Second
-	return nil
-}
-
-// Mode enumerates the decision a Rule applies when its condition is met.
-// A rule either allows (optionally authenticating as a user) or denies
-// the incoming request.
-const (
-	// ModeAllow grants access and may authenticate the request on behalf of
-	// the specified user with optional roles.
-	ModeAllow = "allow"
-	// ModeDeny denies access and prevents the request from proceeding.
-	ModeDeny = "deny"
-)
 
 // Rule represents a single, uncompiled authorization rule loaded from config.
 // Expressions in When, User, and Roles are plain strings that must be compiled
 // before use.
 type Rule struct {
-	// Mode selects the decision when the rule matches.
-	// Supported values: "allow" or "deny".
-	Mode string `yaml:"mode"`
-	// Deny is true if mode is ModeDeny, false if mode is ModeAllow.
-	Deny bool `yaml:"-"`
+	// Deny is true if the rule is a deny rule. Otherwise, the rule is an allow
+	// rule.
+	Deny bool
 	// When specifies the condition under which the rule applies.
 	// This expression is mandatory for every rule and must always evaluate to
 	// a boolean.
-	When string `yaml:"when"`
+	When string
 	// User is an optional expression that determines the CouchDB user name to
-	// authenticate as. This field is only used in "allow" mode. If specified,
-	// the expression must return a string. It must be left undefined in "deny"
-	// mode. An empty or missing result will cause the request to be forwarded
-	// anonymously, provided that the configuration allows it (see
-	// Headers.Anonymous).
-	User string `yaml:"user"`
+	// authenticate as. It is empty when Deny is true. If the expression
+	// evaluates to an empty string, the request is forwarded anonymously,
+	// provided that Headers.Anonymous is true.
+	User string
 	// Roles is an optional expression that specifies CouchDB roles for
-	// authentication. This field is only used in "allow" mode. The expression
-	// must return a slice of strings. It must be left undefined in "deny" mode.
-	// Example: '["reader", "writer"]'
+	// authentication. It is empty when Deny is true. If specified, the
+	// expression must return a slice of strings.
+	Roles string
+}
+
+// config is the wire representation of Config.
+type config struct {
+	Proxy proxy  `yaml:"proxy"`
+	Token token  `yaml:"token"`
+	Rules []rule `yaml:"rules"`
+}
+
+// validate derives the runtime representation of config.
+func (c config) validate() (Config, error) {
+	proxy, err := c.Proxy.validate()
+	if err != nil {
+		return Config{}, fmt.Errorf("proxy.%w", err)
+	}
+	token, err := c.Token.validate()
+	if err != nil {
+		return Config{}, fmt.Errorf("token.%w", err)
+	}
+	if len(c.Rules) == 0 {
+		return Config{}, errors.New("rules: at least one rule must be specified")
+	}
+	rules := make([]Rule, len(c.Rules))
+	for i, r := range c.Rules {
+		rule, err := r.validate()
+		if err != nil {
+			return Config{}, fmt.Errorf("rules[%d].%w", i, err)
+		}
+		rules[i] = rule
+	}
+	return Config{
+		Proxy: proxy,
+		Token: token,
+		Rules: rules,
+	}, nil
+}
+
+// proxy is the wire representation of Proxy.
+type proxy struct {
+	Listen  string  `yaml:"listen"`
+	Target  string  `yaml:"target"`
+	Headers headers `yaml:"headers"`
+}
+
+// validate derives the runtime representation of proxy.
+func (p proxy) validate() (Proxy, error) {
+	listen := strings.TrimSpace(p.Listen)
+	if listen == "" {
+		listen = ":8080"
+	}
+	target := strings.TrimSpace(p.Target)
+	if target == "" {
+		target = "http://localhost:5984"
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("target: invalid url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return Proxy{}, fmt.Errorf("target: illegal url scheme %q", u.Scheme)
+	}
+	headers, err := p.Headers.validate()
+	if err != nil {
+		return Proxy{}, fmt.Errorf("headers.%w", err)
+	}
+	return Proxy{
+		Listen:  listen,
+		Target:  u,
+		Headers: headers,
+	}, nil
+}
+
+// headers is the wire representation of Headers.
+type headers struct {
+	Secret    string `yaml:"secret"`
+	User      string `yaml:"user"`
+	Roles     string `yaml:"roles"`
+	Token     string `yaml:"token"`
+	Anonymous bool   `yaml:"anonymous"`
+}
+
+// validate derives the runtime representation of headers.
+func (h headers) validate() (Headers, error) {
+	secret := strings.TrimSpace(h.Secret)
+	if secret == "" {
+		secret = os.Getenv("VOUCH_SECRET")
+		secret = strings.TrimSpace(secret)
+	}
+	if secret != "" && len(secret) < 32 {
+		return Headers{}, errors.New("secret: must be at least 32 characters")
+	}
+	user := strings.TrimSpace(h.User)
+	if user == "" {
+		user = "X-Auth-CouchDB-UserName"
+	} else {
+		user = http.CanonicalHeaderKey(user)
+	}
+	roles := strings.TrimSpace(h.Roles)
+	if roles == "" {
+		roles = "X-Auth-CouchDB-Roles"
+	} else {
+		roles = http.CanonicalHeaderKey(roles)
+	}
+	token := strings.TrimSpace(h.Token)
+	if token == "" {
+		token = "X-Auth-CouchDB-Token"
+	} else {
+		token = http.CanonicalHeaderKey(token)
+	}
+	return Headers{
+		Secret:    secret,
+		User:      user,
+		Roles:     roles,
+		Token:     token,
+		Anonymous: h.Anonymous,
+	}, nil
+}
+
+// remote is the wire representation of Remote.
+type remote struct {
+	Endpoint string `yaml:"endpoint"`
+	Interval int64  `yaml:"interval"`
+}
+
+// validate derives the runtime representation of remote.
+func (r remote) validate() (Remote, error) {
+	endpoint := strings.TrimSpace(r.Endpoint)
+	if endpoint != "" {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			return Remote{}, fmt.Errorf("endpoint: invalid url: %w", err)
+		}
+		if u.Scheme != "https" && u.Scheme != "http" {
+			return Remote{}, fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
+		}
+	}
+	interval := r.Interval
+	if interval < 0 {
+		return Remote{}, errors.New("interval: must be non-negative")
+	} else if interval == 0 {
+		interval = 30
+	}
+	return Remote{
+		Endpoint: endpoint,
+		Interval: time.Duration(interval) * time.Minute,
+	}, nil
+}
+
+// keys is the wire representation of Keys.
+type keys struct {
+	Static string `yaml:"static"`
+	Remote remote `yaml:"remote"`
+}
+
+// validate derives the runtime representation of keys.
+func (k keys) validate() (Keys, error) {
+	static := strings.TrimSpace(k.Static)
+	remote, err := k.Remote.validate()
+	if err != nil {
+		return Keys{}, fmt.Errorf("remote.%w", err)
+	}
+	if static == "" && remote.Endpoint == "" {
+		return Keys{}, fmt.Errorf("at least one of %q or %q must be set",
+			"static", "remote.endpoint",
+		)
+	}
+	return Keys{
+		Static: static,
+		Remote: remote,
+	}, nil
+}
+
+// token is the wire representation of Token.
+type token struct {
+	Keys     keys   `yaml:"keys"`
+	Issuer   string `yaml:"issuer"`
+	Audience string `yaml:"audience"`
+	Leeway   int64  `yaml:"leeway"`
+}
+
+// validate derives the runtime representation of token.
+func (t token) validate() (Token, error) {
+	keys, err := t.Keys.validate()
+	if err != nil {
+		return Token{}, fmt.Errorf("keys.%w", err)
+	}
+	leeway := t.Leeway
+	if leeway < 0 {
+		return Token{}, errors.New("leeway: must be non-negative")
+	}
+	return Token{
+		Keys:     keys,
+		Issuer:   strings.TrimSpace(t.Issuer),
+		Audience: strings.TrimSpace(t.Audience),
+		Leeway:   time.Duration(leeway) * time.Second,
+	}, nil
+}
+
+// Designates the allowed values of rule.Mode.
+const (
+	modeAllow = "allow"
+	modeDeny  = "deny"
+)
+
+// rule is is the wire representation of Rule.
+type rule struct {
+	Mode  string `yaml:"mode"`
+	When  string `yaml:"when"`
+	User  string `yaml:"user"`
 	Roles string `yaml:"roles"`
 }
 
-// validate applies defaults and checks the configuration for correctness.
-func (r *Rule) validate() error {
+// validate derives the runtime representation of rule.
+func (r rule) validate() (Rule, error) {
+	deny := false
 	switch strings.ToLower(strings.TrimSpace(r.Mode)) {
-	case ModeAllow:
-		r.Deny = false
-	case ModeDeny:
-		r.Deny = true
+	case modeAllow:
+	case modeDeny:
+		deny = true
 	case "":
-		return fmt.Errorf("mode: must be specified")
+		return Rule{}, fmt.Errorf("mode: must be specified")
 	default:
-		return fmt.Errorf("mode: must be %q or %q", ModeAllow, ModeDeny)
+		return Rule{}, fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
 	}
-	r.Mode = ""
-	r.When = strings.TrimSpace(r.When)
-	if r.When == "" {
-		return errors.New("when: expression must be specified")
+	when := strings.TrimSpace(r.When)
+	if when == "" {
+		return Rule{}, errors.New("when: expression must be specified")
 	}
-
-	r.User = strings.TrimSpace(r.User)
-	if r.User != "" && r.Deny {
-		return fmt.Errorf("user: must not be set in %q mode", ModeDeny)
+	user := strings.TrimSpace(r.User)
+	if user != "" && deny {
+		return Rule{}, fmt.Errorf("user: must not be set in %q mode", modeDeny)
 	}
-
-	r.Roles = strings.TrimSpace(r.Roles)
-	if r.Roles != "" {
-		if r.Deny {
-			return fmt.Errorf("roles: must not be set in %q mode", ModeDeny)
+	roles := strings.TrimSpace(r.Roles)
+	if roles != "" {
+		if deny {
+			return Rule{}, fmt.Errorf("roles: must not be set in %q mode", modeDeny)
 		}
-		if r.User == "" {
-			return errors.New("roles: cannot be set without user")
+		if user == "" {
+			return Rule{}, errors.New("roles: cannot be set without user")
 		}
 	}
-	return nil
+	return Rule{
+		Deny:  deny,
+		When:  when,
+		User:  user,
+		Roles: roles,
+	}, nil
 }
 
-// Load reads a YAML configuration file from path, applies defaults, normalizes
-// values, and performs basic validation. It returns a fully-populated Config.
+// Load reads a YAML configuration file from path, decodes into wire types,
+// then validates and converts them into a fully populated Config instance.
 func Load(path string) (Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("read file %q: %w", path, err)
 	}
 
-	var cfg Config
+	var cfg config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("parse yaml: %w", err)
 	}
 
-	// Apply defaults, normalize values, and validate.
-	if err := cfg.validate(); err != nil {
-		return Config{}, err
-	}
-
-	return cfg, nil
+	return cfg.validate()
 }
