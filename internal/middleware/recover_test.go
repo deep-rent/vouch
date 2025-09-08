@@ -16,6 +16,7 @@ package middleware
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -24,11 +25,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRecoverPanic(t *testing.T) {
+func newLogger() (*bytes.Buffer, *slog.Logger) {
 	var buf bytes.Buffer
-	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	}))
+	return &buf, log
+}
 
-	// Handler that panics
+func TestRecoverPanic(t *testing.T) {
+	buf, log := newLogger()
 	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom!")
 	})
@@ -41,5 +47,19 @@ func TestRecoverPanic(t *testing.T) {
 	out := buf.String()
 	require.Contains(t, out, "unhandled panic")
 	require.Contains(t, out, "boom!")
-	require.Contains(t, out, "stack") // stack trace included
+	require.Contains(t, out, "stack")
+}
+
+func TestRecoverWithoutPanic(t *testing.T) {
+	buf, log := newLogger()
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	})
+
+	rr := httptest.NewRecorder()
+	Recover(log)(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "ok", rr.Body.String())
+	require.Empty(t, buf.String(), "no log output expected without panic")
 }
