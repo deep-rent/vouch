@@ -58,24 +58,25 @@ type Config struct {
 	Server
 }
 
-// warnings collects a list of non-fatal configuration issues.
-type warnings struct {
-	msgs []string
-	seen map[string]struct{}
+type visitor struct {
+	// Version is the version of the Vouch application.
+	Version string
+	msgs    []string
+	seen    map[string]struct{}
 }
 
-// add appends a warning message.
-func (w *warnings) add(msg string) {
-	if w.seen == nil {
+// warn collects a list of non-fatal configuration issues.
+func (v *visitor) warn(msg string) {
+	if v.seen == nil {
 		// Lazy initialization.
-		w.seen = make(map[string]struct{})
+		v.seen = make(map[string]struct{})
 	}
-	if _, ok := w.seen[msg]; ok {
+	if _, ok := v.seen[msg]; ok {
 		// Skip duplicates warnings.
 		return
 	}
-	w.seen[msg] = struct{}{}
-	w.msgs = append(w.msgs, msg)
+	v.seen[msg] = struct{}{}
+	v.msgs = append(v.msgs, msg)
 }
 
 // Server configures the HTTP server and proxy.
@@ -152,6 +153,8 @@ type Remote struct {
 	Endpoint string
 	// Interval is the poll interval measured in minutes.
 	Interval time.Duration
+	// UserAgent is the User-Agent header value used when making HTTP calls.
+	UserAgent string
 }
 
 // Guard configures the authentication and authorization of incoming requests.
@@ -223,16 +226,16 @@ type config struct {
 }
 
 // validate derives the runtime representation of config.
-func (c config) validate(w *warnings) (Config, error) {
-	local, err := c.Local.validate(w)
+func (c config) validate(v *visitor) (Config, error) {
+	local, err := c.Local.validate(v)
 	if err != nil {
 		return Config{}, fmt.Errorf("local.%w", err)
 	}
-	proxy, err := c.Proxy.validate(w)
+	proxy, err := c.Proxy.validate(v)
 	if err != nil {
 		return Config{}, fmt.Errorf("proxy.%w", err)
 	}
-	guard, err := c.Guard.validate(w)
+	guard, err := c.Guard.validate(v)
 	if err != nil {
 		return Config{}, fmt.Errorf("guard.%w", err)
 	}
@@ -253,8 +256,8 @@ type guard struct {
 }
 
 // validate derives the runtime representation of guard.
-func (g guard) validate(w *warnings) (Guard, error) {
-	token, err := g.Token.validate(w)
+func (g guard) validate(v *visitor) (Guard, error) {
+	token, err := g.Token.validate(v)
 	if err != nil {
 		return Guard{}, fmt.Errorf("token.%w", err)
 	}
@@ -263,7 +266,7 @@ func (g guard) validate(w *warnings) (Guard, error) {
 	}
 	rules := make([]Rule, len(g.Rules))
 	for i, r := range g.Rules {
-		rule, err := r.validate(w)
+		rule, err := r.validate(v)
 		if err != nil {
 			return Guard{}, fmt.Errorf("rules[%d].%w", i, err)
 		}
@@ -282,7 +285,7 @@ type local struct {
 }
 
 // validate derives the runtime representation of local.
-func (l local) validate(_ *warnings) (Local, error) {
+func (l local) validate(_ *visitor) (Local, error) {
 	host := strings.TrimSpace(l.Host)
 	port := l.Port
 	if port < 0 || port > 65535 {
@@ -305,7 +308,7 @@ type proxy struct {
 }
 
 // validate derives the runtime representation of proxy.
-func (p proxy) validate(w *warnings) (Proxy, error) {
+func (p proxy) validate(v *visitor) (Proxy, error) {
 	scheme := strings.TrimSpace(p.Scheme)
 	if scheme == "" {
 		scheme = "http"
@@ -328,7 +331,7 @@ func (p proxy) validate(w *warnings) (Proxy, error) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return Proxy{}, fmt.Errorf("scheme: must be 'http' or 'https'")
 	}
-	headers, err := p.Headers.validate(w)
+	headers, err := p.Headers.validate(v)
 	if err != nil {
 		return Proxy{}, fmt.Errorf("headers.%w", err)
 	}
@@ -346,16 +349,16 @@ type headers struct {
 }
 
 // validate derives the runtime representation of headers.
-func (h headers) validate(w *warnings) (Headers, error) {
-	user, err := h.User.validate(w)
+func (h headers) validate(v *visitor) (Headers, error) {
+	user, err := h.User.validate(v)
 	if err != nil {
 		return Headers{}, fmt.Errorf("user.%w", err)
 	}
-	roles, err := h.Roles.validate(w)
+	roles, err := h.Roles.validate(v)
 	if err != nil {
 		return Headers{}, fmt.Errorf("roles.%w", err)
 	}
-	token, err := h.Token.validate(w)
+	token, err := h.Token.validate(v)
 	if err != nil {
 		return Headers{}, fmt.Errorf("token.%w", err)
 	}
@@ -373,7 +376,7 @@ type userHeader struct {
 }
 
 // validate derives the runtime representation of userHeader.
-func (u userHeader) validate(_ *warnings) (UserHeader, error) {
+func (u userHeader) validate(_ *visitor) (UserHeader, error) {
 	name := strings.TrimSpace(u.Name)
 	if name == "" {
 		name = "X-Auth-CouchDB-UserName"
@@ -393,7 +396,7 @@ type rolesHeader struct {
 }
 
 // validate derives the runtime representation of rolesHeader.
-func (r rolesHeader) validate(_ *warnings) (RolesHeader, error) {
+func (r rolesHeader) validate(_ *visitor) (RolesHeader, error) {
 	name := strings.TrimSpace(r.Name)
 	if name == "" {
 		name = "X-Auth-CouchDB-Roles"
@@ -420,14 +423,14 @@ type tokenHeader struct {
 }
 
 // validate derives the runtime representation of tokenHeader.
-func (t tokenHeader) validate(w *warnings) (TokenHeader, error) {
+func (t tokenHeader) validate(v *visitor) (TokenHeader, error) {
 	name := strings.TrimSpace(t.Name)
 	if name == "" {
 		name = "X-Auth-CouchDB-Token"
 	} else {
 		name = http.CanonicalHeaderKey(name)
 	}
-	s, err := t.signer.validate(w)
+	s, err := t.signer.validate(v)
 	if err != nil {
 		return TokenHeader{}, fmt.Errorf("signer.%w", err)
 	}
@@ -444,14 +447,14 @@ type signer struct {
 }
 
 // validate derives the runtime representation of signer.
-func (s signer) validate(w *warnings) (Signer, error) {
+func (s signer) validate(v *visitor) (Signer, error) {
 	key := strings.TrimSpace(s.Secret)
 	if key == "" {
 		// Fall back to environment variable to facilitate secret management.
 		key = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
 	}
 	if key == "" {
-		w.add("proxy signing is disabled; this is not recommended for production")
+		v.warn("proxy signing is disabled; this is not recommended for production")
 	}
 	var alg func() hash.Hash
 	switch name := strings.ToLower(strings.TrimSpace(s.Algorithm)); name {
@@ -459,7 +462,7 @@ func (s signer) validate(w *warnings) (Signer, error) {
 		alg = nil
 	case "sha":
 		alg = sha1.New
-		w.add("proxy signing uses sha1; prefer sha256 or stronger")
+		v.warn("proxy signing uses sha1; prefer sha256 or stronger")
 	case "sha224":
 		alg = sha256.New224
 	case "sha256":
@@ -484,7 +487,7 @@ type remote struct {
 }
 
 // validate derives the runtime representation of remote.
-func (r remote) validate(w *warnings) (Remote, error) {
+func (r remote) validate(v *visitor) (Remote, error) {
 	endpoint := strings.TrimSpace(r.Endpoint)
 	if endpoint != "" {
 		u, err := url.Parse(endpoint)
@@ -494,7 +497,7 @@ func (r remote) validate(w *warnings) (Remote, error) {
 		if u.Scheme != "https" && u.Scheme != "http" {
 			return Remote{}, fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
 		} else if u.Scheme != "https" {
-			w.add("jwks endpoint is not using https")
+			v.warn("jwks endpoint is not using https")
 		}
 	}
 	interval := r.Interval
@@ -504,8 +507,9 @@ func (r remote) validate(w *warnings) (Remote, error) {
 		interval = 30
 	}
 	return Remote{
-		Endpoint: endpoint,
-		Interval: time.Duration(interval) * time.Minute,
+		Endpoint:  endpoint,
+		Interval:  time.Duration(interval) * time.Minute,
+		UserAgent: "Vouch/" + v.Version,
 	}, nil
 }
 
@@ -516,9 +520,9 @@ type keys struct {
 }
 
 // validate derives the runtime representation of keys.
-func (k keys) validate(w *warnings) (Keys, error) {
+func (k keys) validate(v *visitor) (Keys, error) {
 	static := strings.TrimSpace(k.Static)
-	remote, err := k.Remote.validate(w)
+	remote, err := k.Remote.validate(v)
 	if err != nil {
 		return Keys{}, fmt.Errorf("remote.%w", err)
 	}
@@ -542,8 +546,8 @@ type token struct {
 }
 
 // validate derives the runtime representation of token.
-func (t token) validate(w *warnings) (Token, error) {
-	keys, err := t.Keys.validate(w)
+func (t token) validate(v *visitor) (Token, error) {
+	keys, err := t.Keys.validate(v)
 	if err != nil {
 		return Token{}, fmt.Errorf("keys.%w", err)
 	}
@@ -574,7 +578,7 @@ type rule struct {
 }
 
 // validate derives the runtime representation of rule.
-func (r rule) validate(_ *warnings) (Rule, error) {
+func (r rule) validate(_ *visitor) (Rule, error) {
 	deny := false
 	switch strings.ToLower(strings.TrimSpace(r.Mode)) {
 	case modeAllow:
@@ -610,27 +614,49 @@ func (r rule) validate(_ *warnings) (Rule, error) {
 	}, nil
 }
 
+// LoadOptions holds options for the Load function.
+type LoadOptions struct {
+	// Version is the Vouch application version.
+	// Defaults to "dev".
+	Version string
+}
+
+// LoadOption influences Load behavior.
+type LoadOption func(*LoadOptions)
+
+// WithVersion sets the Vouch application version.
+func WithVersion(v string) LoadOption {
+	return func(o *LoadOptions) { o.Version = strings.TrimSpace(v) }
+}
+
 // Load reads a YAML configuration file from path, decodes into wire types,
 // then validates and converts them into a fully populated Config instance.
-func Load(path string) (Config, []string, error) {
+func Load(path string, opts ...LoadOption) (Config, []string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, nil, fmt.Errorf("read file %q: %w", path, err)
 	}
-
 	var cfg config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(&cfg); err != nil {
 		return Config{}, nil, fmt.Errorf("parse yaml: %w", err)
 	}
-
-	w := &warnings{}
-	c, err := cfg.validate(w)
-	// Provide warnings even when validation fails to aid diagnosis.
-	sort.Strings(w.msgs)
-	if err != nil {
-		return Config{}, w.msgs, fmt.Errorf("validation: %w", err)
+	// Apply options with defaults.
+	o := LoadOptions{
+		Version: "dev",
 	}
-	return c, w.msgs, nil
+	for _, opt := range opts {
+		opt(&o)
+	}
+	v := &visitor{
+		Version: o.Version,
+	}
+	c, err := cfg.validate(v)
+	// Provide warnings even when validation fails to aid diagnosis.
+	sort.Strings(v.msgs)
+	if err != nil {
+		return Config{}, v.msgs, fmt.Errorf("validation: %w", err)
+	}
+	return c, v.msgs, nil
 }

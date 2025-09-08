@@ -239,3 +239,18 @@ guard:
 	assert.Equal(t, "X-Custom-Roles", h.Roles.Name)
 	assert.Equal(t, "X-Custom-Token", h.Token.Name)
 }
+
+func TestLoadAcceptsOptions(t *testing.T) {
+	yml := `
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
+`
+	_, _, err := Load(writeConfig(t, yml), WithVersion("1.2.3"))
+	require.NoError(t, err)
+}

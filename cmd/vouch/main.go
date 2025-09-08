@@ -109,7 +109,7 @@ func run(f *flags) error {
 	log.Info("loading config", "path", f.path)
 
 	// Load and validate the configuration.
-	cfg, ws, err := config.Load(f.path)
+	cfg, ws, err := config.Load(f.path, config.WithVersion(version))
 	for _, w := range ws {
 		log.Warn(w)
 	}
