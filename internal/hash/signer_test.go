@@ -23,5 +23,6 @@ import (
 func TestMatch(t *testing.T) {
 	s := New("secret")
 	got := s.Sign("test")
+	// echo -n "test" | openssl dgst -sha256 -hmac "secret"
 	require.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", got)
 }
