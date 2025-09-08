@@ -52,36 +52,35 @@ func TestChain(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
 
 			// Build middleware list based on desired order length minus final handler.
-			switch len(tt.order) {
+			switch len(tc.order) {
 			case 4: // m1 m2 m3 h0
-				tt.mws = []Middleware{
+				tc.mws = []Middleware{
 					trace("m1", &calls),
 					trace("m2", &calls),
 					trace("m3", &calls),
 				}
 			case 2: // m1 h0
-				tt.mws = []Middleware{
+				tc.mws = []Middleware{
 					trace("m1", &calls),
 				}
 			case 1:
-				tt.mws = nil
+				tc.mws = nil
 			}
 
 			h0 := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 				calls = append(calls, "h0")
 			})
 
-			chained := Chain(h0, tt.mws...)
+			chained := Chain(h0, tc.mws...)
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			chained.ServeHTTP(httptest.NewRecorder(), req)
 
-			require.Equal(t, tt.order, calls)
+			require.Equal(t, tc.order, calls)
 		})
 	}
 }
