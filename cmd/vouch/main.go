@@ -137,13 +137,13 @@ func run(f *flags) error {
 	)
 
 	// Run the server and handle termination signals for graceful shutdown.
-	errch := make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
 			"listen", cfg.Proxy.Listen,
-			"target", cfg.Proxy.Target,
+			"target", cfg.Proxy.Target.String(),
 		)
-		errch <- srv.Start(cfg.Proxy.Listen)
+		errCh <- srv.Start(cfg.Proxy.Listen)
 	}()
 
 	ctx, stop := signal.NotifyContext(
@@ -154,7 +154,7 @@ func run(f *flags) error {
 	defer stop()
 
 	select {
-	case err := <-errch:
+	case err := <-errCh:
 		// Ensure background work is stopped if the server exits.
 		appCancel()
 		if err != nil {
@@ -168,7 +168,7 @@ func run(f *flags) error {
 		if err := srv.Shutdown(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("graceful shutdown failed", "error", err)
 		}
-		<-errch // Wait for server to stop.
+		<-errCh // Wait for server to stop.
 		log.Info("server stopped")
 	}
 	return nil
