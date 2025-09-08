@@ -89,15 +89,40 @@ func (r *remote) Keys(ctx context.Context) (jwk.Set, error) {
 // Ensure remote satisfies the Provider contract.
 var _ Provider = (*remote)(nil)
 
+// userAgentTransport is an http.RoundTripper that sets a custom User-Agent
+// header on all requests before delegating to an underlying transport.
+type userAgentTransport struct {
+	UserAgent string
+	Transport http.RoundTripper
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.UserAgent)
+	return t.Transport.RoundTrip(req)
+}
+
+// newClient constructs an HTTP client for remote key fetching with sensible
+// defaults and a custom User-Agent header.
+func newClient(cfg config.Remote) *httprc.Client {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &userAgentTransport{
+			UserAgent: cfg.UserAgent,
+			Transport: http.DefaultTransport,
+		},
+	}
+	return httprc.NewClient(
+		httprc.WithHTTPClient(client),
+	)
+}
+
 // newRemote constructs a remote key Provider backed by jwk.Cache and a tuned
 // HTTP client. The cache is registered to poll cfg.Endpoint at cfg.Interval.
 // It uses a short timeout for the initial registration fetch so that
 // permanently failing endpoints do not block startup indefinitely.
 func newRemote(ctx context.Context, cfg config.Remote) (Provider, error) {
-	client := httprc.NewClient(httprc.WithHTTPClient(&http.Client{
-		Timeout: 30 * time.Second,
-	}))
-	cache, err := jwk.NewCache(ctx, client)
+	cache, err := jwk.NewCache(ctx, newClient(cfg))
 	if err != nil {
 		return nil, fmt.Errorf("create cache: %w", err)
 	}
