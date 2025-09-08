@@ -22,36 +22,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChainOrder(t *testing.T) {
-	var calls []string
-
-	m1 := func(next http.Handler) http.Handler {
+func trace(label string, calls *[]string) Middleware {
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			calls = append(calls, "m1")
+			*calls = append(*calls, label)
 			next.ServeHTTP(res, req)
 		})
 	}
-	m2 := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			calls = append(calls, "m2")
-			next.ServeHTTP(res, req)
+}
+
+func TestChain(t *testing.T) {
+	tests := []struct {
+		name  string
+		mws   []Middleware
+		order []string
+	}{
+		{
+			name:  "three middlewares",
+			mws:   nil, // filled in below to reuse trace helper
+			order: []string{"m1", "m2", "m3", "h0"},
+		},
+		{
+			name:  "single middleware",
+			order: []string{"m1", "h0"},
+		},
+		{
+			name:  "no middleware",
+			order: []string{"h0"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []string
+
+			// Build middleware list based on desired order length minus final handler.
+			switch len(tt.order) {
+			case 4: // m1 m2 m3 h0
+				tt.mws = []Middleware{
+					trace("m1", &calls),
+					trace("m2", &calls),
+					trace("m3", &calls),
+				}
+			case 2: // m1 h0
+				tt.mws = []Middleware{
+					trace("m1", &calls),
+				}
+			case 1:
+				tt.mws = nil
+			}
+
+			h0 := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				calls = append(calls, "h0")
+			})
+
+			chained := Chain(h0, tt.mws...)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			chained.ServeHTTP(httptest.NewRecorder(), req)
+
+			require.Equal(t, tt.order, calls)
 		})
 	}
-	m3 := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			calls = append(calls, "m3")
-			next.ServeHTTP(res, req)
-		})
-	}
-
-	h0 := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		calls = append(calls, "h0")
-	})
-
-	chained := Chain(h0, m1, m2, m3)
-
-	req := httptest.NewRequest("GET", "/", nil)
-	chained.ServeHTTP(httptest.NewRecorder(), req)
-
-	require.Equal(t, []string{"m1", "m2", "m3", "h0"}, calls)
 }
