@@ -53,7 +53,8 @@ func New(target *url.URL, mws ...middleware.Middleware) Server {
 	return s
 }
 
-// routes registers public health endpoints and the proxy handler.
+// routes registers the proxy handler, exempting passthrough routes
+// from middleware protection.
 func (s *server) routes(h http.Handler, mws ...middleware.Middleware) {
 	// Pass CORS preflight straight through to CouchDB.
 	s.mux.Handle("OPTIONS /{path...}", h)
