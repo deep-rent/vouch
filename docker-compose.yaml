@@ -16,6 +16,15 @@ services:
       - couchdb-data:/opt/couchdb/data
       - ./container/couchdb/local.ini:/tmp/configs/local.ini:ro
     entrypoint: /usr/local/bin/entrypoint-wrapper.sh
+
+  auth:
+    image: nginx:alpine
+    container_name: auth
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./container/auth:/usr/share/nginx/html/.well-known:ro
   vouch:
     build:
       context: .
@@ -24,6 +33,7 @@ services:
         - VERSION=dev
     container_name: vouch
     depends_on:
+      - auth
       - couchdb
     environment:
       VOUCH_LOG: info

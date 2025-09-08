@@ -19,14 +19,14 @@ proxy:
       algorithm: sha256
 guard:
   token:
-    # issuer: https://auth.example.com/
-    # audience: couchdb
-    # leeway: 60
+    issuer: http://auth/
+    audience: couchdb
+    leeway: 60
     keys:
       static: /app/jwks.json
-      # remote:
-      #   endpoint: https://auth.example.com/.well-known/jwks.json
-      #   interval: 60
+      remote:
+        endpoint: http://auth/.well-known/jwks.json
+        interval: 60
   rules:
     - when: 'Claim("adm") == true'
       mode: allow
