@@ -113,15 +113,8 @@ func TestRunInterruptGraceful(t *testing.T) {
 
 	require.NoError(t, cmd.Start())
 
-	// Poll a bit instead of a fixed sleep to reduce flakiness.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		// Heuristic: wait until server log line appears or process exits early.
-		if bytes.Contains(out.Bytes(), []byte("starting server")) {
-			break
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
+	// Sleep instead of polling output to avoid data race.
+	time.Sleep(200 * time.Millisecond)
 
 	require.NoError(t, cmd.Process.Signal(syscall.SIGTERM))
 
@@ -130,6 +123,7 @@ func TestRunInterruptGraceful(t *testing.T) {
 
 	select {
 	case err := <-done:
+		// Safe: buffer no longer written to.
 		require.NoError(t, err, "child output:\n%s", out.String())
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timeout waiting for graceful shutdown; output:\n%s", out.String())
