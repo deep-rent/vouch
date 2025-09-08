@@ -53,10 +53,12 @@ func TestForward(t *testing.T) {
 		{
 			name: "authenticated with roles + secret (signed token)",
 			cfg: config.Headers{
-				User:   "X-Test-User",
-				Roles:  "X-Test-Roles",
-				Token:  "X-Test-Token",
-				Secret: "secret",
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+				Signer: config.Signer{
+					Secret: "secret",
+				},
 			},
 			scope: auth.Scope{User: "test", Roles: "foo,bar"},
 			// Digest observed in existing dedicated test; keep deterministic assertion.
@@ -72,7 +74,7 @@ func TestForward(t *testing.T) {
 				User:      "X-Test-User",
 				Roles:     "X-Test-Roles",
 				Token:     "X-Test-Token",
-				Secret:    "",
+				Signer:    config.Signer{},
 				Anonymous: true,
 			},
 			scope:  auth.Scope{User: "user"},
@@ -85,10 +87,12 @@ func TestForward(t *testing.T) {
 		{
 			name: "anonymous allowed (secret present) => no auth headers injected",
 			cfg: config.Headers{
-				User:      "X-Test-User",
-				Roles:     "X-Test-Roles",
-				Token:     "X-Test-Token",
-				Secret:    "secret",
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+				Signer: config.Signer{
+					Secret: "secret",
+				},
 				Anonymous: true,
 			},
 			scope:  auth.Scope{},
@@ -147,10 +151,12 @@ func TestForward(t *testing.T) {
 		{
 			name: "empty user with anonymous allowed (remains anonymous)",
 			cfg: config.Headers{
-				User:      "X-Test-User",
-				Roles:     "X-Test-Roles",
-				Token:     "X-Test-Token",
-				Secret:    "secret",
+				User:  "X-Test-User",
+				Roles: "X-Test-Roles",
+				Token: "X-Test-Token",
+				Signer: config.Signer{
+					Secret: "secret",
+				},
 				Anonymous: true,
 			},
 			scope:  auth.Scope{User: ""},

@@ -21,7 +21,7 @@ import (
 
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
-	"github.com/deep-rent/vouch/internal/hash"
+	"github.com/deep-rent/vouch/internal/signer"
 	"github.com/deep-rent/vouch/internal/token"
 )
 
@@ -30,10 +30,7 @@ import (
 // It also handles authorization failures and token challenges.
 func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 	// Optional signer for CouchDB proxy auth token.
-	var sign *hash.Signer
-	if secret := cfg.Secret; secret != "" {
-		sign = hash.New(secret)
-	}
+	s := signer.New(cfg.Signer)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			// An OPTIONS short-circuit is not needed; the server routes OPTIONS to
@@ -71,8 +68,8 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 				if scope.Roles != "" {
 					req.Header.Set(cfg.Roles, scope.Roles)
 				}
-				if sign != nil {
-					req.Header.Set(cfg.Token, sign.Sign(scope.User))
+				if s != nil {
+					req.Header.Set(cfg.Token, s.Sign(scope.User))
 				}
 			} else if !cfg.Anonymous {
 				// Anonymous access disabled: require authentication.

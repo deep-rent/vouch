@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hash
+package signer
 
 import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"hash"
+
+	"github.com/deep-rent/vouch/internal/config"
 )
 
 // Signer computes deterministic HMAC tags using a static secret.
@@ -41,10 +43,18 @@ func (s *Signer) Sign(user string) string {
 }
 
 // New returns a new Signer that derives its HMAC key from the given secret.
-// An empty secret is allowed but insecure and should be avoided.
-func New(secret string) *Signer {
+// If the secret is empty, nil will be returned.
+func New(cfg config.Signer) *Signer {
+	key := []byte(cfg.Secret)
+	if len(key) == 0 {
+		return nil
+	}
+	alg := cfg.Algorithm
+	if alg == nil {
+		alg = sha256.New
+	}
 	return &Signer{
-		key: []byte(secret),
-		alg: sha256.New,
+		key: key,
+		alg: alg,
 	}
 }

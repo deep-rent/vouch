@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hash
+package signer
 
 import (
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMatch(t *testing.T) {
-	s := New("secret")
+	s := New(config.Signer{Secret: "secret"})
 	got := s.Sign("test")
 	// echo -n "test" | openssl dgst -sha256 -hmac "secret"
 	require.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", got)
+}
+
+func TestEmptyKey(t *testing.T) {
+	s := New(config.Signer{})
+	require.Nil(t, s)
 }

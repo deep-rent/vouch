@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package hash contains hashing and signing helpers used to produce and verify
-// integrity-protected values (e.g. proxy authentication headers).
-package hash
+// Package signer contains signing helpers used to compute the
+// CouchDB proxy authentication token.
+package signer

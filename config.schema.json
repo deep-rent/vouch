@@ -47,13 +47,43 @@
       },
       "additionalProperties": false
     },
+    "Signer": {
+      "type": "object",
+      "description": "Configures signing of CouchDB proxy authentication tokens.",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "The CouchDB proxy secret used to sign the token header. If empty, the token header will be omitted from forwarded requests.",
+          "minLength": 32,
+          "default": ""
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "The hash algorithm used to protect the token.",
+          "enum": [
+            "sha",
+            "sha1",
+            "sha-1",
+            "sha224",
+            "sha-224",
+            "sha256",
+            "sha-256",
+            "sha384",
+            "sha-384",
+            "sha512",
+            "sha-512"
+          ],
+          "default": "sha256"
+        }
+      },
+      "additionalProperties": false
+    },
     "Headers": {
       "type": "object",
       "description": "Customizes the proxy headers sent to CouchDB.",
       "properties": {
-        "secret": {
-          "type": "string",
-          "description": "The CouchDB proxy secret used to sign the token header. If empty, signing is disabled."
+        "signer": {
+          "$ref": "#/definitions/Signer"
         },
         "user": {
           "type": "string",

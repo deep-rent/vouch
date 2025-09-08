@@ -58,6 +58,11 @@ rules:
 	assert.Equal(t, "X-Auth-CouchDB-Roles", h.Roles)
 	assert.Equal(t, "X-Auth-CouchDB-Token", h.Token)
 
+	// Signer defaults
+	s := cfg.Proxy.Headers.Signer
+	assert.Equal(t, "", s.Secret)
+	assert.Nil(t, s.Algorithm)
+
 	// Remote defaults
 	assert.Equal(t, 30, int(cfg.Token.Keys.Remote.Interval.Minutes()))
 

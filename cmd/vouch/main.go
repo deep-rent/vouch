@@ -115,8 +115,8 @@ func run(f *flags) error {
 	}
 
 	// Warn if CouchDB proxy signing is not configured.
-	if cfg.Proxy.Headers.Secret == "" {
-		log.Warn("proxy signing secret not configured")
+	if !cfg.SignerEnabled() {
+		log.Warn("proxy signing is disabled; this not recommended for production")
 	}
 
 	// Application-scoped context for background components.

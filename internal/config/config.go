@@ -16,8 +16,12 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"errors"
 	"fmt"
+	"hash"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,6 +59,11 @@ type Config struct {
 	Rules []Rule
 }
 
+// SignerEnabled indicates whether or not CouchDB proxy signing is enabled.
+func (c Config) SignerEnabled() bool {
+	return c.Proxy.Headers.Signer.Secret != ""
+}
+
 // Proxy configures the HTTP listener and upstream target.
 type Proxy struct {
 	// Listen is the TCP address the server listens on, in the form 'host:port'
@@ -68,9 +77,8 @@ type Proxy struct {
 
 // Headers customizes the proxy headers forwarded to CouchDB.
 type Headers struct {
-	// Secret is the CouchDB proxy secret used to sign the token header.
-	// If empty, signing is disabled.
-	Secret string
+	// Signer configures the signing of CouchDB proxy authentication tokens.
+	Signer Signer
 	// User is the proxy header name that carries the CouchDB user name.
 	User string
 	// Roles is the proxy header name that carries comma-separated roles.
@@ -83,6 +91,16 @@ type Headers struct {
 	// a user or if the user expression yields an empty string. If false,
 	// such requests are denied with 401 Unauthorized.
 	Anonymous bool
+}
+
+// Signer configures the signing of CouchDB proxy authentication tokens.
+type Signer struct {
+	// Secret is the CouchDB secret key used to sign the proxy token header.
+	// If empty, the token header will be omitted from forwarded requests.
+	Secret string
+	// Algorithm returns the hash function used for signing. If it is nil, the
+	// default SHA-256 is used.
+	Algorithm func() hash.Hash
 }
 
 // Remote configures periodic retrieval of a JWKS from a remote endpoint.
@@ -218,7 +236,7 @@ func (p proxy) validate() (Proxy, error) {
 
 // headers is the wire representation of Headers.
 type headers struct {
-	Secret    string `yaml:"secret"`
+	Signer    signer `yaml:"signer"`
 	User      string `yaml:"user"`
 	Roles     string `yaml:"roles"`
 	Token     string `yaml:"token"`
@@ -227,13 +245,9 @@ type headers struct {
 
 // validate derives the runtime representation of headers.
 func (h headers) validate() (Headers, error) {
-	secret := strings.TrimSpace(h.Secret)
-	if secret == "" {
-		secret = os.Getenv("VOUCH_SECRET")
-		secret = strings.TrimSpace(secret)
-	}
-	if secret != "" && len(secret) < 32 {
-		return Headers{}, errors.New("secret: must be at least 32 characters")
+	signer, err := h.Signer.validate()
+	if err != nil {
+		return Headers{}, fmt.Errorf("signer.%w", err)
 	}
 	user := strings.TrimSpace(h.User)
 	if user == "" {
@@ -254,11 +268,47 @@ func (h headers) validate() (Headers, error) {
 		token = http.CanonicalHeaderKey(token)
 	}
 	return Headers{
-		Secret:    secret,
+		Signer:    signer,
 		User:      user,
 		Roles:     roles,
 		Token:     token,
 		Anonymous: h.Anonymous,
+	}, nil
+}
+
+// signer is the wire representation of Signer.
+type signer struct {
+	Secret    string `yaml:"secret"`
+	Algorithm string `yaml:"algorithm"`
+}
+
+// validate derives the runtime representation of signer.
+func (s signer) validate() (Signer, error) {
+	key := strings.TrimSpace(s.Secret)
+	if key == "" {
+		// Fall back to environment variable to facilitate secret management.
+		key = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
+	}
+	var alg func() hash.Hash
+	switch name := strings.ToLower(strings.TrimSpace(s.Algorithm)); name {
+	case "":
+		alg = nil
+	case "sha", "sha1", "sha-1":
+		alg = sha1.New
+	case "sha224", "sha-224":
+		alg = sha256.New224
+	case "sha256", "sha-256":
+		alg = sha256.New
+	case "sha384", "sha-384":
+		alg = sha512.New384
+	case "sha512", "sha-512":
+		alg = sha512.New
+	default:
+		return Signer{}, fmt.Errorf("algorithm: unsupported type %q", name)
+	}
+	return Signer{
+		Secret:    key,
+		Algorithm: alg,
 	}, nil
 }
 
