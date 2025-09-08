@@ -57,6 +57,7 @@ rules:
 	assert.Equal(t, "X-Auth-CouchDB-UserName", h.User)
 	assert.Equal(t, "X-Auth-CouchDB-Roles", h.Roles)
 	assert.Equal(t, "X-Auth-CouchDB-Token", h.Token)
+	assert.False(t, cfg.SignerEnabled())
 
 	// Signer defaults
 	s := cfg.Proxy.Headers.Signer
