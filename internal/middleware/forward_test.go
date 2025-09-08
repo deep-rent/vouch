@@ -152,6 +152,20 @@ func TestForward(t *testing.T) {
 			token:  "",
 			next:   true,
 		},
+		{
+			name: "authenticated no roles -> defaults applied",
+			cfg: config.Headers{
+				User:  config.UserHeader{Name: "X-Test-User"},
+				Roles: config.RolesHeader{Name: "X-Test-Roles", Default: "r1,r2"},
+				Token: config.TokenHeader{Name: "X-Test-Token"},
+			},
+			scope:  auth.Scope{User: "user", Roles: ""},
+			status: http.StatusOK,
+			user:   "user",
+			roles:  "r1,r2",
+			token:  "",
+			next:   true,
+		},
 	}
 
 	for _, tc := range tests {
