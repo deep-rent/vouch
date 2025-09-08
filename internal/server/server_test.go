@@ -156,9 +156,9 @@ func TestServerStartAndShutdown(t *testing.T) {
 
 	s := New(u)
 
-	errch := make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
-		errch <- s.Start(addr)
+		errCh <- s.Start(addr)
 	}()
 
 	// Wait until server responds (with timeout).
@@ -183,7 +183,7 @@ func TestServerStartAndShutdown(t *testing.T) {
 	require.NoError(t, s.Shutdown(ctx))
 
 	// Start must return nil on graceful shutdown.
-	require.NoError(t, <-errch)
+	require.NoError(t, <-errCh)
 }
 
 func TestServerStartPortInUse(t *testing.T) {
@@ -205,19 +205,19 @@ func TestServerStartPortInUse(t *testing.T) {
 
 	s := New(u)
 
-	errch := make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
-		errch <- s.Start(addr)
+		errCh <- s.Start(addr)
 	}()
 
 	// Expect an error (address already in use) shortly.
 	select {
-	case e := <-errch:
+	case e := <-errCh:
 		require.Error(t, e)
 	default:
 		// Allow a little time if not immediate.
 		select {
-		case e := <-errch:
+		case e := <-errCh:
 			require.Error(t, e)
 		case <-time.After(500 * time.Millisecond):
 			t.Fatal("expected Start to fail due to port already in use")
