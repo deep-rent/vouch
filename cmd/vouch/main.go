@@ -141,7 +141,7 @@ func run(f *flags) error {
 	go func() {
 		log.Info("starting server",
 			"listen", cfg.Proxy.Listen,
-			"target", cfg.Proxy.Target,
+			"target", cfg.Proxy.Target.String(),
 		)
 		errch <- srv.Start(cfg.Proxy.Listen)
 	}()
