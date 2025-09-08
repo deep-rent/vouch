@@ -32,8 +32,10 @@ func TestNewCompiler(t *testing.T) {
 
 func TestCompilerCompile(t *testing.T) {
 	tests := []struct {
+		// inputs
 		name  string
 		rules []config.Rule
+		// expected outputs
 		count int
 		fail  bool
 		err   string

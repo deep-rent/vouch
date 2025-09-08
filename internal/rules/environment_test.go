@@ -45,10 +45,12 @@ func TestEnvironmentClaim(t *testing.T) {
 	require.NoError(t, tok.Set("rol", []string{"admin", "editor"}))
 
 	tests := []struct {
+		// inputs
 		name  string
 		env   Environment
 		claim string
-		want  any
+		// expected outputs
+		want any
 	}{
 		{
 			name:  "existing string claim",

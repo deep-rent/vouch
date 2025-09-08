@@ -16,7 +16,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,68 +34,70 @@ func TestScopeIsAnonymous(t *testing.T) {
 }
 
 func TestGuardCheck(t *testing.T) {
-	newToken := func(t *testing.T) jwt.Token {
+	makeToken := func(t *testing.T) jwt.Token {
 		tok, err := jwt.NewBuilder().Subject("sub").Build()
 		require.NoError(t, err)
 		return tok
 	}
 
 	type test struct {
-		name      string
-		parser    token.Parser
-		engine    rules.Engine
-		wantScope Scope
-		wantErr   error
+		// inputs
+		name   string
+		parser token.Parser
+		engine rules.Engine
+		// expected outputs
+		scope Scope
+		err   error
 	}
 
 	tests := []test{
 		{
-			name:    "missing token",
-			parser:  token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrMissingToken }),
-			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
-			wantErr: token.ErrMissingToken,
+			name:   "missing token",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrMissingToken }),
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
+			err:    token.ErrMissingToken,
 		},
 		{
-			name:    "invalid token",
-			parser:  token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrInvalidToken }),
-			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
-			wantErr: token.ErrInvalidToken,
+			name:   "invalid token",
+			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrInvalidToken }),
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
+			err:    token.ErrInvalidToken,
 		},
 		{
 			name: "engine error",
 			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return newToken(t), nil
+				return makeToken(t), nil
 			}),
-			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, assert.AnError }),
-			wantErr: assert.AnError,
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, assert.AnError }),
+			err:    assert.AnError,
 		},
 		{
 			name: "forbidden",
 			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return newToken(t), nil
+				return makeToken(t), nil
 			}),
-			engine:  rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{Pass: false}, nil }),
-			wantErr: ErrForbidden,
+			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{Pass: false}, nil }),
+			err:    ErrForbidden,
 		},
 		{
 			name: "allow with user and roles",
 			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return newToken(t), nil
+				return makeToken(t), nil
 			}),
 			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
 				return rules.Result{Pass: true, User: "alice", Roles: "r1,r2"}, nil
 			}),
-			wantScope: Scope{User: "alice", Roles: "r1,r2"},
+			scope: Scope{User: "alice", Roles: "r1,r2"},
 		},
 		{
 			name: "allow anonymous",
 			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return newToken(t), nil
+				return makeToken(t), nil
 			}),
 			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
 				return rules.Result{Pass: true}, nil
 			}),
-			wantScope: Scope{},
+			scope: Scope{},
 		},
 	}
 
@@ -109,28 +110,29 @@ func TestGuardCheck(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://example/db/doc", nil)
 			scope, err := g.Check(req)
 
-			if tc.wantErr != nil {
+			if tc.err != nil {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, tc.wantErr)
+				assert.ErrorIs(t, err, tc.err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantScope, scope)
+			assert.Equal(t, tc.scope, scope)
 		})
 	}
 }
 
 func TestNewGuard(t *testing.T) {
-	origParser := newParser
-	origEngine := newEngine
+	oldParser := newParser
+	oldEngine := newEngine
+
 	t.Cleanup(func() {
-		newParser = origParser
-		newEngine = origEngine
+		newParser = oldParser
+		newEngine = oldEngine
 	})
 
 	t.Run("parser error", func(t *testing.T) {
 		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return nil, errors.New("pfail")
+			return nil, assert.AnError
 		}
 		_, err := NewGuard(context.Background(), config.Config{})
 		require.Error(t, err)
@@ -139,10 +141,12 @@ func TestNewGuard(t *testing.T) {
 
 	t.Run("engine error", func(t *testing.T) {
 		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, nil }), nil
+			return token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return nil, nil
+			}), nil
 		}
 		newEngine = func([]config.Rule) (rules.Engine, error) {
-			return nil, errors.New("efail")
+			return nil, assert.AnError
 		}
 		_, err := NewGuard(context.Background(), config.Config{})
 		require.Error(t, err)
@@ -151,14 +155,18 @@ func TestNewGuard(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return token.ParserFunc(func(*http.Request) (jwt.Token, error) { return jwt.NewBuilder().Build() }), nil
+			return token.ParserFunc(func(*http.Request) (jwt.Token, error) {
+				return jwt.NewBuilder().Build()
+			}), nil
 		}
 		newEngine = func([]config.Rule) (rules.Engine, error) {
 			return rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
 				return rules.Result{Pass: true}, nil
 			}), nil
 		}
-		g, err := NewGuard(context.Background(), config.Config{Rules: []config.Rule{{When: "true"}}})
+		g, err := NewGuard(context.Background(), config.Config{
+			Rules: []config.Rule{{When: "true"}},
+		})
 		require.NoError(t, err)
 		require.NotNil(t, g)
 	})

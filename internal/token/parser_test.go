@@ -35,8 +35,10 @@ import (
 func TestBearer(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
+		// inputs
 		name string
 		auth string
+		// expected outputs
 		want string
 	}{
 		{name: "empty", auth: "", want: ""},

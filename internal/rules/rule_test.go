@@ -36,8 +36,10 @@ func compile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
 
 func TestRuleEvalWhen(t *testing.T) {
 	tests := []struct {
+		// inputs
 		name string
 		expr string
+		// expected outputs
 		want bool
 		fail bool
 	}{
@@ -63,8 +65,10 @@ func TestRuleEvalWhen(t *testing.T) {
 
 func TestRuleEvalUser(t *testing.T) {
 	tests := []struct {
+		// inputs
 		name string
 		rule *rule
+		// expected outputs
 		want string
 		fail bool
 	}{
@@ -89,8 +93,10 @@ func TestRuleEvalUser(t *testing.T) {
 
 func TestRuleEvalRoles(t *testing.T) {
 	tests := []struct {
+		// inputs
 		name string
 		rule *rule
+		// expected outputs
 		want string
 		fail bool
 	}{
@@ -117,8 +123,10 @@ func TestRuleEvalRoles(t *testing.T) {
 
 func TestRuleEval(t *testing.T) {
 	tests := []struct {
+		// inputs
 		name string
 		rule rule
+		// expected outputs
 		want result
 		fail bool
 	}{
