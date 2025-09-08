@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,16 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 
 	u, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	s := New(u, m1, m2)
+
+	cfg := config.Server{
+		Local: config.Local{
+			Addr: "127.0.0.1:0",
+		},
+		Proxy: config.Proxy{
+			Target: u,
+		},
+	}
+	s := New(cfg, m1, m2)
 
 	api := httptest.NewServer(s.(*server).mux)
 	defer api.Close()
@@ -149,33 +159,39 @@ func TestServerStartAndShutdown(t *testing.T) {
 	// Pick a free port.
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	port := l.Addr().(*net.TCPAddr).Port
+	addr := l.Addr().String()
 	require.NoError(t, l.Close())
 
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	s := New(u)
+	cfg := config.Server{
+		Local: config.Local{
+			Addr: addr,
+		},
+		Proxy: config.Proxy{
+			Target: u,
+		},
+	}
+	s := New(cfg)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.Start(addr)
+		errCh <- s.Start()
 	}()
 
-	// Wait until server responds (with timeout).
+	// Wait until server responds (with timeout) by probing /_up passthrough.
 	deadline := time.Now().Add(2 * time.Second)
-	var healthy bool
+	var ready bool
 	for time.Now().Before(deadline) {
-		res, err := http.Get(fmt.Sprintf("http://%s/healthy", addr))
+		res, err := http.Get(fmt.Sprintf("http://%s/_up", addr))
 		if err == nil {
 			_ = res.Body.Close()
 			if res.StatusCode == http.StatusOK {
-				healthy = true
+				ready = true
 				break
 			}
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	require.True(t, healthy, "server never became healthy")
+	require.True(t, ready, "server never became ready")
 
 	// Graceful shutdown.
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
@@ -203,11 +219,19 @@ func TestServerStartPortInUse(t *testing.T) {
 	addr := l.Addr().String()
 	defer l.Close()
 
-	s := New(u)
+	cfg := config.Server{
+		Local: config.Local{
+			Addr: addr,
+		},
+		Proxy: config.Proxy{
+			Target: u,
+		},
+	}
+	s := New(cfg)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.Start(addr)
+		errCh <- s.Start()
 	}()
 
 	// Expect an error (address already in use) shortly.

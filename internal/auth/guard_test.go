@@ -134,7 +134,7 @@ func TestNewGuard(t *testing.T) {
 		newParser = func(context.Context, config.Token) (token.Parser, error) {
 			return nil, assert.AnError
 		}
-		_, err := NewGuard(context.Background(), config.Config{})
+		_, err := NewGuard(context.Background(), config.Guard{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create parser")
 	})
@@ -148,7 +148,7 @@ func TestNewGuard(t *testing.T) {
 		newEngine = func([]config.Rule) (rules.Engine, error) {
 			return nil, assert.AnError
 		}
-		_, err := NewGuard(context.Background(), config.Config{})
+		_, err := NewGuard(context.Background(), config.Guard{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create engine")
 	})
@@ -164,7 +164,7 @@ func TestNewGuard(t *testing.T) {
 				return rules.Result{Pass: true}, nil
 			}), nil
 		}
-		g, err := NewGuard(context.Background(), config.Config{
+		g, err := NewGuard(context.Background(), config.Guard{
 			Rules: []config.Rule{{When: "true"}},
 		})
 		require.NoError(t, err)

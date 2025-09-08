@@ -109,14 +109,12 @@ func run(f *flags) error {
 	log.Info("loading config", "path", f.path)
 
 	// Load and validate the configuration.
-	cfg, err := config.Load(f.path)
+	cfg, ws, err := config.Load(f.path)
+	for _, w := range ws {
+		log.Warn(w)
+	}
 	if err != nil {
 		return fmt.Errorf("couldn't load config: %w", err)
-	}
-
-	// Warn if CouchDB proxy signing is not configured.
-	if !cfg.SignerEnabled() {
-		log.Warn("proxy signing is disabled; this not recommended for production")
 	}
 
 	// Application-scoped context for background components.
@@ -124,14 +122,13 @@ func run(f *flags) error {
 	defer appCancel()
 
 	// Construct the authentication and authorization guard.
-	grd, err := auth.NewGuard(appCtx, cfg)
+	grd, err := auth.NewGuard(appCtx, cfg.Guard)
 	if err != nil {
 		return fmt.Errorf("failed to init guard: %w", err)
 	}
 
 	// Wire proxy and middleware into the server.
-	srv := server.New(
-		cfg.Proxy.Target,
+	srv := server.New(cfg.Server,
 		middleware.Recover(log),
 		middleware.Forward(log, grd, cfg.Proxy.Headers),
 	)
@@ -140,10 +137,10 @@ func run(f *flags) error {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("starting server",
-			"listen", cfg.Proxy.Listen,
-			"target", cfg.Proxy.Target.String(),
+			"listen", srv.Listen(),
+			"target", srv.Target(),
 		)
-		errCh <- srv.Start(cfg.Proxy.Listen)
+		errCh <- srv.Start()
 	}()
 
 	ctx, stop := signal.NotifyContext(

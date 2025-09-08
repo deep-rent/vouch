@@ -2,72 +2,69 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/deep-rent/vouch/main/config.schema.json",
   "title": "Vouch Configuration",
-  "description": "Schema for the Vouch configuration file.",
   "type": "object",
   "properties": {
+    "local": {
+      "$ref": "#/definitions/Local"
+    },
     "proxy": {
       "$ref": "#/definitions/Proxy"
     },
-    "token": {
-      "$ref": "#/definitions/Token"
-    },
-    "rules": {
-      "description": "An ordered list of authorization rules. The first matching rule decides the outcome.",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Rule"
-      },
-      "minItems": 1
+    "guard": {
+      "$ref": "#/definitions/Guard"
     }
   },
   "required": [
-    "token",
-    "rules"
+    "guard"
   ],
   "additionalProperties": false,
   "definitions": {
-    "Proxy": {
+    "Local": {
       "type": "object",
-      "description": "Configures the local HTTP server and reverse proxy behavior.",
+      "description": "Configures the local HTTP server.",
       "properties": {
-        "listen": {
+        "host": {
           "type": "string",
-          "description": "The TCP address the server listens on, in the form 'host:port' or ':port' to listen on all interfaces.",
-          "default": ":8080"
+          "description": "Hostname or IP to bind to.",
+          "default": ""
         },
-        "target": {
-          "type": "string",
-          "description": "The CouchDB URL to which requests are proxied.",
-          "default": "http://localhost:5984",
-          "format": "uri"
-        },
-        "headers": {
-          "$ref": "#/definitions/Headers"
+        "port": {
+          "type": "integer",
+          "description": "TCP port to listen on. 0 will be mapped to 8080.",
+          "default": 8080,
+          "minimum": 0,
+          "maximum": 65535
         }
       },
       "additionalProperties": false
     },
-    "Signer": {
+    "Proxy": {
       "type": "object",
-      "description": "Configures signing of CouchDB proxy authentication tokens.",
+      "description": "Configures the upstream CouchDB target and proxy headers.",
       "properties": {
-        "secret": {
+        "scheme": {
           "type": "string",
-          "description": "The CouchDB proxy secret used to sign the token header. If empty, the token header will be omitted from forwarded requests.",
-          "minLength": 32,
-          "default": ""
-        },
-        "algorithm": {
-          "type": "string",
-          "description": "The hash algorithm used to protect the token.",
           "enum": [
-            "sha",
-            "sha224",
-            "sha256",
-            "sha384",
-            "sha512"
+            "http",
+            "https"
           ],
-          "default": "sha256"
+          "default": "http",
+          "description": "Upstream URL scheme."
+        },
+        "host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Upstream hostname or IP address."
+        },
+        "port": {
+          "type": "integer",
+          "default": 5984,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Upstream TCP port. 0 will be mapped to 5984."
+        },
+        "headers": {
+          "$ref": "#/definitions/Headers"
         }
       },
       "additionalProperties": false
@@ -76,50 +73,125 @@
       "type": "object",
       "description": "Customizes the proxy headers sent to CouchDB.",
       "properties": {
-        "signer": {
-          "$ref": "#/definitions/Signer"
-        },
         "user": {
-          "type": "string",
-          "description": "The proxy header name that carries the CouchDB user name.",
-          "default": "X-Auth-CouchDB-UserName"
+          "$ref": "#/definitions/UserHeader"
         },
         "roles": {
-          "type": "string",
-          "description": "The proxy header name that carries comma-separated roles.",
-          "default": "X-Auth-CouchDB-Roles"
+          "$ref": "#/definitions/RolesHeader"
         },
         "token": {
+          "$ref": "#/definitions/TokenHeader"
+        }
+      },
+      "additionalProperties": false
+    },
+    "UserHeader": {
+      "type": "object",
+      "description": "Configures the proxy user header.",
+      "properties": {
+        "name": {
           "type": "string",
-          "description": "The proxy header name that carries the signed token.",
-          "default": "X-Auth-CouchDB-Token"
+          "description": "Header name carrying the CouchDB user.",
+          "default": "X-Auth-CouchDB-UserName"
         },
         "anonymous": {
           "type": "boolean",
-          "description": "Allows forwarding requests without an authenticated user.",
+          "description": "Allow forwarding anonymous requests (matching allow rule does not set user).",
           "default": false
         }
       },
       "additionalProperties": false
     },
+    "RolesHeader": {
+      "type": "object",
+      "description": "Configures the proxy roles header.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Header name carrying comma-separated roles.",
+          "default": "X-Auth-CouchDB-Roles"
+        },
+        "default": {
+          "type": "array",
+          "description": "Default roles when the matching allow rule does not set roles.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "TokenHeader": {
+      "type": "object",
+      "description": "Configures the proxy token header used to secure the communication between Vouch and CouchDB.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Header name carrying the signed token.",
+          "default": "X-Auth-CouchDB-Token"
+        },
+        "secret": {
+          "type": "string",
+          "description": "Shared secret used to sign the token header. If omitted or empty, the header will not be sent.",
+          "default": "",
+          "minLength": 32
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "Hash algorithm for token signing.",
+          "enum": [
+            "",
+            "sha",
+            "sha224",
+            "sha256",
+            "sha384",
+            "sha512"
+          ],
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    },
+    "Guard": {
+      "type": "object",
+      "description": "Configures authentication and authorization.",
+      "properties": {
+        "token": {
+          "$ref": "#/definitions/Token"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Rule"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "token",
+        "rules"
+      ],
+      "additionalProperties": false
+    },
     "Token": {
       "type": "object",
-      "description": "Configures how incoming bearer tokens are validated.",
+      "description": "Configures how incoming JWTs are validated.",
       "properties": {
         "keys": {
           "$ref": "#/definitions/Keys"
         },
         "issuer": {
           "type": "string",
-          "description": "The expected value of the 'iss' claim. If omitted, the issuer is not validated."
+          "description": "Expected value of the 'iss' claim (optional)."
         },
         "audience": {
           "type": "string",
-          "description": "The value that the 'aud' claim is expected to contain. If omitted, the audience is not validated."
+          "description": "Expected value of the 'aud' claim (optional)."
         },
         "leeway": {
           "type": "integer",
-          "description": "The allowed clock skew interpreted as seconds. Concerns validation of the 'exp', 'nbf', and 'iat' claims.",
+          "description": "Allowed clock skew in seconds. Concerns 'exp' and 'nbf' claims.",
           "default": 0,
           "minimum": 0
         }
@@ -131,11 +203,11 @@
     },
     "Keys": {
       "type": "object",
-      "description": "Configures sources of JWK material used to verify token signatures.",
+      "description": "Sources of JWK material used to verify token signatures.",
       "properties": {
         "static": {
           "type": "string",
-          "description": "A filesystem path to a JWKS document."
+          "description": "Filesystem path to a JWKS document."
         },
         "remote": {
           "$ref": "#/definitions/Remote"
@@ -157,18 +229,18 @@
     },
     "Remote": {
       "type": "object",
-      "description": "Configures periodic retrieval of a JWKS from a remote endpoint.",
+      "description": "Periodic retrieval of a JWKS from a remote endpoint.",
       "properties": {
         "endpoint": {
           "type": "string",
-          "description": "The HTTPS URL from which the JWKS is retrieved.",
+          "description": "HTTP(S) URL from which the JWKS is retrieved.",
           "format": "uri"
         },
         "interval": {
           "type": "integer",
-          "description": "The poll interval measured in minutes.",
+          "description": "Poll interval in minutes. 0 will be mapped to 30.",
           "default": 30,
-          "minimum": 1
+          "minimum": 0
         }
       },
       "required": [
@@ -182,7 +254,6 @@
       "properties": {
         "mode": {
           "type": "string",
-          "description": "Selects the decision when the rule matches.",
           "enum": [
             "allow",
             "deny"
@@ -190,22 +261,66 @@
         },
         "when": {
           "type": "string",
-          "description": "The condition under which the rule applies. Must evaluate to a boolean."
+          "description": "Condition under which the rule applies (must evaluate to boolean)."
         },
         "user": {
           "type": "string",
-          "description": "An expression that determines the CouchDB user name. Only used in 'allow' mode."
+          "description": "Expression for CouchDB user (only in 'allow' mode)."
         },
         "roles": {
           "type": "string",
-          "description": "An expression that specifies CouchDB roles. Only used in 'allow' mode."
+          "description": "Expression for CouchDB roles (only in 'allow' mode)."
         }
       },
       "required": [
         "mode",
         "when"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "deny"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "user"
+                  ]
+                },
+                {
+                  "required": [
+                    "roles"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "roles"
+            ]
+          },
+          "then": {
+            "required": [
+              "user"
+            ],
+            "properties": {
+              "mode": {
+                "const": "allow"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

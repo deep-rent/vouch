@@ -17,6 +17,7 @@ package config
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"os"
 
@@ -34,52 +35,63 @@ func writeConfig(t *testing.T, body string) string {
 
 func TestLoadSuccessDefaultsApplied(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
-    user: '"alice"'
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
+      user: '"alice"'
 `
 	path := writeConfig(t, yml)
 
-	cfg, err := Load(path)
+	cfg, _, err := Load(path)
 	require.NoError(t, err)
 
-	// Proxy defaults
-	assert.Equal(t, ":8080", cfg.Proxy.Listen)
-	assert.Equal(t, "http://localhost:5984", cfg.Proxy.Target.String())
+	local := cfg.Local
+	assert.Equal(t, ":8080", local.Addr)
 
-	// Header defaults
-	h := cfg.Proxy.Headers
-	assert.Equal(t, "X-Auth-CouchDB-UserName", h.User)
-	assert.Equal(t, "X-Auth-CouchDB-Roles", h.Roles)
-	assert.Equal(t, "X-Auth-CouchDB-Token", h.Token)
-	assert.False(t, cfg.SignerEnabled())
+	proxy := cfg.Proxy
+	assert.Equal(t, "http://localhost:8080", proxy.Target.String())
 
-	// Signer defaults
-	s := cfg.Proxy.Headers.Signer
-	assert.Equal(t, "", s.Secret)
-	assert.Nil(t, s.Algorithm)
+	headers := proxy.Headers
+	assert.Equal(t, "X-Auth-CouchDB-UserName", headers.User.Name)
+	assert.False(t, headers.User.Anonymous)
+	assert.Equal(t, "X-Auth-CouchDB-Roles", headers.Roles.Name)
+	assert.Equal(t, "", headers.Roles.Default)
+	assert.Equal(t, "X-Auth-CouchDB-Token", headers.Token.Name)
+	assert.Equal(t, "", headers.Token.Signer.Secret)
+	assert.Nil(t, headers.Token.Signer.Algorithm)
 
-	// Remote defaults
-	assert.Equal(t, 30, int(cfg.Token.Keys.Remote.Interval.Minutes()))
+	guard := cfg.Guard
 
-	require.Len(t, cfg.Rules, 1)
-	assert.False(t, cfg.Rules[0].Deny)
+	token := guard.Token
+	assert.Equal(t, "", token.Issuer)
+	assert.Equal(t, "", token.Audience)
+	assert.Equal(t, time.Duration(0), token.Leeway)
+	assert.Nil(t, token.Clock)
+
+	keys := token.Keys
+	assert.Equal(t, "", keys.Static)
+	assert.Equal(t, "https://example.com/jwks", keys.Remote.Endpoint)
+	assert.Equal(t, 30*time.Minute, keys.Remote.Interval)
+
+	require.Len(t, guard.Rules, 1)
+	assert.False(t, guard.Rules[0].Deny)
 }
 
 func TestLoadErrorNoRules(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules: []
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules: []
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rules: at least one rule")
 }
@@ -87,108 +99,115 @@ rules: []
 func TestLoadErrorInvalidProxyScheme(t *testing.T) {
 	yml := `
 proxy:
-  target: ftp://host:21
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
+  scheme: ftp
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "proxy.target: illegal url scheme")
+	assert.Contains(t, err.Error(), "proxy.scheme: must be 'http' or 'https'")
 }
 
 func TestLoadErrorMissingKeysSource(t *testing.T) {
 	yml := `
-token:
-  keys: {}
-rules:
-  - mode: allow
-    when: "true"
+guard:
+  token:
+    keys: {}
+  rules:
+    - mode: allow
+      when: "true"
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `at least one of "static" or "remote.endpoint"`)
 }
 
 func TestLoadErrorRuleUserInDeny(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: deny
-    when: "true"
-    user: '"bob"'
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: deny
+      when: "true"
+      user: '"bob"'
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "user: must not be set in")
 }
 
 func TestLoadErrorRolesWithoutUser(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
-    roles: '["r1"]'
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
+      roles: '["r1"]'
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "roles: cannot be set without user")
 }
 
 func TestLoadErrorRemoteBadScheme(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: ftp://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: ftp://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "remote.endpoint: illegal url scheme")
 }
 
 func TestLoadErrorRemoteNegativeInterval(t *testing.T) {
 	yml := `
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-      interval: -5
-rules:
-  - mode: allow
-    when: "true"
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+        interval: -5
+  rules:
+    - mode: allow
+      when: "true"
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "interval: must be non-negative")
 }
 
 func TestLoadErrorNegativeLeeway(t *testing.T) {
 	yml := `
-token:
-  leeway: -10
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
+guard:
+  token:
+    leeway: -10
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
 `
-	_, err := Load(writeConfig(t, yml))
+	_, _, err := Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "leeway: must be non-negative")
 }
@@ -197,22 +216,26 @@ func TestHeadersCanonicalization(t *testing.T) {
 	yml := `
 proxy:
   headers:
-    user: x-custom-user
-    roles: x-custom-roles
-    token: x-custom-token
-token:
-  keys:
-    remote:
-      endpoint: https://example.com/jwks
-rules:
-  - mode: allow
-    when: "true"
+    user:
+      name: x-custom-user
+    roles:
+      name: x-custom-roles
+    token:
+      name: x-custom-token
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: https://example.com/jwks
+  rules:
+    - mode: allow
+      when: "true"
 `
-	cfg, err := Load(writeConfig(t, yml))
+	cfg, _, err := Load(writeConfig(t, yml))
 	require.NoError(t, err)
 
 	h := cfg.Proxy.Headers
-	assert.Equal(t, "X-Custom-User", h.User)
-	assert.Equal(t, "X-Custom-Roles", h.Roles)
-	assert.Equal(t, "X-Custom-Token", h.Token)
+	assert.Equal(t, "X-Custom-User", h.User.Name)
+	assert.Equal(t, "X-Custom-Roles", h.Roles.Name)
+	assert.Equal(t, "X-Custom-Token", h.Token.Name)
 }

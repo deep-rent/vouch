@@ -119,7 +119,7 @@ var (
 
 // NewGuard constructs a Guard from configuration by wiring a token parser and
 // compiling the authorization rules.
-func NewGuard(ctx context.Context, cfg config.Config) (Guard, error) {
+func NewGuard(ctx context.Context, cfg config.Guard) (Guard, error) {
 	parser, err := newParser(ctx, cfg.Token)
 	if err != nil {
 		return nil, fmt.Errorf("create parser: %w", err)
