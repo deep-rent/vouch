@@ -415,8 +415,8 @@ func (r rolesHeader) validate(_ *warnings) (RolesHeader, error) {
 
 // tokenHeader is the wire representation of TokenHeader.
 type tokenHeader struct {
-	Name string `yaml:"name"`
-	signer
+	Name   string `yaml:"name"`
+	signer `yaml:",inline"`
 }
 
 // validate derives the runtime representation of tokenHeader.
@@ -427,13 +427,13 @@ func (t tokenHeader) validate(w *warnings) (TokenHeader, error) {
 	} else {
 		name = http.CanonicalHeaderKey(name)
 	}
-	signer, err := t.signer.validate(w)
+	s, err := t.signer.validate(w)
 	if err != nil {
 		return TokenHeader{}, fmt.Errorf("signer.%w", err)
 	}
 	return TokenHeader{
 		Name:   name,
-		Signer: signer,
+		Signer: s,
 	}, nil
 }
 
