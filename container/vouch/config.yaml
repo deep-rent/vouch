@@ -3,7 +3,9 @@ proxy:
   listen: :8080
   target: http://couchdb:5984
   headers:
-    secret: qm1nf4k8ZHzwf76XFZx4TObkx8E3L5eo
+    signer:
+      secret: qm1nf4k8ZHzwf76XFZx4TObkx8E3L5eo
+      algorithm: sha256
     user: X-Vouch-User
     roles: X-Vouch-Roles
     token: X-Vouch-Token
