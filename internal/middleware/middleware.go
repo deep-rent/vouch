@@ -29,3 +29,9 @@ func Chain(h http.Handler, mws ...Middleware) http.Handler {
 	}
 	return h
 }
+
+// sendStatus sends an HTTP response with the given status code and
+// corresponding status text as the body.
+func sendStatus(res http.ResponseWriter, code int) {
+	http.Error(res, http.StatusText(code), code)
+}

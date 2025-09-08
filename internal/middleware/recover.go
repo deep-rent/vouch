@@ -36,8 +36,7 @@ func Recover(log *slog.Logger) Middleware {
 						"panic", panic,
 						"stack", stack,
 					)
-					code := http.StatusInternalServerError
-					http.Error(res, http.StatusText(code), code)
+					sendStatus(res, http.StatusInternalServerError)
 				}
 			}()
 			next.ServeHTTP(res, req)
