@@ -16,7 +16,7 @@ PLATFORMS ?= linux/amd64,linux/arm64
 all: test build ## Run tests and build the binary
 
 test: ## Run tests with race detector and coverage
-		go test -v -race -cover -covermode=count -coverprofile=coverage.out ./...
+		go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
 
 cover: test ## Open the HTML coverage report
     go tool cover -html=coverage.out
