@@ -293,15 +293,15 @@ func (s signer) validate() (Signer, error) {
 	switch name := strings.ToLower(strings.TrimSpace(s.Algorithm)); name {
 	case "":
 		alg = nil
-	case "sha", "sha1", "sha-1":
+	case "sha":
 		alg = sha1.New
-	case "sha224", "sha-224":
+	case "sha224":
 		alg = sha256.New224
-	case "sha256", "sha-256":
+	case "sha256":
 		alg = sha256.New
-	case "sha384", "sha-384":
+	case "sha384":
 		alg = sha512.New384
-	case "sha512", "sha-512":
+	case "sha512":
 		alg = sha512.New
 	default:
 		return Signer{}, fmt.Errorf("algorithm: unsupported type %q", name)
