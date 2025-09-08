@@ -16,6 +16,9 @@ token:
   # leeway: 60
   keys:
     static: /app/jwks.json
+    # remote:
+    #   endpoint: https://auth.example.com/.well-known/jwks.json
+    #   interval: 60
 rules:
   - when: 'Claim("adm") == true'
     mode: allow
