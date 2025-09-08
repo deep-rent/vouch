@@ -99,12 +99,12 @@ func TestProxyConnectionErrorMapsTo502(t *testing.T) {
 	addr := l.Addr().String()
 	_ = l.Close()
 
-	u, err := url.Parse("http://" + addr)
+	u, err := url.Parse("https://" + addr)
 	require.NoError(t, err)
 
 	h := New(u)
 
-	req := httptest.NewRequest("GET", "http://example.invalid/", nil)
+	req := httptest.NewRequest("GET", "https://example.invalid/", nil)
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)
