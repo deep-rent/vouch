@@ -15,7 +15,6 @@
 package logger
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -25,56 +24,65 @@ import (
 
 func TestNewLevelMapping(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected slog.Level
-		handler  any
+		name    string
+		input   string
+		level   slog.Level
+		handler any
 	}{
-		{name: "debug", input: "DEBUG", expected: slog.LevelDebug, handler: &slog.JSONHandler{}},
-		{name: "sanitization", input: "  debug  ", expected: slog.LevelDebug, handler: &slog.JSONHandler{}},
-		{name: "info", input: "INFO", expected: slog.LevelInfo, handler: &slog.JSONHandler{}},
-		{name: "warn", input: "WARN", expected: slog.LevelWarn, handler: &slog.JSONHandler{}},
-		{name: "error", input: "ERROR", expected: slog.LevelError, handler: &slog.JSONHandler{}},
+		{name: "debug", input: "DEBUG", level: slog.LevelDebug, handler: &slog.JSONHandler{}},
+		{name: "sanitization", input: "  debug  ", level: slog.LevelDebug, handler: &slog.JSONHandler{}},
+		{name: "info", input: "INFO", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
+		{name: "warn", input: "WARN", level: slog.LevelWarn, handler: &slog.JSONHandler{}},
+		{name: "error", input: "ERROR", level: slog.LevelError, handler: &slog.JSONHandler{}},
 		{name: "silent", input: "SILENT", handler: &slog.TextHandler{}},
-		{name: "empty", input: "", expected: slog.LevelInfo, handler: &slog.JSONHandler{}},
-		{name: "unknown", input: "UNKNOWN", expected: slog.LevelInfo, handler: &slog.JSONHandler{}},
+		{name: "empty", input: "", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
+		{name: "unknown", input: "UNKNOWN", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
 	}
 
-	ctx := context.Background()
-
+	ctx := t.Context()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			log := New(tc.input)
-			require.NotNil(t, log)
 
-			// Handler type expectation
+			require.NotNil(t, log)
 			require.IsType(t, tc.handler, log.Handler())
 
 			// Skip level checks for SILENT (it returns a different handler that discards output;
 			// its Enabled behavior is not tied to a sentinel level in this implementation).
 			if tc.input == "SILENT" {
-				// Still should not panic when logging.
+				// Just ensure that logging at any level does not panic.
 				log.Debug("debug")
 				return
 			}
 
-			// Expected level should be enabled.
-			assert.True(t, log.Handler().Enabled(ctx, tc.expected), "expected level %v enabled", tc.expected)
-
-			// One step lower than expected should be disabled (except when expected is Debug).
-			if tc.expected != slog.LevelDebug {
-				lower := tc.expected - 4 // slog levels use increments of 4
-				assert.False(t, log.Handler().Enabled(ctx, lower), "expected level %v disabled", lower)
+			// (1) Expected level should be enabled.
+			{
+				on := log.Handler().Enabled(ctx, tc.level)
+				assert.True(t, on, "expected level %v enabled", tc.level)
 			}
-
-			// One step higher should be enabled.
-			higher := tc.expected + 4
-			assert.True(t, log.Handler().Enabled(ctx, higher), "expected higher level %v enabled", higher)
+			// (2) One step lower than expected should be disabled (except when on debug).
+			if tc.level != slog.LevelDebug {
+				prev := tc.level - 4 // slog levels use increments of 4
+				on := log.Handler().Enabled(ctx, prev)
+				assert.False(t, on, "expected lower level %v disabled", prev)
+			}
+			// (3) One step higher should be enabled.
+			{
+				next := tc.level + 4
+				on := log.Handler().Enabled(ctx, next)
+				assert.True(t, on, "expected higher level %v enabled", next)
+			}
 		})
 	}
 }
 
-func TestSilentHelper(t *testing.T) {
+func TestNewReturnsDistinctInstances(t *testing.T) {
+	a := New("info")
+	b := New("info")
+	require.NotSame(t, a, b)
+}
+
+func TestSilent(t *testing.T) {
 	log := Silent()
 	require.NotNil(t, log)
 
@@ -82,10 +90,4 @@ func TestSilentHelper(t *testing.T) {
 	log.Info("info")
 	log.Warn("warn")
 	log.Error("error")
-}
-
-func TestNewReturnsDistinctInstances(t *testing.T) {
-	a := New("info")
-	b := New("info")
-	require.NotSame(t, a, b)
 }
