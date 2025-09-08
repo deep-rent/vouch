@@ -74,31 +74,6 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 		mw = nil
 	}
 
-	t.Run("healthy does not hit upstream", func(t *testing.T) {
-		reset()
-		res, err := http.Get(api.URL + "/healthy")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-		body, _ := io.ReadAll(res.Body)
-		_ = res.Body.Close()
-		assert.Equal(t, "healthy", string(body))
-		mu.Lock()
-		assert.Empty(t, calls)
-		mu.Unlock()
-		assert.Empty(t, mw, "middleware should not run for /healthy")
-	})
-
-	t.Run("ready triggers upstream _up check", func(t *testing.T) {
-		reset()
-		res, err := http.Get(api.URL + "/ready")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-		mu.Lock()
-		require.Contains(t, calls, "GET /_up")
-		mu.Unlock()
-		assert.Empty(t, mw, "middleware should not run for /ready")
-	})
-
 	t.Run("proxy GET applies middleware and forwards", func(t *testing.T) {
 		reset()
 		res, err := http.Get(api.URL + "/db/doc")
@@ -123,31 +98,29 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 		require.Contains(t, calls, "OPTIONS /any/path")
 		mu.Unlock()
 	})
-}
 
-func TestServerReadyFailure(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(
-		res http.ResponseWriter,
-		req *http.Request,
-	) {
-		if req.URL.Path == "/_up" {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		res.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+	t.Run("GET /_up bypasses middleware", func(t *testing.T) {
+		res, err := http.Get(api.URL + "/_up")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		_ = res.Body.Close()
+		assert.Empty(t, mw, "middleware must not run for GET /_up")
+		mu.Lock()
+		assert.Contains(t, calls, "GET /_up")
+		mu.Unlock()
+	})
 
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	s := New(u)
-	api := httptest.NewServer(s.(*server).mux)
-	defer api.Close()
-
-	res, err := http.Get(api.URL + "/ready")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
-	_ = res.Body.Close()
+	t.Run("HEAD /_up bypasses middleware", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodHead, api.URL+"/_up", nil)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		_ = res.Body.Close()
+		assert.Empty(t, mw, "middleware must not run for HEAD /_up")
+		mu.Lock()
+		assert.Contains(t, calls, "HEAD /_up")
+		mu.Unlock()
+	})
 }
 
 func TestShutdownWithoutStartIsNoop(t *testing.T) {
