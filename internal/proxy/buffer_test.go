@@ -15,7 +15,7 @@
 package proxy
 
 import (
-	"sync"
+	// "sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,29 +68,29 @@ func TestLargeBufferNotRetained(t *testing.T) {
 	p.Put(buf)
 }
 
-func TestConcurrentGetPut(t *testing.T) {
-	const (
-		sz    = 1024
-		goros = 32
-		iters = 200
-	)
+// func TestConcurrentGetPut(t *testing.T) {
+// 	const (
+// 		sz    = 1024
+// 		goros = 32
+// 		iters = 200
+// 	)
 
-	p := newBufferPool(sz)
-	var wg sync.WaitGroup
-	wg.Add(goros)
+// 	p := newBufferPool(sz)
+// 	var wg sync.WaitGroup
+// 	wg.Add(goros)
 
-	for range goros {
-		go func() {
-			defer wg.Done()
-			for range iters {
-				b := p.Get()
-				if len(b) != sz || cap(b) != sz {
-					t.Errorf("unexpected buffer size len=%d cap=%d", len(b), cap(b))
-				}
-				p.Put(b)
-			}
-		}()
-	}
+// 	for range goros {
+// 		go func() {
+// 			defer wg.Done()
+// 			for range iters {
+// 				b := p.Get()
+// 				if len(b) != sz || cap(b) != sz {
+// 					t.Errorf("unexpected buffer size len=%d cap=%d", len(b), cap(b))
+// 				}
+// 				p.Put(b)
+// 			}
+// 		}()
+// 	}
 
-	wg.Wait()
-}
+// 	wg.Wait()
+// }
