@@ -155,7 +155,7 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 		if err != nil {
 			return nil, err
 		}
-		for i := 0; i < set.Len(); i++ {
+		for i := range set.Len() {
 			if key, ok := set.Key(i); ok {
 				if err := agg.AddKey(key); err != nil {
 					return nil, fmt.Errorf("add key: %w", err)
