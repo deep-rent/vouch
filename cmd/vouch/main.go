@@ -93,7 +93,7 @@ func main() {
 	}
 
 	if f.version {
-		fmt.Printf("version: %s\n", version)
+		slog.Info("version", "version", version)
 		os.Exit(0)
 	}
 
