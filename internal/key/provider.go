@@ -48,7 +48,7 @@ type static struct {
 }
 
 // Keys returns the pre-parsed static JWK set.
-func (s *static) Keys(ctx context.Context) (jwk.Set, error) {
+func (s *static) Keys(context.Context) (jwk.Set, error) {
 	return s.set, nil
 }
 

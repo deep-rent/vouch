@@ -62,7 +62,7 @@ func writeJWKS(t *testing.T, data string) string {
 // serveJWKS starts a test HTTP server that serves the given JWKS under the
 // base URL. The caller is responsible for closing the server.
 func serveJWKS(_ *testing.T, data string) *httptest.Server {
-	h := http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	h := http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(res, data)
 	})
 	return httptest.NewServer(h)
@@ -122,8 +122,7 @@ func TestNewRemote(t *testing.T) {
 	t.Run("server error", func(t *testing.T) {
 		ctx := t.Context()
 		srv := httptest.NewServer(http.HandlerFunc(func(
-			res http.ResponseWriter,
-			req *http.Request,
+			res http.ResponseWriter, _ *http.Request,
 		) {
 			res.WriteHeader(http.StatusInternalServerError)
 		}))
