@@ -329,7 +329,7 @@ func (p proxy) validate(v *visitor) (Proxy, error) {
 		return Proxy{}, fmt.Errorf("scheme+host+port: invalid url: %w", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return Proxy{}, fmt.Errorf("scheme: must be 'http' or 'https'")
+		return Proxy{}, errors.New("scheme: must be 'http' or 'https'")
 	}
 	headers, err := p.Headers.validate(v)
 	if err != nil {
@@ -585,7 +585,7 @@ func (r rule) validate(_ *visitor) (Rule, error) {
 	case modeDeny:
 		deny = true
 	case "":
-		return Rule{}, fmt.Errorf("mode: must be specified")
+		return Rule{}, errors.New("mode: must be specified")
 	default:
 		return Rule{}, fmt.Errorf("mode: must be %q or %q", modeAllow, modeDeny)
 	}
