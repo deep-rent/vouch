@@ -20,10 +20,11 @@ UserInterfaceState.xcuserstate
 *.vsix
 
 # Go
-/.go-version
+.go-version
 /bin/
 /coverage.out
 /dist/
+/tmp/
 /vendor/
 
 # Yarn
