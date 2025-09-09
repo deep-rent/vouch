@@ -52,8 +52,8 @@ func TestRecoverPanic(t *testing.T) {
 
 func TestRecoverWithoutPanic(t *testing.T) {
 	buf, log := newLogger()
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, "ok")
+	h := http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(res, "ok")
 	})
 
 	rr := httptest.NewRecorder()

@@ -69,8 +69,7 @@ func TestProxyDirectorAndForwardingHeaders(t *testing.T) {
 
 func TestProxyTimeoutMapsTo504(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(
-		res http.ResponseWriter,
-		req *http.Request,
+		res http.ResponseWriter, _ *http.Request,
 	) {
 		time.Sleep(200 * time.Millisecond)
 		res.WriteHeader(http.StatusOK)

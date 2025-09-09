@@ -91,9 +91,7 @@ func New(target *url.URL) http.Handler {
 
 	// Map upstream errors to reasonable statuses.
 	proxy.ErrorHandler = func(
-		res http.ResponseWriter,
-		req *http.Request,
-		err error,
+		res http.ResponseWriter, _ *http.Request, err error,
 	) {
 		var code = http.StatusBadGateway
 		if errors.Is(err, context.DeadlineExceeded) {
