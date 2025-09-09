@@ -167,7 +167,7 @@ func (c *CompositeProvider) Keys(ctx context.Context) (jwk.Set, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = addAll(agg, set)
+		err = merge(agg, set)
 		if err != nil {
 			return nil, fmt.Errorf("merge key sets: %w", err)
 		}
@@ -175,8 +175,9 @@ func (c *CompositeProvider) Keys(ctx context.Context) (jwk.Set, error) {
 	return agg, nil
 }
 
-// addAll adds all keys from src to dst, returning any error encountered.
-func addAll(dst, src jwk.Set) error {
+// merge adds all keys from src to dst, returning an error if any duplicate
+// key is encountered.
+func merge(dst, src jwk.Set) error {
 	for i := range src.Len() {
 		if key, ok := src.Key(i); ok {
 			if err := dst.AddKey(key); err != nil {
