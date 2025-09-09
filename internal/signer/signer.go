@@ -31,9 +31,9 @@ type Signer struct {
 	alg func() hash.Hash
 }
 
-// Sign returns the lowercase hex-encoded HMAC-SHA256 of the provided user
-// name using the underlying secret key. The output is deterministic for
-// the same input and key.
+// Sign returns the lowercase hex-encoded HMAC of the provided user name
+// using the underlying secret key and hash algorithm. The output is
+// deterministic for the same input and key.
 func (s *Signer) Sign(user string) string {
 	mac := hmac.New(s.alg, s.key)
 	// Writing cannot fail for in-memory hashes, so the write error is
