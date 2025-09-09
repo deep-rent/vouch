@@ -199,7 +199,7 @@ func TestRuleEval(t *testing.T) {
 			got, err := tc.rule.Eval(Environment{})
 
 			if tc.fail {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Empty(t, got, "result should be zero value on error")
 				return
 			}
