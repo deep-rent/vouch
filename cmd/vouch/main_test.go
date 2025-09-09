@@ -51,9 +51,6 @@ guard:
 }
 
 func TestParse(t *testing.T) {
-	orig := os.Args
-	defer func() { os.Args = orig }()
-
 	cases := []struct {
 		name string
 		args []string
@@ -61,23 +58,52 @@ func TestParse(t *testing.T) {
 		want flags
 	}{
 		{"default path", []string{"vouch"}, "", flags{path: "./config.yaml"}},
-		{"environment variable overrides default", []string{"vouch"}, "env.yaml", flags{path: "env.yaml"}},
-		{"short flag overrides environment variable", []string{"vouch", "-c", "arg.yaml"}, "env.yaml", flags{path: "arg.yaml"}},
-		{"long flag overrides environment variable", []string{"vouch", "--config", "arg.yaml"}, "env.yaml", flags{path: "arg.yaml"}},
-		{"long flag with equals overrides environment variable", []string{"vouch", "--config=arg.yaml"}, "env.yaml", flags{path: "arg.yaml"}},
-		{"short version flag", []string{"vouch", "-v"}, "", flags{path: "./config.yaml", version: true}},
-		{"long version flag", []string{"vouch", "--version"}, "", flags{path: "./config.yaml", version: true}},
+		{
+			"environment variable overrides default",
+			[]string{"vouch"},
+			"env.yaml",
+			flags{path: "env.yaml"},
+		},
+		{
+			"short flag overrides environment variable",
+			[]string{"vouch", "-c", "arg.yaml"},
+			"env.yaml",
+			flags{path: "arg.yaml"},
+		},
+		{
+			"long flag overrides environment variable",
+			[]string{"vouch", "--config", "arg.yaml"},
+			"env.yaml",
+			flags{path: "arg.yaml"},
+		},
+		{
+			"long flag with equals overrides environment variable",
+			[]string{"vouch", "--config=arg.yaml"},
+			"env.yaml",
+			flags{path: "arg.yaml"},
+		},
+		{
+			"short version flag",
+			[]string{"vouch", "-v"},
+			"",
+			flags{path: "./config.yaml", version: true},
+		},
+		{
+			"long version flag",
+			[]string{"vouch", "--version"},
+			"",
+			flags{path: "./config.yaml", version: true},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			os.Args = tc.args
 			if tc.env != "" {
 				t.Setenv("VOUCH_CONFIG", tc.env)
 			} else {
 				os.Unsetenv("VOUCH_CONFIG")
 			}
-			f, err := parse()
+			f, err := parse(tc.args)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want.path, f.path)
 			assert.Equal(t, tc.want.version, f.version)
@@ -127,12 +153,16 @@ func TestRunInterruptGraceful(t *testing.T) {
 		// Safe: buffer no longer written to.
 		require.NoError(t, err, "child output:\n%s", out.String())
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timeout waiting for graceful shutdown; output:\n%s", out.String())
+		t.Fatalf(
+			"timeout waiting for graceful shutdown; output:\n%s",
+			out.String(),
+		)
 	}
 }
 
 func TestMainVersionFlag(t *testing.T) {
 	if os.Getenv("TEST_MAIN_VERSION") == "1" {
+		//nolint:reassign // need to set this for the subprocess
 		os.Args = []string{"vouch", "-v"}
 		main()
 		return

@@ -24,22 +24,23 @@ import (
 // It logs the panic value and stack trace along with basic request context.
 func Recover(log *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			defer func() {
-				// Intercept a p from downstream handlers/middlewares.
-				if p := recover(); p != nil {
-					method, path := req.Method, req.URL.Path
-					stack := string(debug.Stack())
-					log.Error("unhandled panic",
-						"method", method,
-						"path", path,
-						"panic", p,
-						"stack", stack,
-					)
-					sendStatus(res, http.StatusInternalServerError)
-				}
-			}()
-			next.ServeHTTP(res, req)
-		})
+		return http.HandlerFunc(
+			func(res http.ResponseWriter, req *http.Request) {
+				defer func() {
+					// Intercept a panic from downstream handlers/middlewares.
+					if err := recover(); err != nil {
+						method, path := req.Method, req.URL.Path
+						log.Error("unhandled panic",
+							"method", method,
+							"path", path,
+							"panic", err,
+							"stack", string(debug.Stack()),
+						)
+						sendStatus(res, http.StatusInternalServerError)
+					}
+				}()
+				next.ServeHTTP(res, req)
+			},
+		)
 	}
 }

@@ -18,17 +18,22 @@ import (
 	"testing"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/signer"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMatch(t *testing.T) {
-	s := New(config.Signer{Secret: "secret"})
+	s := signer.New(config.Signer{Secret: "secret"})
 	got := s.Sign("test")
 	// echo -n "test" | openssl dgst -sha256 -hmac "secret"
-	require.Equal(t, "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914", got)
+	require.Equal(
+		t,
+		"0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
+		got,
+	)
 }
 
 func TestEmptyKey(t *testing.T) {
-	s := New(config.Signer{})
+	s := signer.New(config.Signer{})
 	require.Nil(t, s)
 }

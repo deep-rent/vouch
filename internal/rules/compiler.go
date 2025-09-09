@@ -24,12 +24,12 @@ import (
 )
 
 // Compiler compiles declarative rule definitions into executable programs.
-// It enforces result types for each expression (bool for when, string for user,
-// and slice for roles) at compile time.
+// It enforces result types for each expression (bool for when, string for
+// user, and slice for roles) at compile time.
 type Compiler struct {
-	when  []expr.Option // compile options for "when" expressions
-	user  []expr.Option // compile options for "user" expressions
-	roles []expr.Option // compile options for "roles" expressions
+	When  []expr.Option // compile options for "when" expressions
+	User  []expr.Option // compile options for "user" expressions
+	Roles []expr.Option // compile options for "roles" expressions
 }
 
 // NewCompiler builds a compiler that type-checks expressions against the
@@ -46,9 +46,9 @@ func NewCompiler() *Compiler {
 		return out
 	}
 	return &Compiler{
-		when:  opts(expr.AsBool()),
-		user:  opts(expr.AsKind(reflect.String)),
-		roles: opts(expr.AsKind(reflect.Slice)),
+		When:  opts(expr.AsBool()),
+		User:  opts(expr.AsKind(reflect.String)),
+		Roles: opts(expr.AsKind(reflect.Slice)),
 	}
 }
 
@@ -70,7 +70,7 @@ func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
 // For deny rules, user and roles must not be provided; for allow rules,
 // when is required and user/roles are optional.
 func (c *Compiler) compile(r config.Rule) (Rule, error) {
-	when, err := expr.Compile(r.When, c.when...)
+	when, err := expr.Compile(r.When, c.When...)
 	if err != nil {
 		return Rule{}, fmt.Errorf("when: %w", err)
 	}
@@ -80,14 +80,14 @@ func (c *Compiler) compile(r config.Rule) (Rule, error) {
 	if !deny {
 		if u := r.User; u != "" {
 			var err error
-			user, err = expr.Compile(u, c.user...)
+			user, err = expr.Compile(u, c.User...)
 			if err != nil {
 				return Rule{}, fmt.Errorf("user: %w", err)
 			}
 		}
 		if r := r.Roles; r != "" {
 			var err error
-			roles, err = expr.Compile(r, c.roles...)
+			roles, err = expr.Compile(r, c.Roles...)
 			if err != nil {
 				return Rule{}, fmt.Errorf("roles: %w", err)
 			}
@@ -95,9 +95,9 @@ func (c *Compiler) compile(r config.Rule) (Rule, error) {
 	}
 
 	return Rule{
-		deny:  deny,
-		when:  when,
-		user:  user,
-		roles: roles,
+		Deny:  deny,
+		When:  when,
+		User:  user,
+		Roles: roles,
 	}, nil
 }

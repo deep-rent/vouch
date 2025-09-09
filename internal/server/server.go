@@ -119,9 +119,9 @@ func (s *server) Shutdown(ctx context.Context) error {
 	if srv == nil {
 		return nil
 	}
-	wt, cancel := context.WithTimeout(ctx, 10*time.Second)
+	wait, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	err := srv.Shutdown(wt)
+	err := srv.Shutdown(wait)
 
 	// Allow restart after a graceful shutdown.
 	s.mu.Lock()

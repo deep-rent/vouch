@@ -37,7 +37,7 @@ import (
 	"github.com/deep-rent/vouch/internal/server"
 )
 
-// version is set at build time using -ldflags "-X main.version=..."
+// version is set at build time using linker flags.
 var version = "dev"
 
 // flags is the data model for the command line arguments.
@@ -47,31 +47,41 @@ type flags struct {
 }
 
 // parse parses the command line arguments and returns them.
-func parse() (*flags, error) {
+func parse(args []string) (*flags, error) {
 	path := strings.TrimSpace(os.Getenv("VOUCH_CONFIG"))
 	if path == "" {
 		// Fall back to the default config file path.
 		path = "./config.yaml"
 	}
 	p := new(flags)
-	f := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError)
-	f.StringVar(&p.path, "c", path, "Path to the YAML config file (alias: --config)")
-	f.BoolVar(&p.version, "v", false, "Show version and exit (alias: --version)")
+	f := flag.NewFlagSet(filepath.Base(args[0]), flag.ContinueOnError)
+	f.StringVar(
+		&p.path,
+		"c",
+		path,
+		"Path to the YAML config file (alias: --config)",
+	)
+	f.BoolVar(
+		&p.version,
+		"v",
+		false,
+		"Show version and exit (alias: --version)",
+	)
 
 	// Map long-form aliases to their short-form counterparts.
-	args := os.Args[1:]
-	for i, arg := range args {
+	a := args[1:]
+	for i, arg := range a {
 		switch {
 		case arg == "--config":
-			args[i] = "-c"
+			a[i] = "-c"
 		case strings.HasPrefix(arg, "--config="):
-			args[i] = "-c=" + strings.TrimPrefix(arg, "--config=")
+			a[i] = "-c=" + strings.TrimPrefix(arg, "--config=")
 		case arg == "--version":
-			args[i] = "-v"
+			a[i] = "-v"
 		}
 	}
 
-	err := f.Parse(args)
+	err := f.Parse(a)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +93,7 @@ func main() {
 	log := logger.New(os.Getenv("VOUCH_LOG"))
 	slog.SetDefault(log)
 
-	f, err := parse()
+	f, err := parse(os.Args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0) // Print help exits successfully.
@@ -93,11 +103,13 @@ func main() {
 	}
 
 	if f.version {
-		slog.Info("version", "version", version)
+		//nolint:forbidigo // shouldn't use the logger
+		fmt.Printf("version: %s\n", version)
 		os.Exit(0)
 	}
 
-	if err := run(f); err != nil {
+	err = run(f)
+	if err != nil {
 		log.Error("application error", "error", err)
 		os.Exit(1)
 	}
@@ -151,19 +163,20 @@ func run(f *flags) error {
 	defer stop()
 
 	select {
-	case err := <-errCh:
+	case e := <-errCh:
 		// Ensure background work is stopped if the server exits.
 		appCancel()
-		if err != nil {
-			return fmt.Errorf("server exited with error: %w", err)
+		if e != nil {
+			return fmt.Errorf("server exited with error: %w", e)
 		}
 		log.Info("server stopped")
 	case <-ctx.Done():
 		// Stop background work first, then shut down the server.
 		appCancel()
 		log.Info("server shutting down")
-		if err := srv.Shutdown(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
-			log.Error("graceful shutdown failed", "error", err)
+		e := srv.Shutdown(context.Background())
+		if e != nil && !errors.Is(e, context.Canceled) {
+			log.Error("graceful shutdown failed", "error", e)
 		}
 		<-errCh // Wait for server to stop.
 		log.Info("server stopped")

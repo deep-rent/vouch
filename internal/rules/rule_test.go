@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rules
+package rules_test
 
 import (
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/rules"
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ import (
 
 func compile(t *testing.T, src string) *vm.Program {
 	t.Helper()
-	p, err := expr.Compile(src, expr.Env(Environment{}))
+	p, err := expr.Compile(src, expr.Env(rules.Environment{}))
 	if err != nil {
 		t.Fatalf("compile %q: %v", src, err)
 	}
@@ -34,12 +35,10 @@ func compile(t *testing.T, src string) *vm.Program {
 
 func TestRuleEvalWhen(t *testing.T) {
 	tests := []struct {
-		// inputs
-		name string
-		expr string
-		// expected outputs
-		want bool
-		fail bool
+		name     string
+		expr     string
+		want     bool
+		wantFail bool
 	}{
 		{"returns true", "true", true, false},
 		{"returns false", "false", false, false},
@@ -48,10 +47,10 @@ func TestRuleEvalWhen(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &Rule{when: compile(t, tc.expr)}
-			got, err := r.evalWhen(Environment{})
+			r := &rules.Rule{When: compile(t, tc.expr)}
+			got, err := r.EvalWhen(rules.Environment{})
 
-			if tc.fail {
+			if tc.wantFail {
 				assert.Error(t, err)
 				return
 			}
@@ -63,23 +62,26 @@ func TestRuleEvalWhen(t *testing.T) {
 
 func TestRuleEvalUser(t *testing.T) {
 	tests := []struct {
-		// inputs
-		name string
-		rule *Rule
-		// expected outputs
-		want string
-		fail bool
+		name     string
+		rule     *rules.Rule
+		want     string
+		wantFail bool
 	}{
-		{"nil expression", &Rule{user: nil}, "", false},
-		{"string expression", &Rule{user: compile(t, `"alice"`)}, "alice", false},
-		{"wrong type", &Rule{user: compile(t, "42")}, "", true},
+		{"nil expression", &rules.Rule{User: nil}, "", false},
+		{
+			"string expression",
+			&rules.Rule{User: compile(t, `"alice"`)},
+			"alice",
+			false,
+		},
+		{"wrong type", &rules.Rule{User: compile(t, "42")}, "", true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.rule.evalUser(Environment{})
+			got, err := tc.rule.EvalUser(rules.Environment{})
 
-			if tc.fail {
+			if tc.wantFail {
 				assert.Error(t, err)
 				return
 			}
@@ -91,25 +93,33 @@ func TestRuleEvalUser(t *testing.T) {
 
 func TestRuleEvalRoles(t *testing.T) {
 	tests := []struct {
-		// inputs
-		name string
-		rule *Rule
-		// expected outputs
-		want string
-		fail bool
+		name     string
+		rule     *rules.Rule
+		want     string
+		wantFail bool
 	}{
-		{"nil expression", &Rule{roles: nil}, "", false},
-		{"string slice", &Rule{roles: compile(t, `["a","b"]`)}, "a,b", false},
-		{"empty slice", &Rule{roles: compile(t, `[]`)}, "", false},
-		{"non-slice type", &Rule{roles: compile(t, `"admin"`)}, "", true},
-		{"slice with non-string", &Rule{roles: compile(t, `["a", 1]`)}, "", true},
+		{"nil expression", &rules.Rule{Roles: nil}, "", false},
+		{
+			"string slice",
+			&rules.Rule{Roles: compile(t, `["a","b"]`)},
+			"a,b",
+			false,
+		},
+		{"empty slice", &rules.Rule{Roles: compile(t, `[]`)}, "", false},
+		{"non-slice type", &rules.Rule{Roles: compile(t, `"admin"`)}, "", true},
+		{
+			"slice with non-string",
+			&rules.Rule{Roles: compile(t, `["a", 1]`)},
+			"",
+			true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.rule.evalRoles(Environment{})
+			got, err := tc.rule.EvalRoles(rules.Environment{})
 
-			if tc.fail {
+			if tc.wantFail {
 				assert.Error(t, err)
 				return
 			}
@@ -121,82 +131,82 @@ func TestRuleEvalRoles(t *testing.T) {
 
 func TestRuleEval(t *testing.T) {
 	tests := []struct {
-		// inputs
-		name string
-		rule Rule
-		// expected outputs
-		want result
-		fail bool
+		name     string
+		rule     rules.Rule
+		want     rules.Action
+		wantFail bool
 	}{
 		{
 			name: "skip when condition is false",
-			rule: Rule{when: compile(t, "false")},
-			want: result{Skip: true},
+			rule: rules.Rule{When: compile(t, "false")},
+			want: rules.Action{Skip: true},
 		},
 		{
 			name: "deny when condition is true and deny mode is on",
-			rule: Rule{deny: true, when: compile(t, "true")},
-			want: result{Deny: true},
+			rule: rules.Rule{Deny: true, When: compile(t, "true")},
+			want: rules.Action{Deny: true},
 		},
 		{
 			name: "allow with user and roles",
-			rule: Rule{
-				when:  compile(t, "true"),
-				user:  compile(t, `"alice"`),
-				roles: compile(t, `["reader","writer"]`),
+			rule: rules.Rule{
+				When:  compile(t, "true"),
+				User:  compile(t, `"alice"`),
+				Roles: compile(t, `["reader","writer"]`),
 			},
-			want: result{User: "alice", Roles: "reader,writer"},
+			want: rules.Action{
+				Grant: rules.Scope{User: "alice", Roles: "reader,writer"},
+			},
 		},
 		{
 			name: "allow with user and no roles",
-			rule: Rule{
-				when: compile(t, "true"),
-				user: compile(t, `"bob"`),
+			rule: rules.Rule{
+				When: compile(t, "true"),
+				User: compile(t, `"bob"`),
 			},
-			want: result{User: "bob"},
+			want: rules.Action{Grant: rules.Scope{User: "bob"}},
 		},
 		{
 			name: "allow with roles and no user",
-			rule: Rule{
-				when:  compile(t, "true"),
-				roles: compile(t, `["editor"]`),
+			rule: rules.Rule{
+				When:  compile(t, "true"),
+				Roles: compile(t, `["editor"]`),
 			},
-			want: result{Roles: "editor"},
+			want: rules.Action{Grant: rules.Scope{Roles: "editor"}},
 		},
 		{
 			name: "allow with no user or roles",
-			rule: Rule{when: compile(t, "true")},
-			want: result{},
+			rule: rules.Rule{When: compile(t, "true")},
+			want: rules.Action{},
 		},
 		{
-			name: "error on invalid when expression",
-			rule: Rule{when: compile(t, "1")},
-			fail: true,
+			name:     "error on invalid when expression",
+			rule:     rules.Rule{When: compile(t, "1")},
+			wantFail: true,
 		},
 		{
 			name: "error on invalid user expression",
-			rule: Rule{
-				when: compile(t, "true"),
-				user: compile(t, "1"),
+			rule: rules.Rule{
+				When: compile(t, "true"),
+				User: compile(t, "1"),
 			},
-			fail: true,
+			wantFail: true,
 		},
 		{
 			name: "error on invalid roles expression",
-			rule: Rule{
-				when:  compile(t, "true"),
-				user:  compile(t, `"charlie"`),
-				roles: compile(t, "1"),
+			rule: rules.Rule{
+				When:  compile(t, "true"),
+				User:  compile(t, `"charlie"`),
+				Roles: compile(t, "1"),
 			},
-			fail: true,
+			wantFail: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.rule.Eval(Environment{})
+			got, err := tc.rule.Eval(rules.Environment{})
 
-			if tc.fail {
+			if tc.wantFail {
 				require.Error(t, err)
 				assert.Empty(t, got, "result should be zero value on error")
 				return

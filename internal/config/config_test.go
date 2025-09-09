@@ -21,14 +21,14 @@ import (
 
 	"os"
 
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yaml")
+	path := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 	return path
 }
@@ -47,7 +47,7 @@ guard:
 `
 	path := writeConfig(t, yml)
 
-	cfg, _, err := Load(path)
+	cfg, _, err := config.Load(path)
 	require.NoError(t, err)
 
 	local := cfg.Local
@@ -91,7 +91,7 @@ guard:
         endpoint: https://example.com/jwks
   rules: []
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rules: at least one rule")
 }
@@ -109,7 +109,7 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "proxy.scheme: must be 'http' or 'https'")
 }
@@ -123,9 +123,13 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `at least one of "static" or "remote.endpoint"`)
+	assert.Contains(
+		t,
+		err.Error(),
+		`at least one of "static" or "remote.endpoint"`,
+	)
 }
 
 func TestLoadErrorRuleUserInDeny(t *testing.T) {
@@ -140,7 +144,7 @@ guard:
       when: "true"
       user: '"bob"'
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "user: must not be set in")
 }
@@ -157,7 +161,7 @@ guard:
       when: "true"
       roles: '["r1"]'
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "roles: cannot be set without user")
 }
@@ -173,7 +177,7 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "remote.endpoint: illegal url scheme")
 }
@@ -190,7 +194,7 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "interval: must be non-negative")
 }
@@ -207,7 +211,7 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml))
+	_, _, err := config.Load(writeConfig(t, yml))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "leeway: must be non-negative")
 }
@@ -231,7 +235,7 @@ guard:
     - mode: allow
       when: "true"
 `
-	cfg, _, err := Load(writeConfig(t, yml))
+	cfg, _, err := config.Load(writeConfig(t, yml))
 	require.NoError(t, err)
 
 	h := cfg.Proxy.Headers
@@ -251,6 +255,6 @@ guard:
     - mode: allow
       when: "true"
 `
-	_, _, err := Load(writeConfig(t, yml), WithVersion("1.2.3"))
+	_, _, err := config.Load(writeConfig(t, yml), config.WithVersion("1.2.3"))
 	require.NoError(t, err)
 }

@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/rules"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,12 +32,12 @@ func TestNewEnvironment(t *testing.T) {
 	}
 	tok := jwt.New()
 
-	env := NewEnvironment(tok, req)
+	env := rules.NewEnvironment(tok, req)
 
 	assert.Equal(t, http.MethodPost, env.Method, "should set the method")
 	assert.Equal(t, "/my-db/some_doc", env.Path, "should set the path")
 	assert.Equal(t, "my-db", env.DB, "should extract the database name")
-	assert.Same(t, tok, env.tok, "should set the token")
+	assert.Same(t, tok, env.Token, "should set the token")
 }
 
 func TestEnvironmentClaim(t *testing.T) {
@@ -45,28 +46,26 @@ func TestEnvironmentClaim(t *testing.T) {
 	require.NoError(t, tok.Set("rol", []string{"admin", "editor"}))
 
 	tests := []struct {
-		// inputs
 		name  string
-		env   Environment
+		env   rules.Environment
 		claim string
-		// expected outputs
-		want any
+		want  any
 	}{
 		{
 			name:  "existing string claim",
-			env:   Environment{tok: tok},
+			env:   rules.Environment{Token: tok},
 			claim: "sub",
 			want:  "alice",
 		},
 		{
 			name:  "existing slice claim",
-			env:   Environment{tok: tok},
+			env:   rules.Environment{Token: tok},
 			claim: "rol",
 			want:  []string{"admin", "editor"},
 		},
 		{
 			name:  "non-existent claim",
-			env:   Environment{tok: tok},
+			env:   rules.Environment{Token: tok},
 			claim: "iss",
 			want:  nil,
 		},
@@ -101,8 +100,7 @@ func TestDatabase(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.path, func(t *testing.T) {
-			got := database(tc.path)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, rules.Database(tc.path))
 		})
 	}
 }

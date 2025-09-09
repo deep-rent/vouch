@@ -16,6 +16,7 @@ package config
 
 import (
 	"bytes"
+	//nolint:gosec // default for CouchDB
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -53,7 +54,8 @@ import (
 
 // Config represents the entire application configuration.
 type Config struct {
-  Server
+	Server
+
 	// Guard configures authentication and authorization of incoming requests.
 	Guard Guard
 }
@@ -141,7 +143,8 @@ type RolesHeader struct {
 
 // TokenHeader configures the proxy header that carries the CouchDB token.
 type TokenHeader struct {
-  Signer
+	Signer
+
 	// Name is the proxy header name.
 	Name string
 }
@@ -307,6 +310,11 @@ type proxy struct {
 	Headers headers `yaml:"headers"`
 }
 
+// isHTTP reports whether u has scheme http or https.
+func isHTTP(u *url.URL) bool {
+	return u.Scheme == "http" || u.Scheme == "https"
+}
+
 // validate derives the runtime representation of proxy.
 func (p proxy) validate(v *visitor) (Proxy, error) {
 	scheme := strings.TrimSpace(p.Scheme)
@@ -328,7 +336,7 @@ func (p proxy) validate(v *visitor) (Proxy, error) {
 	if err != nil {
 		return Proxy{}, fmt.Errorf("scheme+host+port: invalid url: %w", err)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
+	if !isHTTP(u) {
 		return Proxy{}, errors.New("scheme: must be 'http' or 'https'")
 	}
 	headers, err := p.Headers.validate(v)
@@ -376,6 +384,8 @@ type userHeader struct {
 }
 
 // validate derives the runtime representation of userHeader.
+//
+//nolint:unparam // error is part of the signature for consistency
 func (u userHeader) validate(_ *visitor) (UserHeader, error) {
 	name := strings.TrimSpace(u.Name)
 	if name == "" {
@@ -396,6 +406,8 @@ type rolesHeader struct {
 }
 
 // validate derives the runtime representation of rolesHeader.
+//
+//nolint:unparam // error is part of the signature for consistency
 func (r rolesHeader) validate(_ *visitor) (RolesHeader, error) {
 	name := strings.TrimSpace(r.Name)
 	if name == "" {
@@ -418,8 +430,9 @@ func (r rolesHeader) validate(_ *visitor) (RolesHeader, error) {
 
 // tokenHeader is the wire representation of TokenHeader.
 type tokenHeader struct {
-  signer `yaml:",inline"`
-	Name   string `yaml:"name"`
+	signer `yaml:",inline"`
+
+	Name string `yaml:"name"`
 }
 
 // validate derives the runtime representation of tokenHeader.
@@ -454,7 +467,9 @@ func (s signer) validate(v *visitor) (Signer, error) {
 		key = strings.TrimSpace(os.Getenv("VOUCH_SECRET"))
 	}
 	if key == "" {
-		v.warn("proxy signing is disabled; this is not recommended for production")
+		v.warn(
+			"proxy signing is disabled; this is not recommended for production",
+		)
 	}
 	var alg func() hash.Hash
 	switch name := strings.ToLower(strings.TrimSpace(s.Algorithm)); name {
@@ -494,8 +509,11 @@ func (r remote) validate(v *visitor) (Remote, error) {
 		if err != nil {
 			return Remote{}, fmt.Errorf("endpoint: invalid url: %w", err)
 		}
-		if u.Scheme != "https" && u.Scheme != "http" {
-			return Remote{}, fmt.Errorf("endpoint: illegal url scheme %q", u.Scheme)
+		if !isHTTP(u) {
+			return Remote{}, fmt.Errorf(
+				"endpoint: illegal url scheme %q",
+				u.Scheme,
+			)
 		} else if u.Scheme != "https" {
 			v.warn("jwks endpoint is not using https")
 		}
@@ -600,7 +618,10 @@ func (r rule) validate(_ *visitor) (Rule, error) {
 	roles := strings.TrimSpace(r.Roles)
 	if roles != "" {
 		if deny {
-			return Rule{}, fmt.Errorf("roles: must not be set in %q mode", modeDeny)
+			return Rule{}, fmt.Errorf(
+				"roles: must not be set in %q mode",
+				modeDeny,
+			)
 		}
 		if user == "" {
 			return Rule{}, errors.New("roles: cannot be set without user")
@@ -614,24 +635,24 @@ func (r rule) validate(_ *visitor) (Rule, error) {
 	}, nil
 }
 
-// LoadOptions holds options for the Load function.
-type LoadOptions struct {
+// Option influences Load behavior.
+type Option func(*options)
+
+// options holds options for the Load function.
+type options struct {
 	// Version is the Vouch application version.
 	// Defaults to "dev".
 	Version string
 }
 
-// LoadOption influences Load behavior.
-type LoadOption func(*LoadOptions)
-
 // WithVersion sets the Vouch application version.
-func WithVersion(v string) LoadOption {
-	return func(o *LoadOptions) { o.Version = strings.TrimSpace(v) }
+func WithVersion(v string) Option {
+	return func(o *options) { o.Version = strings.TrimSpace(v) }
 }
 
 // Load reads a YAML configuration file from path, decodes into wire types,
 // then validates and converts them into a fully populated Config instance.
-func Load(path string, opts ...LoadOption) (Config, []string, error) {
+func Load(path string, opts ...Option) (Config, []string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, nil, fmt.Errorf("read file %q: %w", path, err)
@@ -643,7 +664,7 @@ func Load(path string, opts ...LoadOption) (Config, []string, error) {
 		return Config{}, nil, fmt.Errorf("parse yaml: %w", err)
 	}
 	// Apply options with defaults.
-	o := LoadOptions{
+	o := options{
 		Version: "dev",
 	}
 	for _, opt := range opts {

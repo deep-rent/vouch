@@ -15,15 +15,15 @@
 package proxy_test
 
 import (
-	// "sync"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/proxy"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewBufferPoolGetSize(t *testing.T) {
 	const sz = 8 * 1024
-	p := newBufferPool(sz)
+	p := proxy.NewBufferPool(sz)
 	require.NotNil(t, p)
 
 	buf := p.Get()
@@ -56,9 +56,9 @@ func TestNewBufferPoolGetSize(t *testing.T) {
 
 func TestLargeBufferNotRetained(t *testing.T) {
 	const sz = 2048
-	p := newBufferPool(sz)
+	p := proxy.NewBufferPool(sz)
 
-	huge := make([]byte, maxBufferSize+1024)
+	huge := make([]byte, proxy.MaxBufferSize+1024)
 	p.Put(huge)
 
 	buf := p.Get()

@@ -73,14 +73,6 @@ type Parser interface {
 	Parse(req *http.Request) (jwt.Token, error)
 }
 
-// ParserFunc is an adapter to allow the use of ordinary functions as Parsers.
-type ParserFunc func(req *http.Request) (jwt.Token, error)
-
-// Parse implements the Parser interface.
-func (f ParserFunc) Parse(req *http.Request) (jwt.Token, error) {
-	return f(req)
-}
-
 // parser is the default Parser implementation.
 type parser struct {
 	keys key.Provider      // JWK provider used for signature verification
@@ -95,7 +87,7 @@ type parser struct {
 //   - ErrInvalidToken when parsing/validation fails.
 //   - Other errors may be returned from the key provider lookup.
 func (p *parser) Parse(req *http.Request) (jwt.Token, error) {
-	raw := bearer(req.Header.Get(Header))
+	raw := Bearer(req.Header.Get(Header))
 	if raw == "" {
 		return nil, ErrMissingToken
 	}
@@ -148,16 +140,23 @@ func NewParser(ctx context.Context, cfg config.Token) (Parser, error) {
 	if v := cfg.Clock; v != nil {
 		opts = append(opts, jwt.WithClock(v))
 	}
+	return NewParserWithKeys(keys, opts...), nil
+}
+
+// NewParserWithKeys constructs a Parser using the provided key provider
+// and optional parsing/validation options.
+func NewParserWithKeys(keys key.Provider, opts ...jwt.ParseOption) Parser {
 	return &parser{
 		keys: keys,
 		opts: opts,
-	}, nil
+	}
 }
 
-// bearer extracts the token from the Authorization header value.
-func bearer(auth string) string {
+// Bearer extracts the token from the Authorization header value.
+func Bearer(auth string) string {
 	auth = strings.TrimSpace(auth)
-	if len(scheme) > len(auth) || !strings.EqualFold(auth[:len(scheme)], scheme) {
+	if len(scheme) > len(auth) ||
+		!strings.EqualFold(auth[:len(scheme)], scheme) {
 		return ""
 	}
 	return strings.TrimSpace(auth[len(scheme):])

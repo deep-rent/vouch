@@ -19,18 +19,18 @@ import (
 	"sync"
 )
 
-// maxBufferSize is the maximum buffer size to keep in the pool.
-const maxBufferSize int = 256 << 10 // 256 KiB
+// MaxBufferSize is the maximum buffer size to keep in the pool.
+const MaxBufferSize int = 256 << 10 // 256 KiB
 
-// bufferPool implements httputil.BufferPool backed by sync.Pool.
+// BufferPool implements httputil.BufferPool backed by sync.Pool.
 // It reduces allocations for large response bodies by reusing byte slices,
 // thus lowering GC pressure.
-type bufferPool struct{ pool sync.Pool }
+type BufferPool struct{ pool sync.Pool }
 
-// newBufferPool creates a buffer pool that returns buffers of at least size
+// NewBufferPool creates a buffer pool that returns buffers of at least size
 // bytes. Buffers larger than 256 KiB are not kept to avoid memory bloat.
-func newBufferPool(size int) *bufferPool {
-	return &bufferPool{
+func NewBufferPool(size int) *BufferPool {
+	return &BufferPool{
 		pool: sync.Pool{
 			New: func() any {
 				// Store a pointer to a slice to avoid allocations when storing in the
@@ -43,17 +43,17 @@ func newBufferPool(size int) *bufferPool {
 }
 
 // Get returns a reusable buffer slice.
-func (b *bufferPool) Get() []byte {
-  //nolint:errcheck
+func (b *BufferPool) Get() []byte {
+	//nolint:errcheck // guaranteed to be *[]byte
 	return *b.pool.Get().(*[]byte)
 }
 
 // Put returns the buffer to the pool unless it grew beyond the size limit.
-func (b *bufferPool) Put(buf []byte) {
-	if cap(buf) <= maxBufferSize { // Avoid holding on to very large buffers.
+func (b *BufferPool) Put(buf []byte) {
+	if cap(buf) <= MaxBufferSize { // Avoid holding on to very large buffers.
 		b.pool.Put(&buf)
 	}
 }
 
 // Ensure bufferPool satisfies the interface expected by httputil.ReverseProxy.
-var _ httputil.BufferPool = (*bufferPool)(nil)
+var _ httputil.BufferPool = (*BufferPool)(nil)

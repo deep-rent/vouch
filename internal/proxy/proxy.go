@@ -34,7 +34,7 @@ func transport() *http.Transport {
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     true,
-		DisableCompression:    true, // Keep upstream encoding; don't decompress in-proxy
+		DisableCompression:    true, // Keep upstream encoding; don't decompress
 		MaxIdleConns:          512,
 		MaxIdleConnsPerHost:   256,
 		IdleConnTimeout:       90 * time.Second,
@@ -65,7 +65,7 @@ func New(target *url.URL) http.Handler {
 	// Helpful for long-lived responses such as the _changes feed.
 	proxy.FlushInterval = 200 * time.Millisecond
 	// Reduce allocations on large responses.
-	proxy.BufferPool = newBufferPool(32 << 10)
+	proxy.BufferPool = NewBufferPool(32 << 10)
 
 	// Preserve and augment request details for the upstream.
 	base := proxy.Director
@@ -76,7 +76,8 @@ func New(target *url.URL) http.Handler {
 		// Preserve original host
 		req.Header.Set(HeaderForwardedHost, req.Host)
 		// Augment headers with the immediate peer.
-		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && ip != "" {
+		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil &&
+			ip != "" {
 			req.Header.Add(HeaderForwardedFor, ip)
 		}
 		// Preserve original scheme  if not already set by upstream infrastructure.

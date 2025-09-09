@@ -25,7 +25,7 @@ import (
 // Environment provides the input context for rule evaluation.
 // It carries request metadata (method, path, database) and the parsed token.
 type Environment struct {
-	tok jwt.Token
+	Token jwt.Token
 	// Method is the HTTP method of the request.
 	Method string
 	// Path is the request path (including the leading slash).
@@ -40,10 +40,10 @@ func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 	path, method := req.URL.Path, req.Method
 
 	return Environment{
-		tok:    tok,
+		Token:  tok,
 		Method: method,
 		Path:   path,
-		DB:     database(path),
+		DB:     Database(path),
 	}
 }
 
@@ -51,16 +51,16 @@ func NewEnvironment(tok jwt.Token, req *http.Request) Environment {
 // It returns nil when the claim is not set or cannot be decoded.
 func (e Environment) Claim(name string) any {
 	var v any
-	if err := e.tok.Get(name, &v); err != nil {
+	if err := e.Token.Get(name, &v); err != nil {
 		return nil
 	}
 	return v
 }
 
-// database extracts the CouchDB database name from a URL path.
+// Database extracts the CouchDB Database name from a URL path.
 // It returns the first path segment after the leading slash and performs
 // a best-effort percent-decoding of that segment only.
-func database(path string) string {
+func Database(path string) string {
 	if path == "" {
 		return ""
 	}

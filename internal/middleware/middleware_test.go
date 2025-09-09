@@ -19,36 +19,39 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/middleware"
 	"github.com/stretchr/testify/require"
 )
 
-func trace(label string, calls *[]string) Middleware {
+func trace(label string, calls *[]string) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			*calls = append(*calls, label)
-			next.ServeHTTP(res, req)
-		})
+		return http.HandlerFunc(
+			func(res http.ResponseWriter, req *http.Request) {
+				*calls = append(*calls, label)
+				next.ServeHTTP(res, req)
+			},
+		)
 	}
 }
 
 func TestChain(t *testing.T) {
 	tests := []struct {
 		name  string
-		mws   []Middleware
+		mws   []middleware.Middleware
 		order []string
 	}{
 		{
 			name:  "three middlewares",
 			mws:   nil, // filled in below to reuse trace helper
-			order: []string{"m1", "m2", "m3", "h0"},
+			order: []string{"m1", "m2", "m3", "h"},
 		},
 		{
 			name:  "single middleware",
-			order: []string{"m1", "h0"},
+			order: []string{"m1", "h"},
 		},
 		{
 			name:  "no middleware",
-			order: []string{"h0"},
+			order: []string{"h"},
 		},
 	}
 
@@ -58,25 +61,25 @@ func TestChain(t *testing.T) {
 
 			// Build middleware list based on desired order length minus final handler.
 			switch len(tc.order) {
-			case 4: // m1 m2 m3 h0
-				tc.mws = []Middleware{
+			case 4: // m1 m2 m3 h
+				tc.mws = []middleware.Middleware{
 					trace("m1", &calls),
 					trace("m2", &calls),
 					trace("m3", &calls),
 				}
-			case 2: // m1 h0
-				tc.mws = []Middleware{
+			case 2: // m1 h
+				tc.mws = []middleware.Middleware{
 					trace("m1", &calls),
 				}
 			case 1:
 				tc.mws = nil
 			}
 
-			h0 := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				calls = append(calls, "h0")
+			h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				calls = append(calls, "h")
 			})
 
-			chained := Chain(h0, tc.mws...)
+			chained := middleware.Chain(h, tc.mws...)
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			chained.ServeHTTP(httptest.NewRecorder(), req)
 

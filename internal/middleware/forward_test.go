@@ -22,76 +22,86 @@ import (
 	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/logger"
+	"github.com/deep-rent/vouch/internal/middleware"
+	"github.com/deep-rent/vouch/internal/rules"
 	"github.com/deep-rent/vouch/internal/token"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockGuard struct {
-	scope auth.Scope
+	scope rules.Scope
 	err   error
 }
 
-func (g mockGuard) Check(*http.Request) (auth.Scope, error) {
+func (g mockGuard) Check(*http.Request) (rules.Scope, error) {
 	return g.scope, g.err
 }
 
 func TestForward(t *testing.T) {
 	tests := []struct {
-		// inputs
 		name  string
 		cfg   config.Headers
-		scope auth.Scope
+		scope rules.Scope
 		err   error
-		// expected outputs
-		status    int
-		user      string
-		roles     string
-		token     string
-		next      bool
-		challenge bool
+
+		wantStatus    int
+		wantUser      string
+		wantRoles     string
+		wantToken     string
+		wantNext      bool
+		wantChallenge bool
 	}{
 		{
 			name: "authenticated with roles + secret (signed token)",
 			cfg: config.Headers{
 				User:  config.UserHeader{Name: "X-Test-User"},
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
-				Token: config.TokenHeader{Name: "X-Test-Token", Signer: config.Signer{Secret: "secret"}},
+				Token: config.TokenHeader{
+					Name:   "X-Test-Token",
+					Signer: config.Signer{Secret: "secret"},
+				},
 			},
-			scope: auth.Scope{User: "test", Roles: "foo,bar"},
+			scope: rules.Scope{User: "test", Roles: "foo,bar"},
 			// Digest observed in existing dedicated test; keep deterministic assertion.
-			token:  "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
-			status: http.StatusOK,
-			user:   "test",
-			roles:  "foo,bar",
-			next:   true,
+			wantToken:  "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
+			wantStatus: http.StatusOK,
+			wantUser:   "test",
+			wantRoles:  "foo,bar",
+			wantNext:   true,
 		},
 		{
 			name: "authenticated no roles no secret",
 			cfg: config.Headers{
 				User:  config.UserHeader{Name: "X-Test-User", Anonymous: true},
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
-				Token: config.TokenHeader{Name: "X-Test-Token", Signer: config.Signer{}},
+				Token: config.TokenHeader{
+					Name:   "X-Test-Token",
+					Signer: config.Signer{},
+				},
 			},
-			scope:  auth.Scope{User: "user"},
-			status: http.StatusOK,
-			user:   "user",
-			roles:  "",
-			token:  "",
-			next:   true,
+			scope:      rules.Scope{User: "user"},
+			wantStatus: http.StatusOK,
+			wantUser:   "user",
+			wantRoles:  "",
+			wantToken:  "",
+			wantNext:   true,
 		},
 		{
 			name: "anonymous allowed (secret present) => no auth headers injected",
 			cfg: config.Headers{
 				User:  config.UserHeader{Name: "X-Test-User", Anonymous: true},
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
-				Token: config.TokenHeader{Name: "X-Test-Token", Signer: config.Signer{Secret: "secret"}},
+				Token: config.TokenHeader{
+					Name:   "X-Test-Token",
+					Signer: config.Signer{Secret: "secret"},
+				},
 			},
-			scope:  auth.Scope{},
-			status: http.StatusOK,
-			user:   "",
-			roles:  "",
-			token:  "",
-			next:   true,
+			scope:      rules.Scope{},
+			wantStatus: http.StatusOK,
+			wantUser:   "",
+			wantRoles:  "",
+			wantToken:  "",
+			wantNext:   true,
 		},
 		{
 			name: "anonymous rejected (not allowed)",
@@ -100,20 +110,23 @@ func TestForward(t *testing.T) {
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
 				Token: config.TokenHeader{Name: "X-Test-Token"},
 			},
-			scope:  auth.Scope{},
-			status: http.StatusUnauthorized,
-			next:   false,
+			scope:      rules.Scope{},
+			wantStatus: http.StatusUnauthorized,
+			wantNext:   false,
 		},
 		{
 			name: "forbidden error",
 			cfg: config.Headers{
 				User:  config.UserHeader{Name: "X-Test-User"},
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
-				Token: config.TokenHeader{Name: "X-Test-Token", Signer: config.Signer{Secret: "secret"}},
+				Token: config.TokenHeader{
+					Name:   "X-Test-Token",
+					Signer: config.Signer{Secret: "secret"},
+				},
 			},
-			err:    auth.ErrForbidden,
-			status: http.StatusForbidden,
-			next:   false,
+			err:        auth.ErrForbidden,
+			wantStatus: http.StatusForbidden,
+			wantNext:   false,
 		},
 		{
 			name: "unauthorized missing token (challenge expected)",
@@ -122,10 +135,10 @@ func TestForward(t *testing.T) {
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
 				Token: config.TokenHeader{Name: "X-Test-Token"},
 			},
-			err:       token.ErrMissingToken,
-			status:    http.StatusUnauthorized,
-			next:      false,
-			challenge: true,
+			err:           token.ErrMissingToken,
+			wantStatus:    http.StatusUnauthorized,
+			wantNext:      false,
+			wantChallenge: true,
 		},
 		{
 			name: "internal error",
@@ -134,37 +147,43 @@ func TestForward(t *testing.T) {
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
 				Token: config.TokenHeader{Name: "X-Test-Token"},
 			},
-			err:    assert.AnError,
-			status: http.StatusInternalServerError,
-			next:   false,
+			err:        assert.AnError,
+			wantStatus: http.StatusInternalServerError,
+			wantNext:   false,
 		},
 		{
 			name: "empty user with anonymous allowed (remains anonymous)",
 			cfg: config.Headers{
 				User:  config.UserHeader{Name: "X-Test-User", Anonymous: true},
 				Roles: config.RolesHeader{Name: "X-Test-Roles"},
-				Token: config.TokenHeader{Name: "X-Test-Token", Signer: config.Signer{Secret: "secret"}},
+				Token: config.TokenHeader{
+					Name:   "X-Test-Token",
+					Signer: config.Signer{Secret: "secret"},
+				},
 			},
-			scope:  auth.Scope{User: ""},
-			status: http.StatusOK,
-			user:   "",
-			roles:  "",
-			token:  "",
-			next:   true,
+			scope:      rules.Scope{User: ""},
+			wantStatus: http.StatusOK,
+			wantUser:   "",
+			wantRoles:  "",
+			wantToken:  "",
+			wantNext:   true,
 		},
 		{
 			name: "authenticated no roles -> defaults applied",
 			cfg: config.Headers{
-				User:  config.UserHeader{Name: "X-Test-User"},
-				Roles: config.RolesHeader{Name: "X-Test-Roles", Default: "r1,r2"},
+				User: config.UserHeader{Name: "X-Test-User"},
+				Roles: config.RolesHeader{
+					Name:    "X-Test-Roles",
+					Default: "r1,r2",
+				},
 				Token: config.TokenHeader{Name: "X-Test-Token"},
 			},
-			scope:  auth.Scope{User: "user", Roles: ""},
-			status: http.StatusOK,
-			user:   "user",
-			roles:  "r1,r2",
-			token:  "",
-			next:   true,
+			scope:      rules.Scope{User: "user", Roles: ""},
+			wantStatus: http.StatusOK,
+			wantUser:   "user",
+			wantRoles:  "r1,r2",
+			wantToken:  "",
+			wantNext:   true,
 		},
 	}
 
@@ -190,7 +209,11 @@ func TestForward(t *testing.T) {
 				res.WriteHeader(http.StatusOK)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "http://example/db/doc", nil)
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"http://example/db/doc",
+				nil,
+			)
 
 			// Simulate malicious attacker-supplied headers (should be cleared).
 			req.Header.Set(tc.cfg.User.Name, "forged")
@@ -198,23 +221,35 @@ func TestForward(t *testing.T) {
 			req.Header.Set(tc.cfg.Token.Name, "forged")
 
 			rr := httptest.NewRecorder()
-			Forward(logger.Silent(), guard, tc.cfg)(next).ServeHTTP(rr, req)
+			middleware.Forward(logger.Silent(), guard, tc.cfg)(
+				next,
+			).ServeHTTP(rr, req)
 
-			assert.Equal(t, tc.status, rr.Code)
-			assert.Equal(t, tc.next, seen, "next handler invocation mismatch")
+			assert.Equal(t, tc.wantStatus, rr.Code)
+			assert.Equal(
+				t,
+				tc.wantNext,
+				seen,
+				"next handler invocation mismatch",
+			)
 
-			if tc.next {
-				assert.Equal(t, tc.user, user, "user header mismatch")
-				assert.Equal(t, tc.roles, roles, "roles header mismatch")
+			if tc.wantNext {
+				assert.Equal(t, tc.wantUser, user, "user header mismatch")
+				assert.Equal(t, tc.wantRoles, roles, "roles header mismatch")
 
-				if tc.token != "" {
-					assert.Equal(t, tc.token, token, "token digest mismatch")
+				if tc.wantToken != "" {
+					assert.Equal(
+						t,
+						tc.wantToken,
+						token,
+						"token digest mismatch",
+					)
 				} else {
 					assert.Empty(t, token, "token header should be empty")
 				}
 			}
 
-			if tc.challenge {
+			if tc.wantChallenge {
 				got := rr.Header().Get("WWW-Authenticate")
 				assert.NotEmpty(t, got, "challenge header expected")
 			}

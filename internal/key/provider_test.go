@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/key"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,7 @@ func serveJWKS(_ *testing.T, data string) *httptest.Server {
 func TestNewStatic(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		path := writeJWKS(t, jwksStatic)
-		p, err := newStatic(path)
+		p, err := key.NewStaticProvider(path)
 		require.NoError(t, err)
 		require.NotNil(t, p)
 
@@ -81,20 +82,20 @@ func TestNewStatic(t *testing.T) {
 	})
 
 	t.Run("file not found", func(t *testing.T) {
-		_, err := newStatic("missing.jwks.json")
+		_, err := key.NewStaticProvider("missing.jwks.json")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "stat file")
 	})
 
 	t.Run("path is directory", func(t *testing.T) {
-		_, err := newStatic(t.TempDir())
+		_, err := key.NewStaticProvider(t.TempDir())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "is not regular")
 	})
 
 	t.Run("invalid jwks data", func(t *testing.T) {
 		path := writeJWKS(t, `{"keys": "invalid"}`)
-		_, err := newStatic(path)
+		_, err := key.NewStaticProvider(path)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "parse jwk")
 	})
@@ -110,7 +111,7 @@ func TestNewRemote(t *testing.T) {
 			Endpoint: srv.URL,
 			Interval: 1 * time.Second,
 		}
-		p, err := newRemote(ctx, cfg)
+		p, err := key.NewRemoteProvider(ctx, cfg)
 		require.NoError(t, err)
 		require.NotNil(t, p)
 
@@ -132,7 +133,7 @@ func TestNewRemote(t *testing.T) {
 			Endpoint: srv.URL,
 			Interval: 1 * time.Second,
 		}
-		_, err := newRemote(ctx, cfg)
+		_, err := key.NewRemoteProvider(ctx, cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "register url")
 	})
@@ -156,7 +157,7 @@ func TestNewProvider(t *testing.T) {
 			cfg: config.Keys{
 				Static: src,
 			},
-			impl: &static{},
+			impl: &key.StaticProvider{},
 			keys: 1,
 		},
 		{
@@ -167,7 +168,7 @@ func TestNewProvider(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 			},
-			impl: &remote{},
+			impl: &key.RemoteProvider{},
 			keys: 1,
 		},
 		{
@@ -179,7 +180,7 @@ func TestNewProvider(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 			},
-			impl: &composite{},
+			impl: &key.CompositeProvider{},
 			keys: 2,
 		},
 		{
@@ -212,7 +213,7 @@ func TestNewProvider(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
-			p, err := NewProvider(ctx, tc.cfg)
+			p, err := key.NewProvider(ctx, tc.cfg)
 
 			if tc.fail {
 				require.Error(t, err)
@@ -232,7 +233,9 @@ func TestNewProvider(t *testing.T) {
 
 func TestProviderFunc(t *testing.T) {
 	set := jwk.NewSet()
-	p := ProviderFunc(func(context.Context) (jwk.Set, error) { return set, nil })
+	p := key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+		return set, nil
+	})
 	got, err := p.Keys(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, set, got)

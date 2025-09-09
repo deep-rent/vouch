@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deep-rent/vouch/internal/proxy"
 	"github.com/deep-rent/vouch/internal/token"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,13 +45,17 @@ func TestProxyDirectorAndForwardingHeaders(t *testing.T) {
 	u, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	h := New(u)
+	h := proxy.New(u)
 
 	// Craft the incoming request.
-	req := httptest.NewRequest(http.MethodGet, "http://client.example.local/db/doc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"http://client.example.local/db/doc",
+		nil,
+	)
 	req.RemoteAddr = "203.0.113.10:43210"
 	req.Header.Set(token.Header, "Bearer abc123")
-	req.Header.Set(HeaderForwardedProto, "")
+	req.Header.Set(proxy.HeaderForwardedProto, "")
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)
@@ -59,12 +64,17 @@ func TestProxyDirectorAndForwardingHeaders(t *testing.T) {
 	require.NotNil(t, got, "upstream not hit")
 
 	assert.Empty(t, got.Header.Get(token.Header))
-	assert.Equal(t, "client.example.local", got.Header.Get(HeaderForwardedHost))
-	// Forwarded-For may contain a comma‑separated list; just assert our client IP is present.
-	ff := got.Header.Get(HeaderForwardedFor)
+	assert.Equal(
+		t,
+		"client.example.local",
+		got.Header.Get(proxy.HeaderForwardedHost),
+	)
+	// Forwarded-For may contain a comma‑separated list; just assert our
+	// client IP is present.
+	ff := got.Header.Get(proxy.HeaderForwardedFor)
 	assert.NotEmpty(t, ff)
 	assert.Contains(t, ff, "203.0.113.10")
-	assert.Equal(t, "http", got.Header.Get(HeaderForwardedProto))
+	assert.Equal(t, "http", got.Header.Get(proxy.HeaderForwardedProto))
 }
 
 func TestProxyTimeoutMapsTo504(t *testing.T) {
@@ -78,15 +88,15 @@ func TestProxyTimeoutMapsTo504(t *testing.T) {
 
 	u, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	h := New(u)
+	h := proxy.New(u)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	wait, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
-  rr := httptest.NewRecorder()
+	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, srv.URL+"/slow", nil).
-    WithContext(ctx))
+		WithContext(wait))
 
 	assert.Equal(t, http.StatusGatewayTimeout, rr.Code)
 }
@@ -101,12 +111,14 @@ func TestProxyConnectionErrorMapsTo502(t *testing.T) {
 	u, err := url.Parse("https://" + addr)
 	require.NoError(t, err)
 
-	h := New(u)
-
-	req := httptest.NewRequest(http.MethodGet, "https://example.invalid/", nil)
+	h := proxy.New(u)
 	rr := httptest.NewRecorder()
 
-	h.ServeHTTP(rr, req)
+	h.ServeHTTP(rr, httptest.NewRequest(
+		http.MethodGet,
+		"https://example.invalid/",
+		nil,
+	))
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
 }

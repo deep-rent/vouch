@@ -22,12 +22,12 @@ import (
 
 // Result captures the outcome of evaluating rules for a request.
 type Result struct {
-	// Pass indicates whether access is granted.
-	Pass bool
-	// User is the CouchDB user name to authenticate as when Pass is true.
-	User string
-	// Roles is a comma-separated list of CouchDB roles when Pass is true.
-	Roles string
+	// Allow indicates whether access is granted.
+	// If false, the caller should immediately reject the request.
+	Allow bool
+	// Scope is the authorization scope to grant if Allow is true.
+	// If Allow is false, Scope is zero-valued.
+	Scope Scope
 }
 
 // Engine evaluates a list of authorization rules in order.
@@ -39,14 +39,8 @@ type Engine interface {
 	// On denial (explicit or implicit), a zero-value Result and nil error are
 	// returned so the caller can decide how to respond upstream.
 	Eval(env Environment) (Result, error)
-}
-
-// EngineFunc is an adapter to allow the use of ordinary functions as Engines.
-type EngineFunc func(env Environment) (Result, error)
-
-// Eval implements the Engine interface.
-func (f EngineFunc) Eval(env Environment) (Result, error) {
-	return f(env)
+	// Rules returns the compiled rules used by the engine.
+	Rules() []Rule
 }
 
 // engine is the default Engine implementation.
@@ -54,43 +48,49 @@ type engine struct {
 	rules []Rule
 }
 
-func (a *engine) Eval(env Environment) (Result, error) {
-	for _, r := range a.rules {
-		o, err := r.Eval(env)
+func (e *engine) Eval(env Environment) (Result, error) {
+	for _, r := range e.rules {
+		a, err := r.Eval(env)
 		if err != nil {
 			return Result{}, err
 		}
-		if o.Skip {
+		if a.Skip {
 			continue
 		}
-		if o.Deny {
+		if a.Deny {
 			// A deny rule matched, so we stop and deny access.
-			return Result{Pass: false}, nil
+			return Result{}, nil
 		}
 		// An allow rule matched.
-		return Result{
-			Pass:  true,
-			User:  o.User,
-			Roles: o.Roles,
-		}, nil
+		res := Result{Allow: true, Scope: a.Grant}
+		return res, nil
 	}
 	// No rule matched, so we deny by default.
-	return Result{Pass: false}, nil
+	return Result{}, nil
+}
+
+func (e *engine) Rules() []Rule {
+	return e.rules
 }
 
 // Ensure engine satisfies the Engine contract.
 var _ Engine = (*engine)(nil)
 
-// NewEngine compiles the provided declarative rules and returns an Engine.
+// Compile compiles the provided declarative rules and returns an Engine.
 // The given slice must not be empty.
-func NewEngine(rules []config.Rule) (Engine, error) {
-	if len(rules) == 0 {
-		return nil, errors.New("at least one rule is required")
-	}
+func Compile(rules []config.Rule) (Engine, error) {
 	compiler := NewCompiler()
 	compiled, err := compiler.Compile(rules)
 	if err != nil {
 		return nil, err
 	}
-	return &engine{rules: compiled}, nil
+	return NewEngine(compiled)
+}
+
+// NewEngine constructs an Engine from pre-compiled rules.
+func NewEngine(rules []Rule) (Engine, error) {
+	if len(rules) == 0 {
+		return nil, errors.New("at least one rule is required")
+	}
+	return &engine{rules: rules}, nil
 }

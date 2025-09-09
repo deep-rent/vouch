@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/middleware"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +40,7 @@ func TestRecoverPanic(t *testing.T) {
 		panic("boom!")
 	})
 
-	mw := Recover(log)(h)
+	mw := middleware.Recover(log)(h)
 	rr := httptest.NewRecorder()
 	mw.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/panic", nil))
 
@@ -57,7 +58,9 @@ func TestRecoverWithoutPanic(t *testing.T) {
 	})
 
 	rr := httptest.NewRecorder()
-	Recover(log)(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+	middleware.Recover(log)(h).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodGet, "/", nil),
+	)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Equal(t, "ok", rr.Body.String())

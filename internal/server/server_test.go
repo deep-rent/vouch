@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,16 +50,20 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 
 	var mw []string
 	m1 := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			mw = append(mw, "m1")
-			next.ServeHTTP(res, req)
-		})
+		return http.HandlerFunc(
+			func(res http.ResponseWriter, req *http.Request) {
+				mw = append(mw, "m1")
+				next.ServeHTTP(res, req)
+			},
+		)
 	}
 	m2 := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			mw = append(mw, "m2")
-			next.ServeHTTP(res, req)
-		})
+		return http.HandlerFunc(
+			func(res http.ResponseWriter, req *http.Request) {
+				mw = append(mw, "m2")
+				next.ServeHTTP(res, req)
+			},
+		)
 	}
 
 	u, err := url.Parse(srv.URL)
@@ -72,9 +77,9 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 			Target: u,
 		},
 	}
-	s := New(cfg, m1, m2)
+	s := server.New(cfg, m1, m2)
 
-	api := httptest.NewServer(s.(*server).mux)
+	api := httptest.NewServer(s.Handler())
 	defer api.Close()
 
 	reset := func() {
@@ -134,7 +139,7 @@ func TestServerRoutesAndMiddleware(t *testing.T) {
 }
 
 func TestShutdownWithoutStartIsNoop(t *testing.T) {
-	s := &server{}
+	s := server.New(config.Server{})
 	err := s.Shutdown(t.Context())
 	require.NoError(t, err)
 }
@@ -170,7 +175,7 @@ func TestServerStartAndShutdown(t *testing.T) {
 			Target: u,
 		},
 	}
-	s := New(cfg)
+	s := server.New(cfg)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -194,9 +199,9 @@ func TestServerStartAndShutdown(t *testing.T) {
 	require.True(t, ready, "server never became ready")
 
 	// Graceful shutdown.
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	wait, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
-	require.NoError(t, s.Shutdown(ctx))
+	require.NoError(t, s.Shutdown(wait))
 
 	// Start must return nil on graceful shutdown.
 	require.NoError(t, <-errCh)
@@ -226,8 +231,8 @@ func TestServerStartPortInUse(t *testing.T) {
 			Target: u,
 		},
 	}
-	s := New(cfg)
 
+	s := server.New(cfg)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.Start()

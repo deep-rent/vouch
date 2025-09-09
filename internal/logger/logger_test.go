@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,20 +30,55 @@ func TestNewLevelMapping(t *testing.T) {
 		level   slog.Level
 		handler any
 	}{
-		{name: "debug", input: "DEBUG", level: slog.LevelDebug, handler: &slog.JSONHandler{}},
-		{name: "sanitization", input: "  debug  ", level: slog.LevelDebug, handler: &slog.JSONHandler{}},
-		{name: "info", input: "INFO", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
-		{name: "warn", input: "WARN", level: slog.LevelWarn, handler: &slog.JSONHandler{}},
-		{name: "error", input: "ERROR", level: slog.LevelError, handler: &slog.JSONHandler{}},
+		{
+			name:    "debug",
+			input:   "DEBUG",
+			level:   slog.LevelDebug,
+			handler: &slog.JSONHandler{},
+		},
+		{
+			name:    "sanitization",
+			input:   "  debug  ",
+			level:   slog.LevelDebug,
+			handler: &slog.JSONHandler{},
+		},
+		{
+			name:    "info",
+			input:   "INFO",
+			level:   slog.LevelInfo,
+			handler: &slog.JSONHandler{},
+		},
+		{
+			name:    "warn",
+			input:   "WARN",
+			level:   slog.LevelWarn,
+			handler: &slog.JSONHandler{},
+		},
+		{
+			name:    "error",
+			input:   "ERROR",
+			level:   slog.LevelError,
+			handler: &slog.JSONHandler{},
+		},
 		{name: "silent", input: "SILENT", handler: &slog.TextHandler{}},
-		{name: "empty", input: "", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
-		{name: "unknown", input: "UNKNOWN", level: slog.LevelInfo, handler: &slog.JSONHandler{}},
+		{
+			name:    "empty",
+			input:   "",
+			level:   slog.LevelInfo,
+			handler: &slog.JSONHandler{},
+		},
+		{
+			name:    "unknown",
+			input:   "UNKNOWN",
+			level:   slog.LevelInfo,
+			handler: &slog.JSONHandler{},
+		},
 	}
 
 	ctx := t.Context()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			log := New(tc.input)
+			log := logger.New(tc.input)
 
 			require.NotNil(t, log)
 			require.IsType(t, tc.handler, log.Handler())
@@ -77,13 +113,13 @@ func TestNewLevelMapping(t *testing.T) {
 }
 
 func TestNewReturnsDistinctInstances(t *testing.T) {
-	a := New("info")
-	b := New("info")
+	a := logger.New("info")
+	b := logger.New("info")
 	require.NotSame(t, a, b)
 }
 
 func TestSilent(t *testing.T) {
-	log := Silent()
+	log := logger.Silent()
 	require.NotNil(t, log)
 
 	log.Debug("debug")

@@ -32,56 +32,63 @@ func Forward(log *slog.Logger, grd auth.Guard, cfg config.Headers) Middleware {
 	// Optional signer for CouchDB proxy auth token.
 	s := signer.New(cfg.Token.Signer)
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			// An OPTIONS short-circuit is not needed; the server routes OPTIONS to
-			// proxy directly.
+		return http.HandlerFunc(
+			func(res http.ResponseWriter, req *http.Request) {
+				// An OPTIONS short-circuit is not needed; the server routes OPTIONS to
+				// proxy directly.
 
-			// Authenticate and authorize the request.
-			scope, err := grd.Check(req)
-			if err != nil {
-				var (
-					code         int
-					unauthorized *token.AuthenticationError
-					forbidden    *auth.AuthorizationError
-				)
-				switch {
-				case errors.As(err, &unauthorized):
-					res.Header().Set("WWW-Authenticate", unauthorized.Challenge)
-					code = http.StatusUnauthorized
-				case errors.As(err, &forbidden):
-					code = http.StatusForbidden
-				default:
-					log.Error("auth check failed unexpectedly", "error", err)
-					code = http.StatusInternalServerError
+				// Authenticate and authorize the request.
+				scope, err := grd.Check(req)
+				if err != nil {
+					var (
+						code         int
+						unauthorized *token.AuthenticationError
+						forbidden    *auth.AuthorizationError
+					)
+					switch {
+					case errors.As(err, &unauthorized):
+						res.Header().
+							Set("WWW-Authenticate", unauthorized.Challenge)
+						code = http.StatusUnauthorized
+					case errors.As(err, &forbidden):
+						code = http.StatusForbidden
+					default:
+						log.Error(
+							"auth check failed unexpectedly",
+							"error",
+							err,
+						)
+						code = http.StatusInternalServerError
+					}
+					sendStatus(res, code)
+					return
 				}
-				sendStatus(res, code)
-				return
-			}
 
-			// Never leak client-supplied proxy auth headers.
-			req.Header.Del(cfg.User.Name)
-			req.Header.Del(cfg.Roles.Name)
-			req.Header.Del(cfg.Token.Name)
+				// Never leak client-supplied proxy auth headers.
+				req.Header.Del(cfg.User.Name)
+				req.Header.Del(cfg.Roles.Name)
+				req.Header.Del(cfg.Token.Name)
 
-			if !scope.IsAnonymous() {
-				// Authenticated: inject user, roles, and token headers into the request.
-				req.Header.Set(cfg.User.Name, scope.User)
-				if scope.Roles != "" {
-					req.Header.Set(cfg.Roles.Name, scope.Roles)
-				} else if cfg.Roles.Default != "" {
-					req.Header.Set(cfg.Roles.Name, cfg.Roles.Default)
+				if !scope.IsAnonymous() {
+					// Authenticated: inject user, roles, and token headers into the request.
+					req.Header.Set(cfg.User.Name, scope.User)
+					if scope.Roles != "" {
+						req.Header.Set(cfg.Roles.Name, scope.Roles)
+					} else if cfg.Roles.Default != "" {
+						req.Header.Set(cfg.Roles.Name, cfg.Roles.Default)
+					}
+					if s != nil {
+						req.Header.Set(cfg.Token.Name, s.Sign(scope.User))
+					}
+				} else if !cfg.User.Anonymous {
+					// Anonymous access disabled: require authentication.
+					sendStatus(res, http.StatusUnauthorized)
+					return
 				}
-				if s != nil {
-					req.Header.Set(cfg.Token.Name, s.Sign(scope.User))
-				}
-			} else if !cfg.User.Anonymous {
-				// Anonymous access disabled: require authentication.
-				sendStatus(res, http.StatusUnauthorized)
-				return
-			}
 
-			// Continue down the chain to the proxy.
-			next.ServeHTTP(res, req)
-		})
+				// Continue down the chain to the proxy.
+				next.ServeHTTP(res, req)
+			},
+		)
 	}
 }

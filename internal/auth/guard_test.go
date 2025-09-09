@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/deep-rent/vouch/internal/auth"
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/rules"
 	"github.com/deep-rent/vouch/internal/token"
@@ -28,10 +29,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScopeIsAnonymous(t *testing.T) {
-	assert.True(t, (Scope{}).IsAnonymous())
-	assert.False(t, (Scope{User: "u"}).IsAnonymous())
+type mockParser struct {
+	fn func(*http.Request) (jwt.Token, error)
 }
+
+func (m mockParser) Parse(req *http.Request) (jwt.Token, error) {
+	return m.fn(req)
+}
+
+type mockEngine struct {
+	fn func(rules.Environment) (rules.Result, error)
+	rs []rules.Rule
+}
+
+func (m mockEngine) Eval(env rules.Environment) (rules.Result, error) {
+	if m.fn != nil {
+		return m.fn(env)
+	}
+	return rules.Result{}, nil
+}
+
+func (m mockEngine) Rules() []rules.Rule { return m.rs }
 
 func TestGuardCheck(t *testing.T) {
 	makeToken := func(t *testing.T) jwt.Token {
@@ -41,140 +59,181 @@ func TestGuardCheck(t *testing.T) {
 	}
 
 	type test struct {
-		// inputs
-		name   string
-		parser token.Parser
-		engine rules.Engine
-		// expected outputs
-		scope Scope
-		err   error
+		name      string
+		parser    token.Parser
+		engine    rules.Engine
+		wantScope rules.Scope
+		wantErr   error
 	}
 
 	tests := []test{
 		{
-			name:   "missing token",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrMissingToken }),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
-			err:    token.ErrMissingToken,
+			name: "missing token",
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) {
+					return nil, token.ErrMissingToken
+				},
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{}, nil
+				},
+			},
+			wantErr: token.ErrMissingToken,
 		},
 		{
-			name:   "invalid token",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) { return nil, token.ErrInvalidToken }),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, nil }),
-			err:    token.ErrInvalidToken,
+			name: "invalid token",
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) {
+					return nil, token.ErrInvalidToken
+				},
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{}, nil
+				},
+			},
+			wantErr: token.ErrInvalidToken,
 		},
 		{
 			name: "engine error",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return makeToken(t), nil
-			}),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{}, assert.AnError }),
-			err:    assert.AnError,
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) {
+					return makeToken(t), nil
+				},
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{}, assert.AnError
+				},
+			},
+			wantErr: assert.AnError,
 		},
 		{
 			name: "forbidden",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return makeToken(t), nil
-			}),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) { return rules.Result{Pass: false}, nil }),
-			err:    ErrForbidden,
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) {
+					return makeToken(t), nil
+				},
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{Allow: false}, nil
+				},
+			},
+			wantErr: auth.ErrForbidden,
 		},
 		{
 			name: "allow with user and roles",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return makeToken(t), nil
-			}),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
-				return rules.Result{Pass: true, User: "alice", Roles: "r1,r2"}, nil
-			}),
-			scope: Scope{User: "alice", Roles: "r1,r2"},
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) {
+					return makeToken(t), nil
+				},
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{
+						Allow: true,
+						Scope: rules.Scope{User: "alice", Roles: "r1,r2"},
+					}, nil
+				},
+			},
+			wantScope: rules.Scope{User: "alice", Roles: "r1,r2"},
 		},
 		{
 			name: "allow anonymous",
-			parser: token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return makeToken(t), nil
-			}),
-			engine: rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
-				return rules.Result{Pass: true}, nil
-			}),
-			scope: Scope{},
+			parser: mockParser{
+				fn: func(*http.Request) (jwt.Token, error) { return makeToken(t), nil },
+			},
+			engine: mockEngine{
+				fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{Allow: true}, nil
+				},
+			},
+			wantScope: rules.Scope{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			g := &guard{
-				parser: tc.parser,
-				engine: tc.engine,
-			}
-			req := httptest.NewRequest(http.MethodGet, "http://example/db/doc", nil)
+			g, err := auth.NewGuard(
+				t.Context(),
+				config.Guard{},
+				auth.WithParser(tc.parser),
+				auth.WithEngine(tc.engine),
+			)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"http://example/db/doc",
+				nil,
+			)
 			scope, err := g.Check(req)
 
-			if tc.err != nil {
+			if tc.wantErr != nil {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, tc.err)
+				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.scope, scope)
+			assert.Equal(t, tc.wantScope, scope)
 		})
 	}
 }
 
 func TestNewGuard(t *testing.T) {
-	oldParser := newParser
-	oldEngine := newEngine
-
-	t.Cleanup(func() {
-		newParser = oldParser
-		newEngine = oldEngine
-	})
-
 	t.Run("parser error", func(t *testing.T) {
-		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return nil, assert.AnError
-		}
-		_, err := NewGuard(context.Background(), config.Guard{})
+		_, err := auth.NewGuard(
+			t.Context(),
+			config.Guard{},
+			auth.WithParserFactory(
+				func(context.Context, config.Token) (token.Parser, error) {
+					return nil, assert.AnError
+				},
+			),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create parser")
 	})
 
 	t.Run("engine error", func(t *testing.T) {
-		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return nil, nil
-			}), nil
-		}
-		newEngine = func([]config.Rule) (rules.Engine, error) {
-			return nil, assert.AnError
-		}
-		_, err := NewGuard(context.Background(), config.Guard{})
+		_, err := auth.NewGuard(
+			t.Context(),
+			config.Guard{},
+			auth.WithParserFactory(
+				func(context.Context, config.Token) (token.Parser, error) {
+					return mockParser{
+						fn: func(*http.Request) (jwt.Token, error) {
+							return nil, assert.AnError
+						},
+					}, nil
+				},
+			),
+			auth.WithEngineFactory(func([]config.Rule) (rules.Engine, error) {
+				return nil, assert.AnError
+			}),
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create engine")
 	})
 
 	t.Run("success", func(t *testing.T) {
-		newParser = func(context.Context, config.Token) (token.Parser, error) {
-			return token.ParserFunc(func(*http.Request) (jwt.Token, error) {
-				return jwt.NewBuilder().Build()
-			}), nil
-		}
-		newEngine = func([]config.Rule) (rules.Engine, error) {
-			return rules.EngineFunc(func(rules.Environment) (rules.Result, error) {
-				return rules.Result{Pass: true}, nil
-			}), nil
-		}
-		g, err := NewGuard(context.Background(), config.Guard{
-			Rules: []config.Rule{{When: "true"}},
-		})
+		g, err := auth.NewGuard(
+			t.Context(),
+			config.Guard{Rules: []config.Rule{{When: "true"}}},
+			auth.WithParser(
+				mockParser{fn: func(*http.Request) (jwt.Token, error) {
+					return jwt.NewBuilder().Build()
+				}},
+			),
+			auth.WithEngine(
+				mockEngine{fn: func(rules.Environment) (rules.Result, error) {
+					return rules.Result{Allow: true}, nil
+				}},
+			),
+		)
 		require.NoError(t, err)
 		require.NotNil(t, g)
 	})
-}
-
-func TestGuardFunc(t *testing.T) {
-	g := GuardFunc(func(*http.Request) (Scope, error) { return Scope{User: "u"}, nil })
-	s, err := g.Check(httptest.NewRequest(http.MethodGet, "/", nil))
-	require.NoError(t, err)
-	require.Equal(t, "u", s.User)
 }

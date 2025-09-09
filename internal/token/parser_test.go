@@ -16,7 +16,6 @@ package token_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/key"
+	"github.com/deep-rent/vouch/internal/token"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
@@ -35,10 +35,8 @@ import (
 func TestBearer(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		// inputs
 		name string
 		auth string
-		// expected outputs
 		want string
 	}{
 		{name: "empty", auth: "", want: ""},
@@ -48,92 +46,73 @@ func TestBearer(t *testing.T) {
 		{name: "only spaces after", auth: "Bearer    ", want: ""},
 		{name: "valid", auth: "Bearer token", want: "token"},
 		{name: "case-insensitive", auth: "bearer token", want: "token"},
-		{name: "leading trailing spaces", auth: "  Bearer token  ", want: "token"},
+		{
+			name: "leading trailing spaces",
+			auth: "  Bearer token  ",
+			want: "token",
+		},
 		{name: "multiple spaces", auth: "BEARER    token", want: "token"},
 		{name: "token with spaces", auth: "Bearer   tok en   ", want: "tok en"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := bearer(tc.auth)
+			got := token.Bearer(tc.auth)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
+func mockParser(set jwk.Set, err error) token.Parser {
+	return token.NewParserWithKeys(
+		key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+			return set, err
+		}),
+	)
+}
+
 func TestParseMissingHeader(t *testing.T) {
 	t.Parallel()
-	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
-		return jwk.NewSet(), nil
-	})}
+	p := mockParser(jwk.NewSet(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	_, err := p.Parse(req)
-	require.ErrorIs(t, err, ErrMissingToken)
+	require.ErrorIs(t, err, token.ErrMissingToken)
 }
 
 func TestParseEmptyAfterBearer(t *testing.T) {
 	t.Parallel()
-	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
-		return jwk.NewSet(), nil
-	})}
+	p := mockParser(jwk.NewSet(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(Header, "Bearer  ")
+	req.Header.Set(token.Header, "Bearer  ")
 
 	_, err := p.Parse(req)
-	require.ErrorIs(t, err, ErrMissingToken)
+	require.ErrorIs(t, err, token.ErrMissingToken)
 }
 
 func TestParsePropagatesErrors(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.New("sentinel")
-	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
-		return nil, sentinel
-	})}
+	p := mockParser(nil, assert.AnError)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(Header, "Bearer token")
+	req.Header.Set(token.Header, "Bearer token")
 
 	_, err := p.Parse(req)
-	require.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 func TestParseRaisesCorrectErrors(t *testing.T) {
 	t.Parallel()
-	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
-		return jwk.NewSet(), nil
-	})}
+	p := mockParser(jwk.NewSet(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(Header, "Bearer invalid")
+	req.Header.Set(token.Header, "Bearer invalid")
 
 	_, err := p.Parse(req)
-	require.ErrorIs(t, err, ErrInvalidToken)
-}
-
-func TestParsePassesRequestContextToProvider(t *testing.T) {
-	t.Parallel()
-	type markerKey struct{}
-	const marker = "seen"
-	seen := false
-
-	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
-		if v, _ := ctx.Value(markerKey{}).(string); v == marker {
-			seen = true
-		}
-		return jwk.NewSet(), nil
-	})}
-
-	base := httptest.NewRequest(http.MethodGet, "/", nil)
-	req := base.WithContext(context.WithValue(base.Context(), markerKey{}, marker))
-	req.Header.Set(Header, "Bearer invalid")
-
-	_, _ = p.Parse(req)
-	assert.True(t, seen, "provider did not receive the request context")
+	require.ErrorIs(t, err, token.ErrInvalidToken)
 }
 
 func TestNewParser(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		const jwks = `{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"k1"}]}`
-		dir := t.TempDir()
-		path := filepath.Join(dir, "keys.jwks")
+		path := filepath.Join(t.TempDir(), "keys.jwks")
 		require.NoError(t, os.WriteFile(path, []byte(jwks), 0o600))
 
 		cfg := config.Token{
@@ -141,16 +120,14 @@ func TestNewParser(t *testing.T) {
 			Issuer:   "iss",
 			Audience: "aud",
 			Leeway:   1 * time.Second,
-			Clock:    jwt.ClockFunc(func() time.Time { return time.UnixMilli(1) }),
+			Clock: jwt.ClockFunc(
+				func() time.Time { return time.UnixMilli(1) },
+			),
 		}
 
-		p, err := NewParser(context.Background(), cfg)
+		p, err := token.NewParser(t.Context(), cfg)
 		require.NoError(t, err)
 		require.NotNil(t, p)
-
-		internal, ok := p.(*parser)
-		require.True(t, ok, "expected *parser concrete type")
-		assert.Len(t, internal.opts, 4)
 	})
 
 	t.Run("error invalid static path", func(t *testing.T) {
@@ -159,17 +136,9 @@ func TestNewParser(t *testing.T) {
 				Static: filepath.Join(t.TempDir(), "missing.jwks"),
 			},
 		}
-		p, err := NewParser(context.Background(), cfg)
+		p, err := token.NewParser(t.Context(), cfg)
 		require.Error(t, err)
 		assert.Nil(t, p)
 		assert.Contains(t, err.Error(), "create key provider")
 	})
-}
-
-func TestParserFunc(t *testing.T) {
-	want, _ := jwt.NewBuilder().Build()
-	p := ParserFunc(func(*http.Request) (jwt.Token, error) { return want, nil })
-	got, err := p.Parse(httptest.NewRequest(http.MethodGet, "/", nil))
-	require.NoError(t, err)
-	require.Equal(t, want, got)
 }
