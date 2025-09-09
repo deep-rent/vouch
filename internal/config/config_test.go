@@ -33,7 +33,7 @@ func writeConfig(t *testing.T, body string) string {
 	return path
 }
 
-func TestLoadSuccessDefaultsApplied(t *testing.T) {
+func TestDefaults(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -44,6 +44,7 @@ guard:
     - mode: allow
       when: "true"
       user: '"alice"'
+      roles: '["_admin"]'
 `
 	path := writeConfig(t, yml)
 
@@ -52,10 +53,8 @@ guard:
 
 	local := cfg.Local
 	assert.Equal(t, ":8080", local.Addr)
-
 	proxy := cfg.Proxy
 	assert.Equal(t, "http://localhost:8080", proxy.Target.String())
-
 	headers := proxy.Headers
 	assert.Equal(t, "X-Auth-CouchDB-UserName", headers.User.Name)
 	assert.False(t, headers.User.Anonymous)
@@ -75,18 +74,22 @@ guard:
 
 	keys := token.Keys
 	assert.Empty(t, keys.Static)
-	assert.Equal(
-		t,
-		"https://foo.bar/.well-known/jwks.json",
-		keys.Remote.Endpoint,
-	)
-	assert.Equal(t, 30*time.Minute, keys.Remote.Interval)
 
-	require.Len(t, guard.Rules, 1)
-	assert.False(t, guard.Rules[0].Deny)
+	remote := keys.Remote
+	assert.Equal(t, "https://foo.bar/.well-known/jwks.json", remote.Endpoint)
+	assert.Equal(t, 30*time.Minute, remote.Interval)
+	assert.Equal(t, "Vouch/dev", remote.UserAgent)
+
+	rules := guard.Rules
+	require.Len(t, rules, 1)
+
+	r := rules[0]
+	assert.False(t, r.Deny)
+	assert.Equal(t, `"alice"`, r.User)
+	assert.Equal(t, `["_admin"]`, r.Roles)
 }
 
-func TestLoadErrorNoRules(t *testing.T) {
+func TestNoRulesError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -100,7 +103,7 @@ guard:
 	assert.Contains(t, err.Error(), "rules: at least one rule")
 }
 
-func TestLoadErrorInvalidProxyScheme(t *testing.T) {
+func TestInvalidProxySchemeError(t *testing.T) {
 	yml := `
 proxy:
   scheme: ftp
@@ -118,7 +121,7 @@ guard:
 	assert.Contains(t, err.Error(), "proxy.scheme: must be 'http' or 'https'")
 }
 
-func TestLoadErrorMissingKeysSource(t *testing.T) {
+func TestMissingKeysSourceError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -136,7 +139,7 @@ guard:
 	)
 }
 
-func TestLoadErrorRuleUserInDeny(t *testing.T) {
+func TestRuleUserInDenyError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -153,7 +156,7 @@ guard:
 	assert.Contains(t, err.Error(), "user: must not be set in")
 }
 
-func TestLoadErrorRolesWithoutUser(t *testing.T) {
+func TestRolesWithoutUserError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -170,7 +173,7 @@ guard:
 	assert.Contains(t, err.Error(), "roles: cannot be set without user")
 }
 
-func TestLoadErrorRemoteBadScheme(t *testing.T) {
+func TestRemoteBadSchemeError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -186,7 +189,7 @@ guard:
 	assert.Contains(t, err.Error(), "remote.endpoint: illegal url scheme")
 }
 
-func TestLoadErrorRemoteNegativeInterval(t *testing.T) {
+func TestRemoteNegativeIntervalError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -203,7 +206,7 @@ guard:
 	assert.Contains(t, err.Error(), "interval: must be non-negative")
 }
 
-func TestLoadErrorNegativeLeeway(t *testing.T) {
+func TestNegativeLeewayError(t *testing.T) {
 	yml := `
 guard:
   token:
@@ -263,7 +266,7 @@ guard:
 	require.NoError(t, err)
 }
 
-func TestLoadValidationErrors(t *testing.T) {
+func TestValidationErrors(t *testing.T) {
 	cases := []struct {
 		name    string
 		yml     string
