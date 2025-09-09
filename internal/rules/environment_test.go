@@ -26,14 +26,14 @@ import (
 
 func TestNewEnvironment(t *testing.T) {
 	req := &http.Request{
-		Method: "POST",
+		Method: http.MethodPost,
 		URL:    &url.URL{Path: "/my-db/some_doc"},
 	}
 	tok := jwt.New()
 
 	env := NewEnvironment(tok, req)
 
-	assert.Equal(t, "POST", env.Method, "should set the method")
+	assert.Equal(t, http.MethodPost, env.Method, "should set the method")
 	assert.Equal(t, "/my-db/some_doc", env.Path, "should set the path")
 	assert.Equal(t, "my-db", env.DB, "should extract the database name")
 	assert.Same(t, tok, env.tok, "should set the token")

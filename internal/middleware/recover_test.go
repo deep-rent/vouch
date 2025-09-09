@@ -41,7 +41,7 @@ func TestRecoverPanic(t *testing.T) {
 
 	mw := Recover(log)(h)
 	rr := httptest.NewRecorder()
-	mw.ServeHTTP(rr, httptest.NewRequest("GET", "/panic", nil))
+	mw.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/panic", nil))
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	out := buf.String()

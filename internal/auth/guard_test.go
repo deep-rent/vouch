@@ -107,7 +107,7 @@ func TestGuardCheck(t *testing.T) {
 				parser: tc.parser,
 				engine: tc.engine,
 			}
-			req := httptest.NewRequest("GET", "http://example/db/doc", nil)
+			req := httptest.NewRequest(http.MethodGet, "http://example/db/doc", nil)
 			scope, err := g.Check(req)
 
 			if tc.err != nil {
@@ -174,7 +174,7 @@ func TestNewGuard(t *testing.T) {
 
 func TestGuardFunc(t *testing.T) {
 	g := GuardFunc(func(*http.Request) (Scope, error) { return Scope{User: "u"}, nil })
-	s, err := g.Check(httptest.NewRequest("GET", "/", nil))
+	s, err := g.Check(httptest.NewRequest(http.MethodGet, "/", nil))
 	require.NoError(t, err)
 	require.Equal(t, "u", s.User)
 }

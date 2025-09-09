@@ -47,7 +47,7 @@ func TestProxyDirectorAndForwardingHeaders(t *testing.T) {
 	h := New(u)
 
 	// Craft the incoming request.
-	req := httptest.NewRequest("GET", "http://client.example.local/db/doc", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://client.example.local/db/doc", nil)
 	req.RemoteAddr = "203.0.113.10:43210"
 	req.Header.Set(token.Header, "Bearer abc123")
 	req.Header.Set(HeaderForwardedProto, "")
@@ -83,10 +83,10 @@ func TestProxyTimeoutMapsTo504(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	req := httptest.NewRequest("GET", srv.URL+"/slow", nil).WithContext(ctx)
-	rr := httptest.NewRecorder()
+  rr := httptest.NewRecorder()
 
-	h.ServeHTTP(rr, req)
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, srv.URL+"/slow", nil).
+    WithContext(ctx))
 
 	assert.Equal(t, http.StatusGatewayTimeout, rr.Code)
 }
@@ -103,7 +103,7 @@ func TestProxyConnectionErrorMapsTo502(t *testing.T) {
 
 	h := New(u)
 
-	req := httptest.NewRequest("GET", "https://example.invalid/", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://example.invalid/", nil)
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)

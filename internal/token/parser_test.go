@@ -65,7 +65,7 @@ func TestParseMissingHeader(t *testing.T) {
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	_, err := p.Parse(req)
 	require.ErrorIs(t, err, ErrMissingToken)
@@ -76,7 +76,7 @@ func TestParseEmptyAfterBearer(t *testing.T) {
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set(Header, "Bearer  ")
 
 	_, err := p.Parse(req)
@@ -89,7 +89,7 @@ func TestParsePropagatesErrors(t *testing.T) {
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return nil, sentinel
 	})}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set(Header, "Bearer token")
 
 	_, err := p.Parse(req)
@@ -101,7 +101,7 @@ func TestParseRaisesCorrectErrors(t *testing.T) {
 	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set(Header, "Bearer invalid")
 
 	_, err := p.Parse(req)
@@ -121,7 +121,7 @@ func TestParsePassesRequestContextToProvider(t *testing.T) {
 		return jwk.NewSet(), nil
 	})}
 
-	base := httptest.NewRequest("GET", "/", nil)
+	base := httptest.NewRequest(http.MethodGet, "/", nil)
 	req := base.WithContext(context.WithValue(base.Context(), markerKey{}, marker))
 	req.Header.Set(Header, "Bearer invalid")
 
@@ -169,7 +169,7 @@ func TestNewParser(t *testing.T) {
 func TestParserFunc(t *testing.T) {
 	want, _ := jwt.NewBuilder().Build()
 	p := ParserFunc(func(*http.Request) (jwt.Token, error) { return want, nil })
-	got, err := p.Parse(httptest.NewRequest("GET", "/", nil))
+	got, err := p.Parse(httptest.NewRequest(http.MethodGet, "/", nil))
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 }

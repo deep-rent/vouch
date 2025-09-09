@@ -23,11 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func compile(t *testing.T, src string, opts ...expr.Option) *vm.Program {
+func compile(t *testing.T, src string) *vm.Program {
 	t.Helper()
-	p, err := expr.Compile(src, append(
-		[]expr.Option{expr.Env(Environment{})}, opts...,
-	)...)
+	p, err := expr.Compile(src, expr.Env(Environment{}))
 	if err != nil {
 		t.Fatalf("compile %q: %v", src, err)
 	}
