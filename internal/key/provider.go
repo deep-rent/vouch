@@ -162,7 +162,6 @@ func (c *composite) Keys(ctx context.Context) (jwk.Set, error) {
 				}
 			}
 		}
-
 	}
 	return agg, nil
 }
