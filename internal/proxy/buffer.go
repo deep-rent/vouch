@@ -44,6 +44,7 @@ func newBufferPool(size int) *bufferPool {
 
 // Get returns a reusable buffer slice.
 func (b *bufferPool) Get() []byte {
+  //nolint:errcheck
 	return *b.pool.Get().(*[]byte)
 }
 
