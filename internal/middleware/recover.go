@@ -26,14 +26,14 @@ func Recover(log *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			defer func() {
-				// Intercept a panic from downstream handlers/middlewares.
-				if panic := recover(); panic != nil {
+				// Intercept a p from downstream handlers/middlewares.
+				if p := recover(); p != nil {
 					method, path := req.Method, req.URL.Path
 					stack := string(debug.Stack())
 					log.Error("unhandled panic",
 						"method", method,
 						"path", path,
-						"panic", panic,
+						"panic", p,
 						"stack", stack,
 					)
 					sendStatus(res, http.StatusInternalServerError)
