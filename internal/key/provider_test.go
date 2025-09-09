@@ -82,7 +82,7 @@ func TestNewStatic(t *testing.T) {
 	})
 
 	t.Run("file not found", func(t *testing.T) {
-		_, err := key.NewStaticProvider("missing.jwks.json")
+		_, err := key.NewStaticProvider("missing.jwks")
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "stat file")
 	})
@@ -145,20 +145,20 @@ func TestNewProvider(t *testing.T) {
 	defer srv.Close()
 
 	tests := []struct {
-		name string
-		cfg  config.Keys
-		impl any
-		keys int
-		fail bool
-		err  string
+		name     string
+		cfg      config.Keys
+		wantImpl any
+		wantLen  int
+		wantFail bool
+		wantErr  string
 	}{
 		{
 			name: "static only",
 			cfg: config.Keys{
 				Static: src,
 			},
-			impl: &key.StaticProvider{},
-			keys: 1,
+			wantImpl: &key.StaticProvider{},
+			wantLen:  1,
 		},
 		{
 			name: "remote only",
@@ -168,8 +168,8 @@ func TestNewProvider(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 			},
-			impl: &key.RemoteProvider{},
-			keys: 1,
+			wantImpl: &key.RemoteProvider{},
+			wantLen:  1,
 		},
 		{
 			name: "static and remote",
@@ -180,22 +180,22 @@ func TestNewProvider(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 			},
-			impl: &key.CompositeProvider{},
-			keys: 2,
+			wantImpl: &key.CompositeProvider{},
+			wantLen:  2,
 		},
 		{
-			name: "no provider configured",
-			cfg:  config.Keys{},
-			fail: true,
-			err:  "no key source provided",
+			name:     "no provider configured",
+			cfg:      config.Keys{},
+			wantFail: true,
+			wantErr:  "no key source provided",
 		},
 		{
 			name: "static provider fails",
 			cfg: config.Keys{
-				Static: filepath.Join(t.TempDir(), "missing.jwks.json"),
+				Static: filepath.Join(t.TempDir(), "missing.jwks"),
 			},
-			fail: true,
-			err:  "static keys",
+			wantFail: true,
+			wantErr:  "static keys",
 		},
 		{
 			name: "remote provider fails (initial fetch)",
@@ -205,8 +205,8 @@ func TestNewProvider(t *testing.T) {
 					Interval: 1 * time.Second,
 				},
 			},
-			fail: true,
-			err:  "remote keys",
+			wantFail: true,
+			wantErr:  "remote keys",
 		},
 	}
 
@@ -215,18 +215,18 @@ func TestNewProvider(t *testing.T) {
 			ctx := t.Context()
 			p, err := key.NewProvider(ctx, tc.cfg)
 
-			if tc.fail {
+			if tc.wantFail {
 				require.Error(t, err)
-				assert.ErrorContains(t, err, tc.err)
+				assert.ErrorContains(t, err, tc.wantErr)
 				return
 			}
 
 			require.NoError(t, err)
-			require.IsType(t, tc.impl, p)
+			require.IsType(t, tc.wantImpl, p)
 
 			keys, err := p.Keys(ctx)
 			require.NoError(t, err)
-			assert.Equal(t, tc.keys, keys.Len())
+			assert.Equal(t, tc.wantLen, keys.Len())
 		})
 	}
 }
@@ -239,4 +239,14 @@ func TestProviderFunc(t *testing.T) {
 	got, err := p.Keys(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, set, got)
+}
+
+func TestCompositeProviderError(t *testing.T) {
+	p := key.ProviderFunc(func(context.Context) (jwk.Set, error) {
+		return nil, assert.AnError
+	})
+	q := key.Compose(p)
+	_, err := q.Keys(t.Context())
+
+	require.ErrorIs(t, err, assert.AnError)
 }
