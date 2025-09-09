@@ -39,7 +39,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -75,7 +75,11 @@ guard:
 
 	keys := token.Keys
 	assert.Empty(t, keys.Static)
-	assert.Equal(t, "https://example.com/jwks", keys.Remote.Endpoint)
+	assert.Equal(
+		t,
+		"https://foo.bar/.well-known/jwks.json",
+		keys.Remote.Endpoint,
+	)
 	assert.Equal(t, 30*time.Minute, keys.Remote.Interval)
 
 	require.Len(t, guard.Rules, 1)
@@ -88,7 +92,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules: []
 `
 	_, _, err := config.Load(writeConfig(t, yml))
@@ -104,7 +108,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -138,7 +142,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: deny
       when: "true"
@@ -155,7 +159,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -172,7 +176,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: ftp://example.com/jwks
+        endpoint: ftp://auth.example.com/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -188,7 +192,7 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
         interval: -5
   rules:
     - mode: allow
@@ -206,7 +210,7 @@ guard:
     leeway: -10
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -221,16 +225,16 @@ func TestHeadersCanonicalization(t *testing.T) {
 proxy:
   headers:
     user:
-      name: x-custom-user
+      name: x-vouch-user
     roles:
-      name: x-custom-roles
+      name: x-vouch-roles
     token:
-      name: x-custom-token
+      name: x-vouch-token
 guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
@@ -239,9 +243,9 @@ guard:
 	require.NoError(t, err)
 
 	h := cfg.Proxy.Headers
-	assert.Equal(t, "X-Custom-User", h.User.Name)
-	assert.Equal(t, "X-Custom-Roles", h.Roles.Name)
-	assert.Equal(t, "X-Custom-Token", h.Token.Name)
+	assert.Equal(t, "X-Vouch-User", h.User.Name)
+	assert.Equal(t, "X-Vouch-Roles", h.Roles.Name)
+	assert.Equal(t, "X-Vouch-Token", h.Token.Name)
 }
 
 func TestLoadAcceptsOptions(t *testing.T) {
@@ -250,11 +254,119 @@ guard:
   token:
     keys:
       remote:
-        endpoint: https://example.com/jwks
+        endpoint: https://foo.bar/.well-known/jwks.json
   rules:
     - mode: allow
       when: "true"
 `
 	_, _, err := config.Load(writeConfig(t, yml), config.WithVersion("1.2.3"))
 	require.NoError(t, err)
+}
+
+func TestLoadValidationErrors(t *testing.T) {
+	cases := []struct {
+		name    string
+		yml     string
+		wantErr string
+	}{
+		{
+			name: "no rules",
+			yml: `
+guard:
+  token:
+    keys:
+      remote: { endpoint: "https://foo.bar/.well-known/jwks.json" }
+  rules: []`,
+			wantErr: "rules: at least one rule",
+		},
+		{
+			name: "invalid proxy scheme",
+			yml: `
+proxy:
+  scheme: ftp
+guard:
+  token:
+    keys:
+      remote: { endpoint: "https://foo.bar/.well-known/jwks.json" }
+  rules:
+    - { mode: allow, when: "true" }`,
+			wantErr: "proxy.scheme: must be 'http' or 'https'",
+		},
+		{
+			name: "missing keys source",
+			yml: `
+guard:
+  token:
+    keys: {}
+  rules:
+    - { mode: allow, when: "true" }`,
+			wantErr: `at least one of "static" or "remote.endpoint"`,
+		},
+		{
+			name: "user in deny rule",
+			yml: `
+guard:
+  token:
+    keys:
+      remote: { endpoint: "https://foo.bar/.well-known/jwks.json" }
+  rules:
+    - { mode: deny, when: "true", user: '"bob"' }`,
+			wantErr: "user: must not be set in",
+		},
+		{
+			name: "roles without user",
+			yml: `
+guard:
+  token:
+    keys:
+      remote: { endpoint: "https://foo.bar/.well-known/jwks.json" }
+  rules:
+    - { mode: allow, when: "true", roles: '["r1"]' }`,
+			wantErr: "roles: cannot be set without user",
+		},
+		{
+			name: "remote bad scheme",
+			yml: `
+guard:
+  token:
+    keys:
+      remote: { endpoint: "ftp://example.com/jwks" }
+  rules:
+    - { mode: allow, when: "true" }`,
+			wantErr: "remote.endpoint: illegal url scheme",
+		},
+		{
+			name: "remote negative interval",
+			yml: `
+guard:
+  token:
+    keys:
+      remote:
+        endpoint: "https://foo.bar/.well-known/jwks.json"
+        interval: -5
+  rules:
+    - { mode: allow, when: "true" }`,
+			wantErr: "interval: must be non-negative",
+		},
+		{
+			name: "negative leeway",
+			yml: `
+guard:
+  token:
+    leeway: -10
+    keys:
+      remote: { endpoint: "https://foo.bar/.well-known/jwks.json" }
+  rules:
+    - { mode: allow, when: "true" }`,
+			wantErr: "leeway: must be non-negative",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := config.Load(writeConfig(t, tc.yml))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
 }
