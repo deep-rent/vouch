@@ -60,21 +60,21 @@ guard:
 	assert.Equal(t, "X-Auth-CouchDB-UserName", headers.User.Name)
 	assert.False(t, headers.User.Anonymous)
 	assert.Equal(t, "X-Auth-CouchDB-Roles", headers.Roles.Name)
-	assert.Equal(t, "", headers.Roles.Default)
+	assert.Empty(t, headers.Roles.Default)
 	assert.Equal(t, "X-Auth-CouchDB-Token", headers.Token.Name)
-	assert.Equal(t, "", headers.Token.Signer.Secret)
+	assert.Empty(t, headers.Token.Signer.Secret)
 	assert.Nil(t, headers.Token.Signer.Algorithm)
 
 	guard := cfg.Guard
 
 	token := guard.Token
-	assert.Equal(t, "", token.Issuer)
-	assert.Equal(t, "", token.Audience)
+	assert.Empty(t, token.Issuer)
+	assert.Empty(t, token.Audience)
 	assert.Equal(t, time.Duration(0), token.Leeway)
 	assert.Nil(t, token.Clock)
 
 	keys := token.Keys
-	assert.Equal(t, "", keys.Static)
+	assert.Empty(t, keys.Static)
 	assert.Equal(t, "https://example.com/jwks", keys.Remote.Endpoint)
 	assert.Equal(t, 30*time.Minute, keys.Remote.Interval)
 
