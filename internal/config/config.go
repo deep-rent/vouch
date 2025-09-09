@@ -53,9 +53,9 @@ import (
 
 // Config represents the entire application configuration.
 type Config struct {
+  Server
 	// Guard configures authentication and authorization of incoming requests.
 	Guard Guard
-	Server
 }
 
 type visitor struct {
@@ -141,9 +141,9 @@ type RolesHeader struct {
 
 // TokenHeader configures the proxy header that carries the CouchDB token.
 type TokenHeader struct {
+  Signer
 	// Name is the proxy header name.
 	Name string
-	Signer
 }
 
 // Remote configures periodic retrieval of a JWKS from a remote endpoint.
@@ -418,8 +418,8 @@ func (r rolesHeader) validate(_ *visitor) (RolesHeader, error) {
 
 // tokenHeader is the wire representation of TokenHeader.
 type tokenHeader struct {
+  signer `yaml:",inline"`
 	Name   string `yaml:"name"`
-	signer `yaml:",inline"`
 }
 
 // validate derives the runtime representation of tokenHeader.
