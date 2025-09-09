@@ -54,8 +54,8 @@ func NewCompiler() *Compiler {
 
 // Compile compiles a slice of declarative rules into executable Rules.
 // Rules are compiled in order and returned in the same order.
-func (c *Compiler) Compile(rules []config.Rule) ([]rule, error) {
-	out := make([]rule, 0, len(rules))
+func (c *Compiler) Compile(rules []config.Rule) ([]Rule, error) {
+	out := make([]Rule, 0, len(rules))
 	for i, r := range rules {
 		compiled, err := c.compile(r)
 		if err != nil {
@@ -69,10 +69,10 @@ func (c *Compiler) Compile(rules []config.Rule) ([]rule, error) {
 // compile compiles a single rule and validates its shape based on mode.
 // For deny rules, user and roles must not be provided; for allow rules,
 // when is required and user/roles are optional.
-func (c *Compiler) compile(r config.Rule) (rule, error) {
+func (c *Compiler) compile(r config.Rule) (Rule, error) {
 	when, err := expr.Compile(r.When, c.when...)
 	if err != nil {
-		return rule{}, fmt.Errorf("when: %w", err)
+		return Rule{}, fmt.Errorf("when: %w", err)
 	}
 
 	deny := r.Deny
@@ -82,19 +82,19 @@ func (c *Compiler) compile(r config.Rule) (rule, error) {
 			var err error
 			user, err = expr.Compile(u, c.user...)
 			if err != nil {
-				return rule{}, fmt.Errorf("user: %w", err)
+				return Rule{}, fmt.Errorf("user: %w", err)
 			}
 		}
 		if r := r.Roles; r != "" {
 			var err error
 			roles, err = expr.Compile(r, c.roles...)
 			if err != nil {
-				return rule{}, fmt.Errorf("roles: %w", err)
+				return Rule{}, fmt.Errorf("roles: %w", err)
 			}
 		}
 	}
 
-	return rule{
+	return Rule{
 		deny:  deny,
 		when:  when,
 		user:  user,

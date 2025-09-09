@@ -51,7 +51,7 @@ func (f EngineFunc) Eval(env Environment) (Result, error) {
 
 // engine is the default Engine implementation.
 type engine struct {
-	rules []rule
+	rules []Rule
 }
 
 func (a *engine) Eval(env Environment) (Result, error) {

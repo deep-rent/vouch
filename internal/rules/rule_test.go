@@ -50,7 +50,7 @@ func TestRuleEvalWhen(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &rule{when: compile(t, tc.expr)}
+			r := &Rule{when: compile(t, tc.expr)}
 			got, err := r.evalWhen(Environment{})
 
 			if tc.fail {
@@ -67,14 +67,14 @@ func TestRuleEvalUser(t *testing.T) {
 	tests := []struct {
 		// inputs
 		name string
-		rule *rule
+		rule *Rule
 		// expected outputs
 		want string
 		fail bool
 	}{
-		{"nil expression", &rule{user: nil}, "", false},
-		{"string expression", &rule{user: compile(t, `"alice"`)}, "alice", false},
-		{"wrong type", &rule{user: compile(t, "42")}, "", true},
+		{"nil expression", &Rule{user: nil}, "", false},
+		{"string expression", &Rule{user: compile(t, `"alice"`)}, "alice", false},
+		{"wrong type", &Rule{user: compile(t, "42")}, "", true},
 	}
 
 	for _, tc := range tests {
@@ -95,16 +95,16 @@ func TestRuleEvalRoles(t *testing.T) {
 	tests := []struct {
 		// inputs
 		name string
-		rule *rule
+		rule *Rule
 		// expected outputs
 		want string
 		fail bool
 	}{
-		{"nil expression", &rule{roles: nil}, "", false},
-		{"string slice", &rule{roles: compile(t, `["a","b"]`)}, "a,b", false},
-		{"empty slice", &rule{roles: compile(t, `[]`)}, "", false},
-		{"non-slice type", &rule{roles: compile(t, `"admin"`)}, "", true},
-		{"slice with non-string", &rule{roles: compile(t, `["a", 1]`)}, "", true},
+		{"nil expression", &Rule{roles: nil}, "", false},
+		{"string slice", &Rule{roles: compile(t, `["a","b"]`)}, "a,b", false},
+		{"empty slice", &Rule{roles: compile(t, `[]`)}, "", false},
+		{"non-slice type", &Rule{roles: compile(t, `"admin"`)}, "", true},
+		{"slice with non-string", &Rule{roles: compile(t, `["a", 1]`)}, "", true},
 	}
 
 	for _, tc := range tests {
@@ -125,24 +125,24 @@ func TestRuleEval(t *testing.T) {
 	tests := []struct {
 		// inputs
 		name string
-		rule rule
+		rule Rule
 		// expected outputs
 		want result
 		fail bool
 	}{
 		{
 			name: "skip when condition is false",
-			rule: rule{when: compile(t, "false")},
+			rule: Rule{when: compile(t, "false")},
 			want: result{Skip: true},
 		},
 		{
 			name: "deny when condition is true and deny mode is on",
-			rule: rule{deny: true, when: compile(t, "true")},
+			rule: Rule{deny: true, when: compile(t, "true")},
 			want: result{Deny: true},
 		},
 		{
 			name: "allow with user and roles",
-			rule: rule{
+			rule: Rule{
 				when:  compile(t, "true"),
 				user:  compile(t, `"alice"`),
 				roles: compile(t, `["reader","writer"]`),
@@ -151,7 +151,7 @@ func TestRuleEval(t *testing.T) {
 		},
 		{
 			name: "allow with user and no roles",
-			rule: rule{
+			rule: Rule{
 				when: compile(t, "true"),
 				user: compile(t, `"bob"`),
 			},
@@ -159,7 +159,7 @@ func TestRuleEval(t *testing.T) {
 		},
 		{
 			name: "allow with roles and no user",
-			rule: rule{
+			rule: Rule{
 				when:  compile(t, "true"),
 				roles: compile(t, `["editor"]`),
 			},
@@ -167,17 +167,17 @@ func TestRuleEval(t *testing.T) {
 		},
 		{
 			name: "allow with no user or roles",
-			rule: rule{when: compile(t, "true")},
+			rule: Rule{when: compile(t, "true")},
 			want: result{},
 		},
 		{
 			name: "error on invalid when expression",
-			rule: rule{when: compile(t, "1")},
+			rule: Rule{when: compile(t, "1")},
 			fail: true,
 		},
 		{
 			name: "error on invalid user expression",
-			rule: rule{
+			rule: Rule{
 				when: compile(t, "true"),
 				user: compile(t, "1"),
 			},
@@ -185,7 +185,7 @@ func TestRuleEval(t *testing.T) {
 		},
 		{
 			name: "error on invalid roles expression",
-			rule: rule{
+			rule: Rule{
 				when:  compile(t, "true"),
 				user:  compile(t, `"charlie"`),
 				roles: compile(t, "1"),

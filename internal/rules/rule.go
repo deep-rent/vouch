@@ -22,11 +22,11 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// rule is a compiled authorization rule.
+// Rule is a compiled authorization Rule.
 // Its expressions are compiled once and evaluated for each request against an
-// Environment. When the rule matches, it either denies the request or
+// Environment. When the Rule matches, it either denies the request or
 // provides authentication parameters (user and roles).
-type rule struct {
+type Rule struct {
 	deny  bool        // whether the rule denies access when matched
 	when  *vm.Program // required; evaluates to bool
 	user  *vm.Program // optional; evaluates to string
@@ -47,7 +47,7 @@ type result struct {
 
 // evalWhen evaluates the rule's "when" condition against the environment and
 // reports whether the rule matches.
-func (r *rule) evalWhen(env Environment) (bool, error) {
+func (r *Rule) evalWhen(env Environment) (bool, error) {
 	v, err := expr.Run(r.when, env)
 	if err != nil {
 		return false, fmt.Errorf("eval when: %w", err)
@@ -61,7 +61,7 @@ func (r *rule) evalWhen(env Environment) (bool, error) {
 
 // evalUser evaluates the "user" expression and returns the CouchDB user name
 // to authenticate as. It returns an empty string when no user is configured.
-func (r *rule) evalUser(env Environment) (string, error) {
+func (r *Rule) evalUser(env Environment) (string, error) {
 	if r.user == nil {
 		return "", nil
 	}
@@ -79,7 +79,7 @@ func (r *rule) evalUser(env Environment) (string, error) {
 // evalRoles evaluates the "roles" expression and returns a comma-joined list
 // of CouchDB roles to be assigned to the user. It returns an empty string
 // when no roles are configured.
-func (r *rule) evalRoles(env Environment) (string, error) {
+func (r *Rule) evalRoles(env Environment) (string, error) {
 	if r.roles == nil {
 		return "", nil
 	}
@@ -105,7 +105,7 @@ func (r *rule) evalRoles(env Environment) (string, error) {
 // Eval evaluates the rule against the specified environment.
 // It returns a result struct describing the outcome or an error if the
 // evaluation of any expression fails.
-func (r *rule) Eval(env Environment) (result, error) {
+func (r *Rule) Eval(env Environment) (result, error) {
 	pass, err := r.evalWhen(env)
 	if err != nil {
 		return result{}, err

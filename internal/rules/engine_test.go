@@ -173,8 +173,8 @@ func TestEngineEval(t *testing.T) {
 		// We bypass NewEngine compiler safeguards by constructing Engine directly.
 		prog, err := expr.Compile("1", expr.Env(Environment{})) // returns int
 		require.NoError(t, err)
-		badRule := rule{when: prog} // deny=false, triggers type error in evalWhen
-		e := &engine{rules: []rule{badRule}}
+		badRule := Rule{when: prog} // deny=false, triggers type error in evalWhen
+		e := &engine{rules: []Rule{badRule}}
 
 		res, err := e.Eval(env())
 		require.Error(t, err)
