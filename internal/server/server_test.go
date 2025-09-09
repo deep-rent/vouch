@@ -204,8 +204,7 @@ func TestServerStartAndShutdown(t *testing.T) {
 
 func TestServerStartPortInUse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(
-		res http.ResponseWriter,
-		req *http.Request,
+		res http.ResponseWriter, _ *http.Request,
 	) {
 		res.WriteHeader(http.StatusOK)
 	}))

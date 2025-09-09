@@ -98,7 +98,7 @@ func TestParsePropagatesErrors(t *testing.T) {
 
 func TestParseRaisesCorrectErrors(t *testing.T) {
 	t.Parallel()
-	p := &parser{keys: key.ProviderFunc(func(ctx context.Context) (jwk.Set, error) {
+	p := &parser{keys: key.ProviderFunc(func(context.Context) (jwk.Set, error) {
 		return jwk.NewSet(), nil
 	})}
 	req := httptest.NewRequest("GET", "/", nil)
