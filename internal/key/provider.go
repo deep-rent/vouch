@@ -95,40 +95,41 @@ var _ Provider = (*RemoteProvider)(nil)
 // userAgentTransport is an http.RoundTripper that sets a custom User-Agent
 // header on all requests before delegating to an underlying transport.
 type userAgentTransport struct {
-	UserAgent string
-	Transport http.RoundTripper
+	userAgent string
+	transport http.RoundTripper
 }
 
 // RoundTrip implements the http.RoundTripper interface.
 func (t *userAgentTransport) RoundTrip(
 	req *http.Request,
 ) (*http.Response, error) {
-	req.Header.Set("User-Agent", t.UserAgent)
-	return t.Transport.RoundTrip(req)
+	req.Header.Set("User-Agent", t.userAgent)
+	return t.transport.RoundTrip(req)
 }
 
 // Ensure userAgentTransport satisfies the http.RoundTripper contract.
 var _ http.RoundTripper = (*userAgentTransport)(nil)
 
-// newClient constructs an HTTP client for remote key fetching with sensible
-// defaults and a custom User-Agent header.
+func transport(cfg config.Remote) http.RoundTripper {
+	return &userAgentTransport{
+		userAgent: cfg.UserAgent,
+		transport: http.DefaultTransport,
+	}
+}
+
 func newClient(cfg config.Remote) *httprc.Client {
 	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &userAgentTransport{
-			UserAgent: cfg.UserAgent,
-			Transport: http.DefaultTransport,
-		},
+		Timeout:   30 * time.Second,
+		Transport: transport(cfg),
 	}
-	return httprc.NewClient(
-		httprc.WithHTTPClient(client),
-	)
+	return httprc.NewClient(httprc.WithHTTPClient(client))
 }
 
 // NewRemoteProvider constructs a remote key Provider backed by jwk.Cache and
 // a tuned HTTP client. The cache is registered to poll cfg.Endpoint at
-// cfg.Interval. It uses a short timeout for the initial registration fetch
-// so that permanently failing endpoints do not block startup indefinitely.
+// cfg.Interval, which triggers an initial fetch. It uses a short timeout for
+// this initial fetch so that permanently failing endpoints do not block
+// startup indefinitely.
 func NewRemoteProvider(
 	ctx context.Context,
 	cfg config.Remote,
@@ -166,15 +167,24 @@ func (c *CompositeProvider) Keys(ctx context.Context) (jwk.Set, error) {
 		if err != nil {
 			return nil, err
 		}
-		for i := range set.Len() {
-			if key, ok := set.Key(i); ok {
-				if err := agg.AddKey(key); err != nil {
-					return nil, fmt.Errorf("add key: %w", err)
-				}
-			}
+		err = addAll(agg, set)
+		if err != nil {
+			return nil, fmt.Errorf("merge key sets: %w", err)
 		}
 	}
 	return agg, nil
+}
+
+// addAll adds all keys from src to dst, returning any error encountered.
+func addAll(dst, src jwk.Set) error {
+	for i := range src.Len() {
+		if key, ok := src.Key(i); ok {
+			if err := dst.AddKey(key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Compose constructs a composite Provider from multiple
