@@ -214,6 +214,7 @@ type Rule struct {
 	// authenticate as. It is empty when Deny is true. If the expression
 	// evaluates to an empty string, the request is forwarded anonymously,
 	// provided that the user header configuration allows anonymous requests.
+	// The expression must evaluate to a string.
 	User string
 	// Roles is an optional expression that specifies CouchDB roles for
 	// authentication. It is empty when Deny is true. If specified, the
