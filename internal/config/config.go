@@ -471,22 +471,21 @@ func (s signer) validate(v *visitor) (Signer, error) {
 			"proxy signing is disabled; this is not recommended for production",
 		)
 	}
-	var alg func() hash.Hash
-	switch name := strings.ToLower(strings.TrimSpace(s.Algorithm)); name {
-	case "":
-		alg = nil
-	case "sha":
-		alg = sha1.New
+
+	name := strings.ToLower(strings.TrimSpace(s.Algorithm))
+	if name == "sha" {
 		v.warn("proxy signing uses sha1; prefer sha256 or stronger")
-	case "sha224":
-		alg = sha256.New224
-	case "sha256":
-		alg = sha256.New
-	case "sha384":
-		alg = sha512.New384
-	case "sha512":
-		alg = sha512.New
-	default:
+	}
+	algs := map[string]func() hash.Hash{
+		"":       nil, // default
+		"sha":    sha1.New,
+		"sha224": sha256.New224,
+		"sha256": sha256.New,
+		"sha384": sha512.New384,
+		"sha512": sha512.New,
+	}
+	alg, ok := algs[name]
+	if !ok {
 		return Signer{}, fmt.Errorf("algorithm: unsupported type %q", name)
 	}
 	return Signer{
