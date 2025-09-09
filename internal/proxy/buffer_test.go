@@ -27,7 +27,7 @@ func TestNewBufferPoolGetSize(t *testing.T) {
 	require.NotNil(t, p)
 
 	buf := p.Get()
-	require.Equal(t, sz, len(buf))
+	require.Len(t, buf, sz)
 	require.Equal(t, sz, cap(buf))
 	p.Put(buf)
 }
