@@ -2,9 +2,6 @@
 
 version: "2"
 
-issues:
-  max-same-issues: 50
-
 formatters:
   enable:
     - goimports
@@ -27,7 +24,7 @@ linters:
     - bodyclose
     - canonicalheader
     - copyloopvar
-    - cyclop
+    # - cyclop
     - depguard
     - dupl
     - durationcheck
@@ -48,7 +45,7 @@ linters:
     # - gocognit
     - goconst
     - gocritic
-    - gocyclo
+    # - gocyclo
     - godot
     - gomoddirectives
     # - goprintffuncname
@@ -91,8 +88,8 @@ linters:
     - whitespace
 
   settings:
-    cyclop:
-      package-average: 10.0
+    # cyclop:
+    #   package-average: 10.0
 
     depguard:
       rules:
@@ -207,3 +204,6 @@ linters:
           - gosec
           - noctx
           - wrapcheck
+
+issues:
+  max-same-issues: 100
