@@ -33,8 +33,15 @@
   ],
   "go.toolsManagement.autoUpdate": true,
   "search.exclude": {
+    "**/.husky/_": true,
+    "**/.pnp.*": true,
     "**/.yarn": true,
-    "**/vendor": true,
-    "**/.pnp.*": true
+    "**/*.lock": true,
+    "**/bin": true,
+    "**/coverage.out": true,
+    "**/dist": true,
+    "**/go.sum": true,
+    "**/tmp": true,
+    "**/vendor": true
   },
 }
