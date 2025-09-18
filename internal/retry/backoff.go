@@ -108,6 +108,10 @@ type exponential struct {
 }
 
 // Exponential creates a new exponential backoff strategy.
+//
+// The delay increases exponentially with each call to Next, starting from the
+// minimum delay and up to the maximum delay. The attempt counter is reset by
+// calling Done. Growth is controlled by the base factor.
 func Exponential(opts ...ExponentialOption) Backoff {
 	cfg := defaultExponentialConfig()
 	for _, opt := range opts {
@@ -192,7 +196,8 @@ type jitter struct {
 }
 
 // Jitter wraps a Backoff strategy to employ randomized jitter, spreading
-// out retry attempts in time.
+// out retry attempts in time. The jitter percentage determines the maximum
+// reduction applied to the current delay.
 func Jitter(b Backoff, opts ...JitterOption) Backoff {
 	cfg := defaultJitterConfig()
 	for _, opt := range opts {
