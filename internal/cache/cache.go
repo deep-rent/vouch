@@ -35,8 +35,8 @@ type config struct {
 }
 
 // defaultConfig initializes a configuration object with default settings.
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() config {
+	return config{
 		client:   http.DefaultClient,
 		logger:   slog.Default(),
 		minDelay: DefaultMinDelay,
@@ -179,7 +179,7 @@ func New[T any](
 
 	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	logger := cfg.logger.With("name", "Cache", "url", url)
