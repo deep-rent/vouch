@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	// DefaultMinDelay is the default minimum delay between fetches.
-	DefaultMinDelay = 15 * time.Minute
-	// DefaultMaxDelay is the default maximum delay between fetches.
-	DefaultMaxDelay = 60 * time.Minute
+	// DefaultMinInterval is the default minimum time to wait between fetches.
+	DefaultMinInterval = 15 * time.Minute
+	// DefaultMaxInterval is the default maximum time to wait between fetches.
+	DefaultMaxInterval = 60 * time.Minute
 )
 
 // Mapper defines a function that parses a raw request payload
@@ -25,52 +25,55 @@ type Mapper[T any] func(body []byte) (T, error)
 
 // config holds all configurable parameters for a Cache.
 type config struct {
-	minDelay  time.Duration
-	maxDelay  time.Duration
-	client    *http.Client
-	logger    *slog.Logger
-	backoff   retry.Backoff
-	scheduler Scheduler
-	clock     util.Clock
+	minInterval time.Duration
+	maxInterval time.Duration
+	client      *http.Client
+	logger      *slog.Logger
+	backoff     retry.Backoff
+	scheduler   Scheduler
+	clock       util.Clock
 }
 
 // defaultConfig initializes a configuration object with default settings.
 func defaultConfig() config {
 	return config{
-		client:   http.DefaultClient,
-		logger:   slog.Default(),
-		minDelay: DefaultMinDelay,
-		maxDelay: DefaultMaxDelay,
-		clock:    util.DefaultClock,
+		client:      http.DefaultClient,
+		logger:      slog.Default(),
+		minInterval: DefaultMinInterval,
+		maxInterval: DefaultMaxInterval,
+		clock:       util.DefaultClock,
 	}
 }
 
 // Option defines a function for setting cache options.
 type Option func(*config)
 
-// WithMinDelay sets the minimum delay between fetches.
+// WithMinInterval sets the minimum time to wait between fetches.
 //
-// Non-positive values are ignored, and DefaultMinDelay is used.
-func WithMinDelay(d time.Duration) Option {
+// Non-positive values are ignored, and DefaultMinInterval is used.
+func WithMinInterval(d time.Duration) Option {
 	return func(o *config) {
 		if d > 0 {
-			o.minDelay = d
+			o.minInterval = d
 		}
 	}
 }
 
-// WithMinDelay sets the minimum delay between fetches.
+// WithMaxInterval sets the maximum time to wait between fetches.
 //
-// Non-positive values are ignored, and DefaultMaxDelay is used.
-func WithMaxDelay(d time.Duration) Option {
+// Non-positive values are ignored, and DefaultMaxInterval is used.
+func WithMaxInterval(d time.Duration) Option {
 	return func(o *config) {
 		if d > 0 {
-			o.maxDelay = d
+			o.maxInterval = d
 		}
 	}
 }
 
 // WithClient provides the http.Client to use for fetching.
+//
+// If nil is given, this option is ignored. Setting a custom client overrides
+// previous timeout and transport settings.
 func WithClient(client *http.Client) Option {
 	return func(o *config) {
 		if client != nil {
@@ -156,19 +159,19 @@ func WithClock(clock util.Clock) Option {
 // provided Mapper function and can be accessed via Get. All methods are safe
 // for concurrent use.
 type Cache[T any] struct {
-	url       string
-	client    *http.Client
-	logger    *slog.Logger
-	mapper    Mapper[T]
-	clock     util.Clock
-	minDelay  time.Duration
-	maxDelay  time.Duration
-	mu        sync.RWMutex // guards resource, etag
-	resource  T
-	etag      ETag
-	scheduler Scheduler
-	cancel    context.CancelFunc
-	backoff   retry.Backoff
+	url         string
+	client      *http.Client
+	logger      *slog.Logger
+	mapper      Mapper[T]
+	clock       util.Clock
+	minInterval time.Duration
+	maxInterval time.Duration
+	mu          sync.RWMutex // guards resource, etag
+	resource    T
+	etag        ETag
+	scheduler   Scheduler
+	cancel      context.CancelFunc
+	backoff     retry.Backoff
 }
 
 // New creates a new generic Cache and starts its refresh scheduler.
@@ -190,16 +193,16 @@ func New[T any](
 	logger := cfg.logger.With("name", "Cache", "url", url)
 
 	c := &Cache[T]{
-		url:       url,
-		mapper:    mapper,
-		cancel:    cancel,
-		logger:    logger,
-		client:    cfg.client,
-		minDelay:  cfg.minDelay,
-		maxDelay:  cfg.maxDelay,
-		clock:     cfg.clock,
-		scheduler: cfg.scheduler,
-		backoff:   cfg.backoff,
+		url:         url,
+		mapper:      mapper,
+		cancel:      cancel,
+		logger:      logger,
+		client:      cfg.client,
+		minInterval: cfg.minInterval,
+		maxInterval: cfg.maxInterval,
+		clock:       cfg.clock,
+		scheduler:   cfg.scheduler,
+		backoff:     cfg.backoff,
 	}
 
 	// Use default scheduler if none provided
@@ -209,7 +212,7 @@ func New[T any](
 
 	// Use constant backoff if not customized
 	if c.backoff == nil {
-		c.backoff = retry.Constant(c.minDelay)
+		c.backoff = retry.Constant(c.minInterval)
 	}
 
 	job := c.fetch
@@ -278,36 +281,36 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 // delay calculates the time to wait for the next fetch.
 func (c *Cache[T]) delay(header http.Header) time.Duration {
 	// Constant delay case:
-	if c.minDelay == c.maxDelay {
-		return c.minDelay
+	if c.minInterval == c.maxInterval {
+		return c.minInterval
 	}
 
 	// Adaptive delay case:
-	dur := c.minDelay
+	d := c.minInterval
 	if header != nil {
 		// Try Cache-Control first, as it takes precedence
-		if d, ok := MaxAge(header); ok {
-			dur = d
-		} else if t, ok := Expires(header); ok {
-			// Calculate the duration from now until the expiry time
-			if d := t.Sub(c.clock()); d > 0 {
+		if ttl, ok := MaxAge(header); ok {
+			d = ttl
+		} else if expires, ok := Expires(header); ok {
+			// Calculate the duration from now ttl the expiry time
+			if ttl := expires.Sub(c.clock()); ttl > 0 {
 				// Only use the duration if the expiry time is in the future
-				dur = d
+				d = ttl
 			}
 		}
 	}
 
-	if dur < c.minDelay {
-		c.logger.Debug("Clamping delay", "raw", dur, "min", c.minDelay)
-		return c.minDelay
+	if d < c.minInterval {
+		c.logger.Debug("Clamping delay", "raw", d, "min", c.minInterval)
+		return c.minInterval
 	}
 
-	if dur > c.maxDelay {
-		c.logger.Debug("Clamping delay", "raw", dur, "max", c.maxDelay)
-		return c.maxDelay
+	if d > c.maxInterval {
+		c.logger.Debug("Clamping delay", "raw", d, "max", c.maxInterval)
+		return c.maxInterval
 	}
 
-	return dur
+	return d
 }
 
 // Get returns the currently cached resource.
