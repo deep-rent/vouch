@@ -97,9 +97,9 @@ type Bouncer interface {
 	//
 	// If successful, an Access value is returned that describes the permissions
 	// granted to the request. This value should be passed to a Stamper in order
-	// to attach the contained information to the outbound request.
+	// to authenticate the outbound request against CouchDB.
 	//
 	// If the request is to be denied, an *AccessError will be returned. Other
-	// errors should should be treated as internal.
+	// errors should be treated as internal.
 	Check(req *http.Request) (Access, error)
 }

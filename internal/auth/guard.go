@@ -29,8 +29,8 @@ func NewGuard(bouncer Bouncer, stamper Stamper, opts ...GuardOption) Guard {
 }
 
 // guard is the default implementation of Guard.
-// It uses a Bouncer to authorize requests and a Stamper to attach CouchDB
-// user context to them.
+// It uses a Bouncer to authorize requests and a Stamper to augment them with
+// CouchDB user context.
 type guard struct {
 	bouncer Bouncer
 	stamper Stamper
