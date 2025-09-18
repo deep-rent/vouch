@@ -153,20 +153,19 @@ func WithClock(clock util.Clock) Option {
 // provided Mapper function and can be accessed via Get. All methods are safe
 // for concurrent use.
 type Cache[T any] struct {
-	url          string
-	client       *http.Client
-	logger       *slog.Logger
-	mapper       Mapper[T]
-	clock        util.Clock
-	minDelay     time.Duration
-	maxDelay     time.Duration
-	mu           sync.RWMutex
-	resource     T
-	etag         string
-	lastModified string
-	scheduler    Scheduler
-	cancel       context.CancelFunc
-	backoff      retry.Backoff
+	url       string
+	client    *http.Client
+	logger    *slog.Logger
+	mapper    Mapper[T]
+	clock     util.Clock
+	minDelay  time.Duration
+	maxDelay  time.Duration
+	mu        sync.RWMutex // guards resource, etag
+	resource  T
+	etag      ETag
+	scheduler Scheduler
+	cancel    context.CancelFunc
+	backoff   retry.Backoff
 }
 
 // New creates a new generic Cache and starts its refresh scheduler.
@@ -223,12 +222,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	}
 
 	c.mu.RLock()
-	if c.etag != "" {
-		req.Header.Set("If-None-Match", c.etag)
-	}
-	if c.lastModified != "" {
-		req.Header.Set("If-Modified-Since", c.lastModified)
-	}
+	c.etag.Set(req.Header)
 	c.mu.RUnlock()
 
 	res, err := c.client.Do(req)
@@ -267,8 +261,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 
 	c.mu.Lock()
 	c.resource = parsed
-	c.etag = res.Header.Get("ETag")
-	c.lastModified = res.Header.Get("Last-Modified")
+	c.etag = NewETag(res.Header)
 	c.mu.Unlock()
 
 	c.backoff.Done()
@@ -288,9 +281,9 @@ func (c *Cache[T]) delay(header http.Header) time.Duration {
 	dur := c.minDelay
 	if header != nil {
 		// Try Cache-Control first, as it takes precedence.
-		if d, ok := MaxAge(header.Get("Cache-Control")); ok {
+		if d, ok := MaxAge(header); ok {
 			dur = d
-		} else if t, ok := Expires(header.Get("Expires")); ok {
+		} else if t, ok := Expires(header); ok {
 			// Calculate the duration from now until the expiry time.
 			if d := t.Sub(c.clock()); d > 0 {
 				// Only use the duration if the expiry time is in the future.

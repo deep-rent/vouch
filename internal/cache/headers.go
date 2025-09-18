@@ -7,9 +7,36 @@ import (
 	"time"
 )
 
-// MaxAge extracts the 'max-age' directive from a Cache-Control header string.
+// ETag encapsulates the ETag and Last-Modified headers of an HTTP response.
+// It is used by Cache to negotiate conditional requests.
+type ETag struct {
+	Value        string // optional
+	LastModified string // optional
+}
+
+// NewETag creates an ETag from the given HTTP headers.
+func NewETag(header http.Header) ETag {
+	return ETag{
+		Value:        header.Get("ETag"),
+		LastModified: header.Get("Last-Modified"),
+	}
+}
+
+// Set adds the If-None-Match and Last-Modified headers, if available, to the
+// given header map.
+func (e ETag) Set(header http.Header) {
+	if e.Value != "" {
+		header.Set("If-None-Match", e.Value)
+	}
+	if e.LastModified != "" {
+		header.Set("If-Modified-Since", e.LastModified)
+	}
+}
+
+// MaxAge extracts the 'max-age' directive from a Cache-Control header.
 // If valid, it returns the duration and true, false otherwise.
-func MaxAge(v string) (time.Duration, bool) {
+func MaxAge(header http.Header) (time.Duration, bool) {
+	v := header.Get("Cache-Control")
 	if v != "" {
 		for p := range strings.SplitSeq(v, ",") {
 			p = strings.TrimSpace(p)
@@ -23,9 +50,10 @@ func MaxAge(v string) (time.Duration, bool) {
 	return 0, false
 }
 
-// Expires parses an HTTP Expires header value.
+// Expires parses an HTTP Expires header.
 // If valid, it returns the timestamp and true, false otherwise.
-func Expires(v string) (time.Time, bool) {
+func Expires(header http.Header) (time.Time, bool) {
+	v := header.Get("Expires")
 	if v == "" {
 		return time.Time{}, false
 	}
