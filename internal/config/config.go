@@ -6,16 +6,17 @@ type Config struct {
 
 // Gateway configures a gateway.Gateway instance.
 type Gateway struct {
-	Host              string `yaml:"host"`
-	Port              int    `yaml:"port"`
-	Transport         Transport
-	ReadTimeout       int   `yaml:"readTimeout"`
-	ReadHeaderTimeout int   `yaml:"readHeaderTimeout"`
-	IdleTimeout       int   `yaml:"idleTimeout"`
-	MaxHeaderBytes    int   `yaml:"maxHeaderBytes"`
-	Proxy             Proxy `yaml:"proxy"`
+	Host              string    `yaml:"host"`
+	Port              int       `yaml:"port"`
+	Transport         Transport `yaml:",inline"`
+	ReadTimeout       int       `yaml:"readTimeout"`
+	ReadHeaderTimeout int       `yaml:"readHeaderTimeout"`
+	IdleTimeout       int       `yaml:"idleTimeout"`
+	MaxHeaderBytes    int       `yaml:"maxHeaderBytes"`
+	Proxy             Proxy     `yaml:"proxy"`
 }
 
+// Transport configures a http.Transport instance.
 type Transport struct{}
 
 // Proxy configures a proxy.Proxy instance.
@@ -45,8 +46,7 @@ type Rule struct {
 	Roles string `yaml:"roles"`
 }
 
-// Headers configures an auth.Headers instance.
-type Headers struct {
+type Header struct {
 	User  string `yaml:"user"`
 	Roles string `yaml:"roles"`
 	Token string `yaml:"token"`
@@ -54,8 +54,8 @@ type Headers struct {
 
 // Stamper configures an auth.Stamper instance.
 type Stamper struct {
-	Headers Headers `yaml:",inline"`
-	Signer  Signer  `yaml:",inline"`
+	Header Header `yaml:"header"`
+	Signer Signer `yaml:",inline"`
 }
 
 // Signer configures a signer.Signer instance.
@@ -74,7 +74,7 @@ type Parser struct {
 	KeySet   KeySet `yaml:"keys"`
 }
 
-// KeySet configures a token.KeySet instance.
+// KeySet configures a token.KeySet instance (backed by cache.Cache).
 type KeySet struct {
 	URL         string  `yaml:"url"`
 	MinInterval string  `yaml:"minInterval"`
@@ -89,4 +89,60 @@ type Backoff struct {
 	MaxDelay int     `yaml:"maxDelay"`
 	Factor   float64 `yaml:"factor"`
 	Jitter   float64 `yaml:"jitter"`
+}
+
+func Default() Config {
+	return Config{
+		Gateway: Gateway{
+			Host:              "",
+			Port:              0,
+			Transport:         Transport{},
+			ReadTimeout:       -1,
+			ReadHeaderTimeout: -1,
+			IdleTimeout:       -1,
+			MaxHeaderBytes:    0,
+			Proxy: Proxy{
+				Scheme:        "",
+				Host:          "",
+				Port:          0,
+				Path:          "",
+				FlushInterval: 0,
+				MinBufferSize: 0,
+				MaxBufferSize: 0,
+				Bouncer: Bouncer{
+					Token: Parser{
+						Header:   "",
+						Scheme:   "",
+						Issuer:   "",
+						Audience: "",
+						Leeway:   0,
+						KeySet: KeySet{
+							URL:         "",
+							MinInterval: "",
+							MaxInterval: "",
+							Timeout:     0,
+							Backoff: Backoff{
+								MinDelay: 0,
+								MaxDelay: 0,
+								Factor:   0,
+								Jitter:   0,
+							},
+						},
+					},
+					Rules: []Rule{},
+				},
+				Stamper: Stamper{
+					Header: Header{
+						User:  "",
+						Roles: "",
+						Token: "",
+					},
+					Signer: Signer{
+						Secret:    "",
+						Algorithm: "",
+					},
+				},
+			},
+		},
+	}
 }
