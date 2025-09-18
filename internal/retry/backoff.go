@@ -33,7 +33,13 @@ type constant struct {
 }
 
 // Constant creates a new constant backoff strategy.
+//
+// The delay must be positive, or this function panics.
 func Constant(delay time.Duration) Backoff {
+	if delay <= 0 {
+		panic("delay is non-positive")
+	}
+
 	return &constant{delay: delay}
 }
 
