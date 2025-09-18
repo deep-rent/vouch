@@ -7,6 +7,13 @@ import (
 	"github.com/expr-lang/expr"
 )
 
+type Mode string
+
+const (
+	ModeAllow Mode = "allow"
+	ModeDeny  Mode = "deny"
+)
+
 type options struct {
 	when  []expr.Option
 	user  []expr.Option
@@ -74,7 +81,7 @@ type Compiler struct {
 	opts *options
 }
 
-func NewCompiler(deny bool) *Compiler {
+func NewCompiler() *Compiler {
 	base := []expr.Option{
 		expr.Env(Environment{}),
 		expr.Optimize(true),
@@ -93,9 +100,9 @@ func NewCompiler(deny bool) *Compiler {
 	}
 }
 
-func (c *Compiler) Builder(deny bool) *Builder {
+func (c *Compiler) Builder(mode Mode) *Builder {
 	return &Builder{
 		opts: c.opts,
-		rule: &rule{deny: deny},
+		rule: &rule{deny: mode != ModeAllow},
 	}
 }
