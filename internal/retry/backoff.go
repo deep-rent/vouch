@@ -50,7 +50,7 @@ func (b *constant) Done()               {}
 type exponentialConfig struct {
 	minDelay time.Duration
 	maxDelay time.Duration
-	base     float64
+	factor   float64
 }
 
 // defaultExponentialConfig initializes a configuration object with defaults.
@@ -58,7 +58,7 @@ func defaultExponentialConfig() exponentialConfig {
 	return exponentialConfig{
 		minDelay: DefaultMinDelay,
 		maxDelay: DefaultMaxDelay,
-		base:     DefaultFactor,
+		factor:   DefaultFactor,
 	}
 }
 
@@ -87,13 +87,13 @@ func WithMaxDelay(d time.Duration) ExponentialOption {
 	}
 }
 
-// WithBase sets the base factor (multiplier) for each subsequent retry.
+// WithFactor sets the base factor (multiplier) for each subsequent retry.
 //
 // If less than or equal to 1.0, the value is ignored and DefaultFactor is used.
-func WithBase(f float64) ExponentialOption {
+func WithFactor(f float64) ExponentialOption {
 	return func(c *exponentialConfig) {
 		if f > 1.0 {
-			c.base = f
+			c.factor = f
 		}
 	}
 }
@@ -122,7 +122,7 @@ func Exponential(opts ...ExponentialOption) Backoff {
 	return &exponential{
 		minDelay: float64(cfg.minDelay),
 		maxDelay: float64(cfg.maxDelay),
-		factor:   cfg.base,
+		factor:   cfg.factor,
 	}
 }
 
