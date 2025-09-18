@@ -119,7 +119,7 @@ func WithScheme(s string) Option {
 func WithHost(h string) Option {
 	return func(cfg *config) {
 		if h != "" {
-			cfg.scheme = h
+			cfg.host = h
 		}
 	}
 }
