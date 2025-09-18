@@ -6,7 +6,11 @@ import (
 	"runtime/debug"
 )
 
-// Catch wraps a handler and converts panics into a 500 Internal Server Error.
+// Catch converts panics into a 500 Internal Server Error response, and logs
+// the incident.
+//
+// This middleware should be put at the top of the middleware chain, so that
+// it can catch panics from all downstream handlers.
 func Catch(logger *slog.Logger) Pipe {
 	logger = logger.With("name", "middleware.Catch")
 
