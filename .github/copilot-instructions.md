@@ -13,8 +13,8 @@ request is enriched with additional `X-Auth-CouchDB-*` proxy headers and forward
 upstream server. Specifically, these headers specify the name and assigned roles of the CouchDB
 user to authenticate as. A secret key shared between the proxy and CouchDB is used to sign and
 secure the proxy headers. Configuration data is read from a YAML file on startup. JSON Web Keys
-(JWKs) for signature verification are fetched from a JWKS endpoint, and kept in an auto-refreshing
-cache. The refresh interval depends on the configured policy abd the `Cache-Control` header sent
+(JWKs) for signature verification are fetched from a JWKS endpoint and kept in an auto-refreshing
+cache. The refresh interval depends on the configured policy and the `Cache-Control` header sent
 by the key provider.
 
 ## Code Quality
