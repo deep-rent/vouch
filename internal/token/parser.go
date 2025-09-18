@@ -23,6 +23,8 @@ const (
 	DefaultHeader = "Authorization"
 	// DefaultScheme is the default authentication scheme in the token header.
 	DefaultScheme = "Bearer"
+	// DefaultLeeway is the default grace period for time-based checks.
+	DefaultLeeway = 1 * time.Minute
 )
 
 // OmitScheme indicates that no scheme is used in the token header.
@@ -99,10 +101,11 @@ func WithIssuer(iss string) ParserOption {
 // temporal validity. This is useful to account for small differences
 // between the issuer's and the verifier's clocks.
 //
-// A non-positive duration will be ignored. By default, no leeway is allowed.
+// A negative duration will be ignored, and DefaultLeeway is used.
+// If zero, no skew is tolerated.
 func WithLeeway(d time.Duration) ParserOption {
 	return func(cfg *parserConfig) {
-		if d > 0 {
+		if d >= 0 {
 			cfg.opts = append(cfg.opts, jwt.WithAcceptableSkew(d))
 		}
 	}
