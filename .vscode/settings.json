@@ -43,12 +43,5 @@
     "**/go.sum": true,
     "**/tmp": true,
     "**/vendor": true
-  },
-  "geminicodeassist.customCommands": {
-    "refactor": "Review the Go code for best practices, style, and potential bugs. Suggest ways to refactor it to improve its structure and design. The goal is to make the code cleaner, more readable, and more maintainable by reducing cyclomatic complexity, enhancing modularity and testability, and applying common design patterns.",
-    "boost": "Analyze the Go code to identify potential performance bottlenecks, memory leaks, and concurrency issues. Suggest specific optimizations, including algorithmic improvements or more efficient data structures.",
-    "document": "Generate comprehensive documentation comments for the Go code. Adhere to the official style guidelines for Go Doc comments (see go.dev). Give usage examples where appropriate.",
-    "explain": "Provide a high-level explanation of how the Go code works. Break down complex logic into simpler terms and explain the overall purpose of the code.",
-    "test": "Generate unit tests for the Go code. Make use of the `testify/assert` and `testify/require` packages to cover both typical use cases and edge cases. Prefer table-driven tests."
   }
 }
