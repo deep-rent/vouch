@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deep-rent/vouch/internal/retry"
 	"github.com/deep-rent/vouch/internal/util"
 )
 
@@ -30,6 +31,7 @@ type config struct {
 	maxDelay  time.Duration
 	client    *http.Client
 	logger    *slog.Logger
+	backoff   retry.Backoff
 	scheduler Scheduler
 	clock     util.Clock
 }
@@ -113,6 +115,18 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+// WithBackoff sets a custom backoff strategy for handling retries.
+//
+// If nil is given, this option is ignored. By default, a constant backoff
+// equal to the minimum delay is used.
+func WithBackoff(b retry.Backoff) Option {
+	return func(o *config) {
+		if b != nil {
+			o.backoff = b
+		}
+	}
+}
+
 // WithScheduler allows injecting a custom scheduler.
 //
 // This option should only be overridden for testing.
@@ -154,6 +168,7 @@ type Cache[T any] struct {
 	lastModified string
 	scheduler    Scheduler
 	cancel       context.CancelFunc
+	backoff      retry.Backoff
 }
 
 // New creates a new generic Cache and starts its refresh scheduler.
@@ -182,10 +197,17 @@ func New[T any](
 		maxDelay:  cfg.maxDelay,
 		clock:     cfg.clock,
 		scheduler: cfg.scheduler,
+		backoff:   cfg.backoff,
 	}
 
+	// Use default scheduler if none provided
 	if c.scheduler == nil {
 		c.scheduler = NewScheduler(logger)
+	}
+
+	// Use constant backoff if not customized
+	if c.backoff == nil {
+		c.backoff = retry.Constant(c.minDelay)
 	}
 
 	job := c.fetch
@@ -199,7 +221,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
 	if err != nil {
 		c.logger.Error("Failed to create request", "error", err)
-		return c.retry()
+		return c.backoff.Next()
 	}
 
 	c.mu.RLock()
@@ -216,7 +238,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 		if err != context.Canceled {
 			c.logger.Warn("HTTP request failed", "error", err)
 		}
-		return c.retry()
+		return c.backoff.Next()
 	}
 	defer res.Body.Close()
 
@@ -225,23 +247,24 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
+		c.backoff.Done()
 		return c.delay(res.Header)
 	}
 
 	if res.StatusCode != http.StatusOK {
 		c.logger.Warn("Unsuccessful HTTP status", "status", res.Status)
-		return c.retry()
+		return c.backoff.Next()
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		c.logger.Error("Failed to read response body", "error", err)
-		return c.retry()
+		return c.backoff.Next()
 	}
 	parsed, err := c.mapper(body)
 	if err != nil {
 		c.logger.Error("Couldn't parse response body", "error", err)
-		return c.retry()
+		return c.backoff.Next()
 	}
 
 	c.mu.Lock()
@@ -250,13 +273,10 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	c.lastModified = res.Header.Get("Last-Modified")
 	c.mu.Unlock()
 
+	c.backoff.Done()
+
 	c.logger.Info("Resource updated")
 	return c.delay(res.Header)
-}
-
-// retry returns the delay to use after a failed fetch attempt.
-func (c *Cache[T]) retry() time.Duration {
-	return c.delay(nil)
 }
 
 // delay calculates the time to wait for the next fetch.
@@ -267,31 +287,31 @@ func (c *Cache[T]) delay(header http.Header) time.Duration {
 	}
 
 	// Adaptive delay
-	duration := c.minDelay
+	dur := c.minDelay
 	if header != nil {
 		// Try Cache-Control first, as it takes precedence.
 		if d, ok := MaxAge(header.Get("Cache-Control")); ok {
-			duration = d
+			dur = d
 		} else if t, ok := Expires(header.Get("Expires")); ok {
 			// Calculate the duration from now until the expiry time.
 			if d := t.Sub(c.clock()); d > 0 {
 				// Only use the duration if the expiry time is in the future.
-				duration = d
+				dur = d
 			}
 		}
 	}
 
-	if duration < c.minDelay {
-		c.logger.Debug("Clamping delay", "raw", duration, "min", c.minDelay)
+	if dur < c.minDelay {
+		c.logger.Debug("Clamping delay", "raw", dur, "min", c.minDelay)
 		return c.minDelay
 	}
 
-	if duration > c.maxDelay {
-		c.logger.Debug("Clamping delay", "raw", duration, "max", c.maxDelay)
+	if dur > c.maxDelay {
+		c.logger.Debug("Clamping delay", "raw", dur, "max", c.maxDelay)
 		return c.maxDelay
 	}
 
-	return duration
+	return dur
 }
 
 // Get returns the currently cached resource.
