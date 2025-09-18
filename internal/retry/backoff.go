@@ -100,8 +100,8 @@ func WithFactor(f float64) ExponentialOption {
 
 // exponential implements the Backoff strategy with exponential increase.
 type exponential struct {
-	minDelay float64
-	maxDelay float64
+	minDelay time.Duration
+	maxDelay time.Duration
 	factor   float64
 	mu       sync.Mutex
 	attempts int
@@ -120,8 +120,8 @@ func Exponential(opts ...ExponentialOption) Backoff {
 
 	cfg.maxDelay = max(cfg.maxDelay, cfg.minDelay)
 	return &exponential{
-		minDelay: float64(cfg.minDelay),
-		maxDelay: float64(cfg.maxDelay),
+		minDelay: cfg.minDelay,
+		maxDelay: cfg.maxDelay,
 		factor:   cfg.factor,
 	}
 }
@@ -131,15 +131,23 @@ func (b *exponential) Next() time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	d := b.minDelay * math.Pow(b.factor, float64(b.attempts))
+	d := time.Duration(float64(b.minDelay) * math.Pow(
+		b.factor, float64(b.attempts)),
+	)
+
+	if d >= b.maxDelay {
+		return b.maxDelay
+	}
+
 	b.attempts++
-	return time.Duration(min(d, b.maxDelay))
+	return d
 }
 
 // Done resets the attempt counter.
 func (b *exponential) Done() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	b.attempts = 0
 }
 
