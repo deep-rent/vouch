@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
@@ -112,7 +113,7 @@ func WithServer(s *http.Server) Option {
 // Defaults to DefaultHost.
 func WithHost(h string) Option {
 	return func(cfg *config) {
-		cfg.host = h
+		cfg.host = strings.TrimSpace(h)
 	}
 }
 

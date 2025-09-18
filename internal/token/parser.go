@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"github.com/deep-rent/vouch/internal/util"
@@ -78,7 +77,7 @@ type ParserOption func(*parserConfig)
 // An empty value will be ignored. By default, no audience is required.
 func WithAudience(aud string) ParserOption {
 	return func(cfg *parserConfig) {
-		if aud != "" {
+		if aud = strings.TrimSpace(aud); aud != "" {
 			cfg.opts = append(cfg.opts, jwt.WithAudience(aud))
 		}
 	}
@@ -90,7 +89,7 @@ func WithAudience(aud string) ParserOption {
 // An empty value will be ignored. By default, no issuer is required.
 func WithIssuer(iss string) ParserOption {
 	return func(cfg *parserConfig) {
-		if iss != "" {
+		if iss = strings.TrimSpace(iss); iss != "" {
 			cfg.opts = append(cfg.opts, jwt.WithIssuer(iss))
 		}
 	}
@@ -112,10 +111,10 @@ func WithLeeway(d time.Duration) ParserOption {
 // WithHeader sets the HTTP header from which to extract the token.
 //
 // An empty value will be ignored, and DefaultHeader will be used.
-func WithHeader(name string) ParserOption {
+func WithHeader(k string) ParserOption {
 	return func(cfg *parserConfig) {
-		if name != "" {
-			cfg.header = name
+		if k = strings.TrimSpace(k); k != "" {
+			cfg.header = k
 		}
 	}
 }
@@ -125,11 +124,11 @@ func WithHeader(name string) ParserOption {
 // An empty value will be ignored, and DefaultScheme will be used. To omit the
 // scheme entirely, pass OmitScheme. The scheme is case-sensitive and a single
 // space is appended automatically to form the header prefix.
-func WithScheme(name string) ParserOption {
+func WithScheme(s string) ParserOption {
 	return func(cfg *parserConfig) {
-		if name != "" {
-			cfg.prefix = name + " "
-		} else if name == OmitScheme {
+		if s = strings.TrimSpace(s); s != "" {
+			cfg.prefix = s + " "
+		} else if s == OmitScheme {
 			cfg.prefix = ""
 		}
 	}
@@ -139,7 +138,7 @@ func WithScheme(name string) ParserOption {
 //
 // If nil is given, this option is ignored. A valid key set must be specified
 // for signature verification to work, or else all tokens will be rejected.
-func WithKeySet(set jwk.Set) ParserOption {
+func WithKeySet(set KeySet) ParserOption {
 	return func(cfg *parserConfig) {
 		if set != nil {
 			cfg.opts = append(cfg.opts, jwt.WithKeySet(set))

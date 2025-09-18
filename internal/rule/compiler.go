@@ -3,6 +3,7 @@ package rule
 import (
 	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/expr-lang/expr"
 )
@@ -34,7 +35,7 @@ type Builder struct {
 // When compiles and sets the when expression of the rule.
 // This expression is required for all rules.
 func (b *Builder) When(input string) error {
-	if input == "" {
+	if input = strings.TrimSpace(input); input == "" {
 		return errors.New("required for all rules")
 	}
 	when, err := expr.Compile(input, b.opts.when...)
@@ -51,7 +52,7 @@ func (b *Builder) User(input string) error {
 	if b.rule.deny {
 		return errors.New("forbidden for deny rule")
 	}
-	if input == "" {
+	if input = strings.TrimSpace(input); input == "" {
 		return errors.New("required for allow rule")
 	}
 	user, err := expr.Compile(input, b.opts.user...)
@@ -65,7 +66,7 @@ func (b *Builder) User(input string) error {
 // Roles compiles and sets the roles expression of the rule.
 // This expression is optional for allow rules and forbidden for deny rules.
 func (b *Builder) Roles(input string) error {
-	if input == "" {
+	if input = strings.TrimSpace(input); input == "" {
 		return nil
 	}
 	if b.rule.deny {

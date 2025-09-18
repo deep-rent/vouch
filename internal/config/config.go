@@ -33,7 +33,7 @@ type Proxy struct {
 
 // Bouncer configures an auth.Bouncer instance.
 type Bouncer struct {
-	Token Token  `yaml:"token"`
+	Token Parser `yaml:"token"`
 	Rules []Rule `yaml:"rules"`
 }
 
@@ -64,18 +64,18 @@ type Signer struct {
 	Algorithm string `yaml:"algorithm"`
 }
 
-// Token configures a token.Parser instance.
-type Token struct {
+// Parser configures a token.Parser instance.
+type Parser struct {
 	Header   string `yaml:"header"`
 	Scheme   string `yaml:"scheme"`
 	Issuer   string `yaml:"issuer"`
 	Audience string `yaml:"audience"`
 	Leeway   int    `yaml:"leeway"`
-	Keys     Keys   `yaml:"keys"`
+	KeySet   KeySet `yaml:"keys"`
 }
 
-// Keys configures a cache.Cache[jwk.Set] instance.
-type Keys struct {
+// KeySet configures a token.KeySet instance.
+type KeySet struct {
 	URL         string  `yaml:"url"`
 	MinInterval string  `yaml:"minInterval"`
 	MaxInterval string  `yaml:"maxInterval"`

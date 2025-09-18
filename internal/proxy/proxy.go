@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -107,7 +108,7 @@ type Option func(*config)
 // Defaults to DefaultScheme.
 func WithScheme(s string) Option {
 	return func(cfg *config) {
-		if s != "" {
+		if s = strings.TrimSpace(s); s != "" {
 			cfg.scheme = s
 		}
 	}
@@ -119,7 +120,7 @@ func WithScheme(s string) Option {
 // Empty values are ignored, and DefaultHost is used.
 func WithHost(h string) Option {
 	return func(cfg *config) {
-		if h != "" {
+		if h = strings.TrimSpace(h); h != "" {
 			cfg.host = h
 		}
 	}
@@ -127,10 +128,10 @@ func WithHost(h string) Option {
 
 // WithPort sets the port (e.g., 5984) for the upstream target.
 //
-// Non-positive values are ignored, and DefaultPort is used.
+// Values outside the valid port range will be ignored, and DefaultPort is used.
 func WithPort(p int) Option {
 	return func(cfg *config) {
-		if p > 0 {
+		if p > 0 && p <= 65535 {
 			cfg.port = p
 		}
 	}
@@ -142,7 +143,7 @@ func WithPort(p int) Option {
 // Empty values are allowed. If no specified, DefaultPath is used.
 func WithPath(p string) Option {
 	return func(cfg *config) {
-		cfg.path = p
+		cfg.path = strings.TrimSpace(p)
 	}
 }
 
