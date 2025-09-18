@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/deep-rent/vouch/internal/util"
 )
 
 const (
@@ -131,7 +133,7 @@ func WithHost(h string) Option {
 // Values outside the valid port range will be ignored, and DefaultPort is used.
 func WithPort(p int) Option {
 	return func(cfg *config) {
-		if p > 0 && p <= 65535 {
+		if util.Port(p) {
 			cfg.port = p
 		}
 	}

@@ -11,6 +11,11 @@ type Clock func() time.Time
 // DefaultClock returns the current system instant.
 var DefaultClock Clock = time.Now
 
+// Port checks if the given port is within the valid range.
+func Port(p int) bool {
+	return p > 0 && p <= 65535
+}
+
 // Conv attempts to cast the given value to type T.
 func Conv[T any](v any) (T, error) {
 	vt, ok := v.(T)

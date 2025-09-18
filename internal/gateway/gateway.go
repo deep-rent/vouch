@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
+	"github.com/deep-rent/vouch/internal/util"
 )
 
 const (
@@ -117,13 +118,12 @@ func WithHost(h string) Option {
 	}
 }
 
-// WithPort sets the host for the server to bind to.
+// WithPort sets the port for the server to bind to.
 //
-// If outside the valid port range, this option will be ignored.
-// Defaults to DefaultPort.
+// Values outside the valid port range will be ignored, and DefaultPort is used.
 func WithPort(p int) Option {
 	return func(cfg *config) {
-		if p > 0 && p <= 65535 {
+		if util.Port(p) {
 			cfg.port = p
 		}
 	}
@@ -145,20 +145,26 @@ func WithHandler(h http.Handler) Option {
 // WithReadHeaderTimeout is the default maximum duration for reading the
 // entire request, including the body.
 //
-// A non-positive value disables the timeout. Defaults to DefaultReadTimeout.
+// Negative values are ignored. Zero disables the timeout. By default,
+// the timeout is DefaultReadTimeout.
 func WithReadTimeout(d time.Duration) Option {
 	return func(cfg *config) {
-		cfg.server.ReadTimeout = d
+		if d >= 0 {
+			cfg.server.ReadTimeout = d
+		}
 	}
 }
 
 // WithReadHeaderTimeout is the default maximum duration for reading only the
 // request headers.
-// A non-positive value disables the timeout.
-// Defaults to DefaultReadHeaderTimeout.
+//
+// Negative values are ignored. Zero disables the timeout. By default,
+// the timeout is DefaultReadHeaderTimeout.
 func WithReadHeaderTimeout(d time.Duration) Option {
 	return func(cfg *config) {
-		cfg.server.ReadHeaderTimeout = d
+		if d >= 0 {
+			cfg.server.ReadHeaderTimeout = d
+		}
 	}
 }
 
