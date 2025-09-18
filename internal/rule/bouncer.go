@@ -30,7 +30,9 @@ func (b *bouncer) Check(req *http.Request) (auth.Access, error) {
 	claims, err := b.parser.Parse(req)
 	if err != nil {
 		// Missing or invalid token
-		return auth.Access{}, &auth.AuthenticationError{Cause: err}
+		return auth.Access{}, auth.NewAccessError(
+			auth.ReasonAuthenticationFailure, err,
+		)
 	}
 	return b.engine.Eval(NewEnvironment(claims, req.Method, req.URL.Path))
 }

@@ -13,12 +13,17 @@ import (
 // Decision holds the verdict rendered after evaluating a single Rule.
 // It indicates what to do next in the evaluation process of multiple rules.
 type Decision struct {
-	// Access is the access granted by the rule if it wasn't skipped.
+	// Access is the access granted by the rule if it was neither skipped
+	// nor a deny rule.
 	auth.Access
 
 	// Skip is true if the rule's condition did not match.
 	// It tells the caller to ignore this rule and continue evaluating the next.
 	Skip bool
+
+	// Deny is true if Skip is false and the rule is a deny rule.
+	// It tells the caller to deny access right away.
+	Deny bool
 }
 
 // Rule represents a compiled authorization rule.
@@ -83,7 +88,7 @@ func (r *rule) Decide(env Environment) (Decision, error) {
 		return Decision{Skip: true}, nil
 	}
 	if r.deny {
-		return Decision{}, nil
+		return Decision{Deny: true}, nil
 	}
 	access, err := r.access(env)
 	if err != nil {

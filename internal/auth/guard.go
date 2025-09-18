@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 )
@@ -42,22 +41,15 @@ func (g *guard) Permits(w http.ResponseWriter, r *http.Request) bool {
 	logger := g.logger.With("method", r.Method, "path", r.URL.Path)
 	access, err := g.bouncer.Check(r)
 
-	var e *AuthenticationError
-	if errors.As(err, &e) {
-		logger.Debug("Authentication failed", "error", e.Cause)
-		w.WriteHeader(http.StatusUnauthorized)
+	if e, ok := err.(*AccessError); ok {
+		logger.Debug("Access denied", "error", e)
+		w.WriteHeader(e.StatusCode())
 		return false
 	}
 
 	if err != nil {
 		logger.Error("Unexpected error bouncing request", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return false
-	}
-
-	if access.Denied() {
-		logger.Debug("Authorization failed")
-		w.WriteHeader(http.StatusForbidden)
 		return false
 	}
 
