@@ -9,9 +9,13 @@ to be deployed as a **sidecar container** alongside CouchDB instances. The proxy
 authenticates incoming requests based on **JSON Web Tokens** (JWTs), and determines the
 authorization scope using **rule expressions** in `expr` syntax. Each rule is evaluated against
 the token claims and request parameters. The first matching rule decides. Upon a rule match, the
-request is enriched with additional authentication headers (`X-Auth-CouchDB-*`) and forwarded to
-the upstream server. Configuration is read from a YAML file on startup, and JSON Web Keys (JWKs)
-for signature verification are periodically fetched from a JWKS endpoint.
+request is enriched with additional `X-Auth-CouchDB-*` proxy headers and forwarded to the
+upstream server. Specifically, these headers specify the name and assigned roles of the CouchDB
+user to authenticate as. A secret key shared between the proxy and CouchDB is used to sign and
+secure the proxy headers. Configuration data is read from a YAML file on startup. JSON Web Keys
+(JWKs) for signature verification are fetched from a JWKS endpoint, and kept in an auto-refreshing
+cache. The refresh interval depends on the configured policy abd the `Cache-Control` header sent
+by the key provider.
 
 ## Code Quality
 
@@ -32,7 +36,7 @@ for signature verification are periodically fetched from a JWKS endpoint.
 
 - Make use of the `assert` and `require` packages from `github.com/stretchr/testify`
 - Cover both typical use cases and edge cases
-- Write table-driven tests where applicable and parallelize when possible
+- Write table-driven tests where applicable and parallelize them when possible
 
 ## Documentation
 
