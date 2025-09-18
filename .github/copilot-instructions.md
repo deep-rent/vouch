@@ -1,7 +1,3 @@
----
-applyTo: "**/*.go"
----
-
 # Project Overview
 
 This Go-based **reverse proxy** offloads access control from **Apache CouchDB**. It is designed
