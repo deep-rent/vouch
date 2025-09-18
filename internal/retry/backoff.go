@@ -54,6 +54,7 @@ type exponentialConfig struct {
 	minDelay time.Duration
 	maxDelay time.Duration
 	factor   float64
+	jitter   float64
 }
 
 // defaultExponentialConfig initializes a configuration object with defaults.
@@ -62,6 +63,7 @@ func defaultExponentialConfig() exponentialConfig {
 		minDelay: DefaultMinDelay,
 		maxDelay: DefaultMaxDelay,
 		factor:   DefaultFactor,
+		jitter:   DefaultJitter,
 	}
 }
 
@@ -101,6 +103,15 @@ func WithFactor(f float64) ExponentialOption {
 	}
 }
 
+// WithJitter sets the amount of jitter to apply to each retry delay.
+//
+// See WithAmount for details.
+func WithJitter(p float64) ExponentialOption {
+	return func(c *exponentialConfig) {
+		c.jitter = p
+	}
+}
+
 // exponential implements the Backoff strategy with exponential increase.
 type exponential struct {
 	minDelay time.Duration
@@ -113,7 +124,8 @@ type exponential struct {
 //
 // The delay increases exponentially with each call to Next, starting from the
 // minimum delay and up to the maximum delay. The attempt counter is reset by
-// calling Done. Growth is controlled by the base factor.
+// calling Done. Growth is controlled by the base factor. Note that the actual
+// delay may fall below the minimum delay if jitter is introduced.
 func Exponential(opts ...ExponentialOption) Backoff {
 	cfg := defaultExponentialConfig()
 	for _, opt := range opts {
@@ -121,12 +133,14 @@ func Exponential(opts ...ExponentialOption) Backoff {
 	}
 
 	cfg.maxDelay = max(cfg.maxDelay, cfg.minDelay)
-	return &exponential{
+	e := &exponential{
 		minDelay: cfg.minDelay,
 		maxDelay: cfg.maxDelay,
 		factor:   cfg.factor,
 		// attempts is zero-initialized
 	}
+
+	return Jitter(e, WithAmount(cfg.jitter))
 }
 
 // Next calculates the next backoff duration.
