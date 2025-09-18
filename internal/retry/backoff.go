@@ -8,10 +8,14 @@ import (
 )
 
 const (
-	DefaultExponentialMinDelay = 1 * time.Second
-	DefaultExponentialMaxDelay = 1 * time.Minute
-	DefaultExponentialBase     = 2.0
-	DefaultJitterAmount        = 0.5
+	// DefaultMinDelay is the default minimum delay for exponential backoff.
+	DefaultMinDelay = 1 * time.Second
+	// DefaultMaxDelay is the default maximum delay for exponential backoff.
+	DefaultMaxDelay = 1 * time.Minute
+	// DefaultFactor is the default base factor for exponential backoff.
+	DefaultFactor = 2.0
+	// DefaultJitter is the default jitter amount.
+	DefaultJitter = 0.5
 )
 
 // Backoff defines a retry strategy.
@@ -43,15 +47,16 @@ type exponentialConfig struct {
 	base     float64
 }
 
+// defaultExponentialConfig initializes a configuration object with defaults.
 func defaultExponentialConfig() exponentialConfig {
 	return exponentialConfig{
-		minDelay: DefaultExponentialMinDelay,
-		maxDelay: DefaultExponentialMaxDelay,
-		base:     DefaultExponentialBase,
+		minDelay: DefaultMinDelay,
+		maxDelay: DefaultMaxDelay,
+		base:     DefaultFactor,
 	}
 }
 
-// ExponentialOption configures a exponential backoff.
+// ExponentialOption configures an exponential backoff strategy.
 type ExponentialOption func(*exponentialConfig)
 
 // WithMinDelay sets the initial (base) delay for the first retry.
@@ -78,8 +83,7 @@ func WithMaxDelay(d time.Duration) ExponentialOption {
 
 // WithBase sets the base factor (multiplier) for each subsequent retry.
 //
-// If less than or equal to 1.0, the value is ignored and
-// DefaultExponentialBase is used.
+// If less than or equal to 1.0, the value is ignored and DefaultFactor is used.
 func WithBase(f float64) ExponentialOption {
 	return func(c *exponentialConfig) {
 		if f > 1.0 {
@@ -135,26 +139,36 @@ type Rand interface {
 	Float64() float64
 }
 
+// jitterConfig holds the configuration for jitter.
 type jitterConfig struct {
 	p float64
 	r Rand
 }
 
+// defaultJitterConfig initializes a configuration object with defaults.
 func defaultJitterConfig() jitterConfig {
 	return jitterConfig{
-		p: DefaultJitterAmount,
-		r: seed(),
+		p: DefaultJitter,
+		r: nil, // lazy init
 	}
 }
 
+// JitterOption configures the jitter wrapper.
 type JitterOption func(*jitterConfig)
 
+// WithAmount sets the amount of jitter as a percentage.
+//
+// The value is clamped to at most 1.0 (full jitter). If non-positive, no
+// jitter is applied.
 func WithAmount(p float64) JitterOption {
 	return func(c *jitterConfig) {
 		c.p = min(1.0, p)
 	}
 }
 
+// WithRand sets a custom random number generator.
+//
+// If nil is given, this option is ignored and a default generator is used.
 func WithRand(r Rand) JitterOption {
 	return func(c *jitterConfig) {
 		if r != nil {
@@ -163,6 +177,7 @@ func WithRand(r Rand) JitterOption {
 	}
 }
 
+// jitter decorates a Backoff strategy with random jitter.
 type jitter struct {
 	wrapped Backoff
 	p       float64
@@ -170,17 +185,8 @@ type jitter struct {
 	r       Rand
 }
 
-// Jitter wraps a Backoff strategy and adds randomized jitter.
-//
-// The jitter argument is a percentage (0.0 to 1.0) that defines the
-// randomization window. The returned duration will be a random value between
-// [ (1.0 - jitter) * delay, delay ].
-//
-// For example, 0.5 (50%) jitter on a 10s delay will return a random value
-// in the [5s, 10s] range.
-//
-// If r is nil, a default, thread-safe rand.Rand is created.
-
+// Jitter wraps a Backoff strategy to employ randomized jitter, spreading
+// out retry attempts in time.
 func Jitter(b Backoff, opts ...JitterOption) Backoff {
 	cfg := defaultJitterConfig()
 	for _, opt := range opts {
@@ -190,7 +196,9 @@ func Jitter(b Backoff, opts ...JitterOption) Backoff {
 	if cfg.p <= 0.0 {
 		return b // No jitter requested
 	}
-
+	if cfg.r == nil {
+		cfg.r = seed()
+	}
 	return &jitter{
 		wrapped: b,
 		p:       cfg.p,
@@ -198,7 +206,7 @@ func Jitter(b Backoff, opts ...JitterOption) Backoff {
 	}
 }
 
-// Next calculates the wrapped backoff's next delay, then applies jitter.
+// Next calculates the wrapped backoff's next delay, then incorporates jitter.
 func (j *jitter) Next() time.Duration {
 	d := float64(j.wrapped.Next())
 
@@ -209,7 +217,7 @@ func (j *jitter) Next() time.Duration {
 	return time.Duration(d * (1.0 - r*j.p))
 }
 
-// Done resets the wrapped backoff strategy.
+// Done delegates to the wrapped backoff strategy.
 func (j *jitter) Done() {
 	j.wrapped.Done()
 }
