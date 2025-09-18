@@ -8,7 +8,6 @@ import (
 
 type Visitor interface {
 	Visit(c Config)
-	VisitNested(c NestedConfig)
 }
 
 type Node interface {
@@ -33,10 +32,6 @@ type validator struct {
 
 func (v *validator) Visit(c Config) {
 	v.addIssue("nested", "oops")
-	v.Validate(c)
-}
-
-func (v *validator) VisitNested(c NestedConfig) {
 	v.Validate(c)
 }
 
