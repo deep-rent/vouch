@@ -98,18 +98,6 @@ func defaultConfig() *config {
 // Option defines a function for setting reverse proxy options.
 type Option func(*config)
 
-// WithTarget sets the upstream target URL for the reverse proxy.
-// If nil is given, this option is ignored.
-//
-// By default, the proxy targets http://localhost:5984.
-// func WithTarget(u *url.URL) Option {
-// 	return func(cfg *config) {
-// 		if u != nil {
-// 			cfg.target = u
-// 		}
-// 	}
-// }
-
 // WithScheme sets the scheme (e.g., "http" or "https") for the
 // upstream target.
 //
