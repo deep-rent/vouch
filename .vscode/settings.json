@@ -13,10 +13,18 @@
     "editor.defaultFormatter": "vscode.json-language-features"
   },
   "[go]": {
+    "editor.rulers": [
+      80
+    ],
     "editor.defaultFormatter": "golang.go",
     "editor.codeActionsOnSave": {
       "source.organizeImports": "always"
     }
+  },
+  "[markdown]": {
+    "editor.rulers": [
+      100
+    ]
   },
   "go.lintTool": "golangci-lint",
   "go.lintFlags": [
