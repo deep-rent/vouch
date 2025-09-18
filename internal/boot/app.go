@@ -56,4 +56,4 @@ func (a *App) Run() error {
 	return nil
 }
 
-func Run(string) {}
+func Launch(string) {}
