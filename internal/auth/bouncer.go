@@ -18,23 +18,21 @@ func (s Access) Denied() bool {
 	return s.User == ""
 }
 
-type AccessError struct {
+type AuthenticationError struct {
 	// Cause is the wrapped error. It can be inspected using Unwrap.
 	Cause error
-	// StatusCode is the HTTP status code to respond with.
-	StatusCode int
 }
 
-// Error implements the error interface.
-func (e *AccessError) Error() string {
-	return http.StatusText(e.StatusCode)
+// Error reveals the original error message.
+func (e *AuthenticationError) Error() string {
+	return e.Cause.Error()
 }
 
 // Unwrap reveals the original error.
-func (e *AccessError) Unwrap() error {
+func (e *AuthenticationError) Unwrap() error {
 	return e.Cause
 }
 
 type Bouncer interface {
-	Check(req *http.Request) (Access, *AccessError)
+	Check(req *http.Request) (Access, error)
 }

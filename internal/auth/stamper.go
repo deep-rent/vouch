@@ -14,7 +14,7 @@ const (
 )
 
 type Stamper interface {
-	Stamp(req *http.Request, access Access)
+	Stamp(req *http.Request, access Access) error
 }
 
 func NewStamper(opts ...StamperOption) Stamper {
@@ -72,7 +72,7 @@ type stamper struct {
 	signer      signer.Signer
 }
 
-func (s *stamper) Stamp(req *http.Request, access Access) {
+func (s *stamper) Stamp(req *http.Request, access Access) error {
 	req.Header.Del(s.userHeader)
 	req.Header.Del(s.rolesHeader)
 	req.Header.Del(s.tokenHeader)
@@ -86,4 +86,6 @@ func (s *stamper) Stamp(req *http.Request, access Access) {
 	if s.signer != nil {
 		req.Header.Set(s.tokenHeader, s.signer.Sign(access.User))
 	}
+
+	return nil
 }

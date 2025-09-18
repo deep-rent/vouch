@@ -26,30 +26,11 @@ func NewBouncer(parser token.Parser, engine Engine) auth.Bouncer {
 
 // Check implements the auth.Bouncer interface by parsing the token from the
 // request and evaluating the rules to determine access.
-func (b *bouncer) Check(req *http.Request) (auth.Access, *auth.AccessError) {
+func (b *bouncer) Check(req *http.Request) (auth.Access, error) {
 	claims, err := b.parser.Parse(req)
 	if err != nil {
-		// Missing or invalid token - 401 Unauthorized
-		return auth.Access{}, &auth.AccessError{
-			Cause:      err,
-			StatusCode: http.StatusUnauthorized,
-		}
+		// Missing or invalid token
+		return auth.Access{}, &auth.AuthenticationError{Cause: err}
 	}
-	env := NewEnvironment(claims, req.Method, req.URL.Path)
-	access, err := b.engine.Eval(env)
-	if err != nil {
-		// Error during rule evaluation - 500 Internal Server Error
-		return auth.Access{}, &auth.AccessError{
-			Cause:      err,
-			StatusCode: http.StatusInternalServerError,
-		}
-	}
-	if access.Denied() {
-		// Access denied by rules - 403 Forbidden
-		return auth.Access{}, &auth.AccessError{
-			Cause:      err,
-			StatusCode: http.StatusForbidden,
-		}
-	}
-	return access, nil
+	return b.engine.Eval(NewEnvironment(claims, req.Method, req.URL.Path))
 }
