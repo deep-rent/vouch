@@ -16,14 +16,19 @@ const (
 	DefaultTokenHeader = "X-Auth-CouchDB-Token"
 )
 
-// Headers contains the names of the HTTP headers used for proxy authentication.
-type Headers struct {
-	// User is the header used to convey the authenticated user name.
-	User string
-	// Roles is the header used to convey the authenticated user roles.
-	Roles string
-	// Token is the header used to convey the proxy token.
-	Token string
+// headers contains the names of the HTTP headers used for proxy authentication.
+type headers struct {
+	// user is the header used to convey the authenticated user name.
+	user string
+	// roles is the header used to convey the authenticated user roles.
+	roles string
+	// token is the header used to convey the proxy token.
+	token string
+}
+
+// unique reports whether all header names are distinct.
+func (h headers) unique() bool {
+	return h.user != h.roles && h.user != h.token && h.roles != h.token
 }
 
 // Stamper is responsible for attaching CouchDB-specific proxy authentication
@@ -37,10 +42,16 @@ type Stamper interface {
 // NewStamper returns a Stamper configured with the given options.
 // Be sure to align the header names if proxy headers are customized in the
 // CouchDB configuration for proper operation.
+//
+// The function panics if the configured header names are not distinct, as
+// this implies severe misconfiguration.
 func NewStamper(opts ...StamperOption) Stamper {
 	s := defaultStamper()
 	for _, opt := range opts {
 		opt(s)
+	}
+	if !s.headers.unique() {
+		panic("duplicate header name")
 	}
 	return s
 }
@@ -48,10 +59,10 @@ func NewStamper(opts ...StamperOption) Stamper {
 // defaultStamper initializes a Stamper with default settings.
 func defaultStamper() *stamper {
 	return &stamper{
-		headers: Headers{
-			User:  DefaultUserHeader,
-			Roles: DefaultRolesHeader,
-			Token: DefaultTokenHeader,
+		headers: headers{
+			user:  DefaultUserHeader,
+			roles: DefaultRolesHeader,
+			token: DefaultTokenHeader,
 		},
 		signer: nil, // No signing by default; must be explicitly set
 	}
@@ -60,17 +71,6 @@ func defaultStamper() *stamper {
 // StamperOption defines a function for setting stamper options.
 type StamperOption func(*stamper)
 
-// WithHeaders sets all header names at once. Individual names will be
-// trimmed and canonicalized. Empty or whitespace-only names will be ignored
-// and the corresponding defaults remain in use.
-func WithHeaders(h Headers) StamperOption {
-	return func(s *stamper) {
-		WithUserHeader(h.User)(s)
-		WithRolesHeader(h.Roles)(s)
-		WithTokenHeader(h.Token)(s)
-	}
-}
-
 // WithUserHeader sets the name of the header used to convey the authenticated
 // user name to CouchDB. If the provided name is empty or consists solely of
 // whitespace, DefaultUserHeader remains in use. Otherwise the name will be
@@ -78,7 +78,7 @@ func WithHeaders(h Headers) StamperOption {
 func WithUserHeader(name string) StamperOption {
 	return func(s *stamper) {
 		if name = strings.TrimSpace(name); name != "" {
-			s.headers.User = http.CanonicalHeaderKey(name)
+			s.headers.user = http.CanonicalHeaderKey(name)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func WithUserHeader(name string) StamperOption {
 func WithRolesHeader(name string) StamperOption {
 	return func(s *stamper) {
 		if name = strings.TrimSpace(name); name != "" {
-			s.headers.Roles = http.CanonicalHeaderKey(name)
+			s.headers.roles = http.CanonicalHeaderKey(name)
 		}
 	}
 }
@@ -102,7 +102,7 @@ func WithRolesHeader(name string) StamperOption {
 func WithTokenHeader(name string) StamperOption {
 	return func(s *stamper) {
 		if name = strings.TrimSpace(name); name != "" {
-			s.headers.Token = http.CanonicalHeaderKey(name)
+			s.headers.token = http.CanonicalHeaderKey(name)
 		}
 	}
 }
@@ -118,7 +118,7 @@ func WithSigner(signer signer.Signer) StamperOption {
 
 // stamper is the default implementation of Stamper.
 type stamper struct {
-	headers Headers
+	headers headers
 	signer  signer.Signer
 }
 
@@ -126,19 +126,19 @@ type stamper struct {
 func (s *stamper) Stamp(req *http.Request, access Access) error {
 	s.sanitize(req)
 	user := access.User
-	req.Header.Set(s.headers.User, user)
+	req.Header.Set(s.headers.user, user)
 	if roles := access.Roles; len(roles) != 0 {
-		req.Header.Set(s.headers.Roles, strings.Join(roles, ","))
+		req.Header.Set(s.headers.roles, strings.Join(roles, ","))
 	}
 	if s.signer != nil {
-		req.Header.Set(s.headers.Token, s.signer.Sign(user))
+		req.Header.Set(s.headers.token, s.signer.Sign(user))
 	}
 	return nil
 }
 
 // sanitize clears any existing headers to prevent malicious forgery.
 func (s *stamper) sanitize(req *http.Request) {
-	req.Header.Del(s.headers.User)
-	req.Header.Del(s.headers.Roles)
-	req.Header.Del(s.headers.Token)
+	req.Header.Del(s.headers.user)
+	req.Header.Del(s.headers.roles)
+	req.Header.Del(s.headers.token)
 }
