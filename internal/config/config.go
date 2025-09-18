@@ -97,9 +97,9 @@ func Default() Config {
 			Host:              "",
 			Port:              0,
 			Transport:         Transport{},
-			ReadTimeout:       -1,
-			ReadHeaderTimeout: -1,
-			IdleTimeout:       -1,
+			ReadTimeout:       0,
+			ReadHeaderTimeout: 0,
+			IdleTimeout:       0,
 			MaxHeaderBytes:    0,
 			Proxy: Proxy{
 				Scheme:        "",

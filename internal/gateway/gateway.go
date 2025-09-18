@@ -110,8 +110,7 @@ func WithServer(s *http.Server) Option {
 
 // WithHost sets the host for the server to bind to.
 //
-// If empty, it binds to all available interfaces.
-// Defaults to DefaultHost.
+// If empty, it binds to all available interfaces. Defaults to DefaultHost.
 func WithHost(h string) Option {
 	return func(cfg *config) {
 		cfg.host = strings.TrimSpace(h)
@@ -145,11 +144,12 @@ func WithHandler(h http.Handler) Option {
 // WithReadHeaderTimeout is the default maximum duration for reading the
 // entire request, including the body.
 //
-// Negative values are ignored. Zero disables the timeout. By default,
-// the timeout is DefaultReadTimeout.
+// Non-positive values are ignored. By default, the timeout is set to
+// DefaultReadTimeout. Note that a zero would usually disable the timeout,
+// but this is not allowed here to prevent accidental misconfiguration.
 func WithReadTimeout(d time.Duration) Option {
 	return func(cfg *config) {
-		if d >= 0 {
+		if d > 0 {
 			cfg.server.ReadTimeout = d
 		}
 	}
@@ -158,11 +158,12 @@ func WithReadTimeout(d time.Duration) Option {
 // WithReadHeaderTimeout is the default maximum duration for reading only the
 // request headers.
 //
-// Negative values are ignored. Zero disables the timeout. By default,
-// the timeout is DefaultReadHeaderTimeout.
+// Non-positive values are ignored. By default, the timeout is set to
+// DefaultReadHeaderTimeout. Note that a zero would usually disable the timeout,
+// but this is not allowed here to prevent accidental misconfiguration.
 func WithReadHeaderTimeout(d time.Duration) Option {
 	return func(cfg *config) {
-		if d >= 0 {
+		if d > 0 {
 			cfg.server.ReadHeaderTimeout = d
 		}
 	}
@@ -171,7 +172,9 @@ func WithReadHeaderTimeout(d time.Duration) Option {
 // WithIdleTimeout specifies the maximum amount of time to wait for the next
 // request when keep-alives are enabled.
 //
-// A non-positive value disables the timeout. Defaults to DefaultIdleTimeout.
+// Non-positive values are ignored. By default, the timeout is set to
+// DefaultIdleTimeout. Note that a zero would usually disable the timeout,
+// but this is not allowed here to prevent accidental misconfiguration.
 func WithIdleTimeout(d time.Duration) Option {
 	return func(cfg *config) {
 		cfg.server.IdleTimeout = d
