@@ -19,10 +19,10 @@ type BufferPool struct {
 // Both parameters must be positive; minSize will be clamped by maxSize.
 func NewBufferPool(minSize int, maxSize int) *BufferPool {
 	if minSize <= 0 {
-		panic("NewBufferPool: minSize must be positive")
+		panic("minSize must be positive")
 	}
 	if maxSize <= 0 {
-		panic("NewBufferPool: maxSize must be positive")
+		panic("maxSize must be positive")
 	}
 	minSize = min(minSize, maxSize)
 	// Store a pointer to a slice to avoid allocations when storing in the
