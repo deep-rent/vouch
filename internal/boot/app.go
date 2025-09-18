@@ -8,17 +8,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/deep-rent/vouch/internal/listener"
+	"github.com/deep-rent/vouch/internal/gateway"
 )
 
 type App struct {
-	listen listener.Listener
+	gw     gateway.Gateway
 	logger *slog.Logger
 }
 
 func NewApp() (*App, error) {
 	return &App{
-		listen: nil,
+		gw:     nil,
 		logger: nil,
 	}, nil
 }
@@ -28,7 +28,7 @@ func (a *App) Run() error {
 	sigCh := make(chan os.Signal, 1)
 
 	go func() {
-		errCh <- a.listen.Start()
+		errCh <- a.gw.Start()
 	}()
 
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -48,7 +48,7 @@ func (a *App) Run() error {
 		)
 		defer cancel()
 
-		if err := a.listen.Stop(wait); err != nil {
+		if err := a.gw.Stop(wait); err != nil {
 			return err
 		}
 	}

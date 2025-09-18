@@ -1,4 +1,4 @@
-package listener
+package gateway
 
 import (
 	"context"
@@ -27,12 +27,13 @@ const (
 	// DefaultIdleTimeout is the default maximum amount of time to wait for the
 	// next request when keep-alives are enabled.
 	DefaultIdleTimeout = 90 * time.Second
-	// DefaultMaxHeaderBytes is the default maximum size of request headers (64 KiB).
-	DefaultMaxHeaderBytes = 1 << 16
+	// DefaultMaxHeaderBytes is the default maximum size of request headers.
+	DefaultMaxHeaderBytes = 1 << 16 // 64 KiB
 )
 
-// Listener represents a HTTP server.
-type Listener interface {
+// Gateway represents a HTTP server that listens for incoming traffic to be
+// proxied to CouchDB.
+type Gateway interface {
 	// Start runs the HTTP server. It blocks until the server is
 	// shut down (e.g., by Stop()) or an unrecoverable error occurs.
 	Start() error
@@ -42,8 +43,8 @@ type Listener interface {
 	Stop(ctx context.Context) error
 }
 
-// New creates a new Listener backed by a http.Server.
-func New(opts ...Option) Listener {
+// New creates a new Gateway backed by a http.Server.
+func New(opts ...Option) Gateway {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -55,13 +56,13 @@ func New(opts ...Option) Listener {
 	// Wire middleware into the server
 	cfg.server.Handler = middleware.Link(cfg.server.Handler, cfg.middleware...)
 
-	return &listener{
+	return &gateway{
 		server: cfg.server,
-		logger: cfg.logger.With("name", "Listener"),
+		logger: cfg.logger.With("name", "Gateway"),
 	}
 }
 
-// config holds the listener configuration.
+// config holds the gateway configuration.
 type config struct {
 	host       string
 	port       int
@@ -70,7 +71,7 @@ type config struct {
 	middleware []middleware.Pipe
 }
 
-// defaultConfig creates a config with optimized defaults.
+// defaultConfig initializes a configuration object with optimized defaults.
 func defaultConfig() *config {
 	return &config{
 		host: DefaultHost,
@@ -88,7 +89,7 @@ func defaultConfig() *config {
 	}
 }
 
-// Listener defines a function for setting listener options.
+// Option defines a function for setting gateway options.
 type Option func(*config)
 
 // WithServer replaces the underlying http.Server with a custom one.
@@ -142,8 +143,8 @@ func WithHandler(h http.Handler) Option {
 
 // WithReadHeaderTimeout is the default maximum duration for reading the
 // entire request, including the body.
-// A non-positive value disables the timeout.
-// Defaults to DefaultReadTimeout.
+//
+// A non-positive value disables the timeout. Defaults to DefaultReadTimeout.
 func WithReadTimeout(d time.Duration) Option {
 	return func(cfg *config) {
 		cfg.server.ReadTimeout = d
@@ -162,8 +163,8 @@ func WithReadHeaderTimeout(d time.Duration) Option {
 
 // WithIdleTimeout specifies the maximum amount of time to wait for the next
 // request when keep-alives are enabled.
-// A non-positive value disables the timeout.
-// Defaults to DefaultIdleTimeout.
+//
+// A non-positive value disables the timeout. Defaults to DefaultIdleTimeout.
 func WithIdleTimeout(d time.Duration) Option {
 	return func(cfg *config) {
 		cfg.server.IdleTimeout = d
@@ -171,6 +172,7 @@ func WithIdleTimeout(d time.Duration) Option {
 }
 
 // WithMaxHeaderBytes sets the server's MaxHeaderBytes.
+//
 // Non-positive values are ignored and DefaultMaxHeaderBytes is used.
 func WithMaxHeaderBytes(n int) Option {
 	return func(cfg *config) {
@@ -181,6 +183,7 @@ func WithMaxHeaderBytes(n int) Option {
 }
 
 // WithTLSConfig sets the server's tls.Config for HTTPS.
+//
 // If nil, this option is ignored.
 func WithTLSConfig(tls *tls.Config) Option {
 	return func(cfg *config) {
@@ -193,13 +196,16 @@ func WithTLSConfig(tls *tls.Config) Option {
 // WithMiddleware appends one or more middleware pipes to the server's
 // handler chain. Middleware is applied in the order it is provided
 // (outermost first).
+//
+// This option can be called multiple times to add more middleware.
 func WithMiddleware(pipes ...middleware.Pipe) Option {
 	return func(cfg *config) {
 		cfg.middleware = append(cfg.middleware, pipes...)
 	}
 }
 
-// WithLogger sets the logger for the listener.
+// WithLogger sets the logger to notify about the gateway's lifecycle events.
+//
 // If nil, this option is ignored and slog.Default() is used.
 func WithLogger(logger *slog.Logger) Option {
 	return func(cfg *config) {
@@ -209,33 +215,35 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// listener is the internal implementation of the Listener interface.
-type listener struct {
+// gateway is the internal implementation of the Gateway interface.
+type gateway struct {
 	server *http.Server
 	logger *slog.Logger
 }
 
-func (l *listener) Start() error {
-	l.logger.Info("starting server", "address", l.server.Addr)
+// Start implements the Gateway interface.
+func (g *gateway) Start() error {
+	g.logger.Info("starting server", "address", g.server.Addr)
 
-	if err := l.server.ListenAndServe(); err != nil &&
+	if err := g.server.ListenAndServe(); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
-		l.logger.Error("server exited with error", "error", err)
+		g.logger.Error("server exited with error", "error", err)
 		return err
 	}
 
-	l.logger.Info("server stopped")
+	g.logger.Info("server stopped")
 	return nil
 }
 
-func (l *listener) Stop(ctx context.Context) error {
-	l.logger.Info("stopping server")
+// Stop implements the Gateway interface.
+func (g *gateway) Stop(ctx context.Context) error {
+	g.logger.Info("stopping server")
 
-	if err := l.server.Shutdown(ctx); err != nil {
-		l.logger.Error("server shutdown failed", "error", err)
+	if err := g.server.Shutdown(ctx); err != nil {
+		g.logger.Error("server shutdown failed", "error", err)
 		return err
 	}
 
-	l.logger.Info("server stopped gracefully")
+	g.logger.Info("server stopped gracefully")
 	return nil
 }
