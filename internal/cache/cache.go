@@ -175,6 +175,8 @@ func New[T any](
 	mapper Mapper[T],
 	opts ...Option,
 ) *Cache[T] {
+	// Derive a cancellable context from the provided one
+	// When cancel is called, all background operations will cease
 	ctx, cancel := context.WithCancel(ctx)
 
 	cfg := defaultConfig()
@@ -272,21 +274,21 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 
 // delay calculates the time to wait for the next fetch.
 func (c *Cache[T]) delay(header http.Header) time.Duration {
-	// Constant delay
+	// Constant delay case:
 	if c.minDelay == c.maxDelay {
 		return c.minDelay
 	}
 
-	// Adaptive delay
+	// Adaptive delay case:
 	dur := c.minDelay
 	if header != nil {
-		// Try Cache-Control first, as it takes precedence.
+		// Try Cache-Control first, as it takes precedence
 		if d, ok := MaxAge(header); ok {
 			dur = d
 		} else if t, ok := Expires(header); ok {
-			// Calculate the duration from now until the expiry time.
+			// Calculate the duration from now until the expiry time
 			if d := t.Sub(c.clock()); d > 0 {
-				// Only use the duration if the expiry time is in the future.
+				// Only use the duration if the expiry time is in the future
 				dur = d
 			}
 		}

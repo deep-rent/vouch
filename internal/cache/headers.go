@@ -38,6 +38,7 @@ func (e ETag) Set(header http.Header) {
 func MaxAge(header http.Header) (time.Duration, bool) {
 	v := header.Get("Cache-Control")
 	if v != "" {
+		// The header consists of comma-separated key-value pairs
 		for p := range strings.SplitSeq(v, ",") {
 			p = strings.TrimSpace(p)
 			if s, ok := strings.CutPrefix(p, "max-age="); ok {
