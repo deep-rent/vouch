@@ -120,9 +120,9 @@ linters:
     funcorder:
       struct-method: false
 
-    funlen: {}
-    #  lines: 60
-    #  statements: 30
+    funlen:
+      # lines: 80
+      statements: 50
 
     gochecksumtype:
       default-signifies-exhaustive: false
