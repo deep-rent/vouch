@@ -15,10 +15,13 @@ var (
 	errNotLoaded = errors.New("set is not yet loaded")
 )
 
+// KeySet is an alias of jwk.Set.
+type KeySet jwk.Set
+
 // cachedSet wraps a refreshing cache to provide an immutable,
-// nil-safe implementation of the jwk.Set interface.
+// nil-safe implementation of the KeySet interface.
 type cachedSet struct {
-	cache *cache.Cache[jwk.Set]
+	cache *cache.Cache[KeySet]
 }
 
 func (s *cachedSet) cached() jwk.Set {
@@ -101,20 +104,20 @@ func (s *cachedSet) Clone() (jwk.Set, error) {
 	return nil, errNotLoaded
 }
 
-// Asserts at compile time that *cacheSet satisfies the jwk.Set interface.
-var _ jwk.Set = (*cachedSet)(nil)
+// Asserts at compile time that *cacheSet satisfies the KeySet interface.
+var _ KeySet = (*cachedSet)(nil)
 
-// mapper transforms the response body into a jwk.Set.
-var mapper cache.Mapper[jwk.Set] = func(body []byte) (jwk.Set, error) {
+// mapper transforms the response body into a KeySet.
+var mapper cache.Mapper[KeySet] = func(body []byte) (KeySet, error) {
 	return jwk.Parse(body)
 }
 
-// NewKeySet creates a new auto-refreshing, immutable jwk.Set.
+// NewKeySet creates a new auto-refreshing, immutable KeySet.
 func NewKeySet(
 	ctx context.Context,
 	url string,
 	opts ...cache.Option,
-) jwk.Set {
+) KeySet {
 	cache := cache.New(ctx, url, mapper, opts...)
 	return &cachedSet{cache: cache}
 }
