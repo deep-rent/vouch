@@ -13,27 +13,27 @@ type BufferPool struct {
 	size int
 }
 
-// NewBufferPool creates a BufferPool that returns buffers of at least minSize
-// bytes. Buffers that grow beyond maxSize will be discarded.
+// NewBufferPool creates a BufferPool that returns buffers of at least m
+// bytes. Buffers that grow beyond n will be discarded.
 //
-// Both parameters must be positive; minSize will be clamped by maxSize.
-func NewBufferPool(minSize int, maxSize int) *BufferPool {
-	if minSize <= 0 {
-		panic("minSize must be positive")
+// Both parameters must be positive; m will be clamped by n.
+func NewBufferPool(m int, n int) *BufferPool {
+	if m <= 0 {
+		panic("m must be positive")
 	}
-	if maxSize <= 0 {
-		panic("maxSize must be positive")
+	if n <= 0 {
+		panic("n must be positive")
 	}
-	minSize = min(minSize, maxSize)
+	m = min(m, n)
 	// Store a pointer to a slice to avoid allocations when storing in the
 	// interface-typed pool
 	alloc := func() any {
-		buf := make([]byte, minSize)
+		buf := make([]byte, m)
 		return &buf
 	}
 	return &BufferPool{
 		pool: sync.Pool{New: alloc},
-		size: maxSize,
+		size: n,
 	}
 }
 
