@@ -5,17 +5,20 @@ applyTo: "**/*.go"
 # Project Overview
 
 This Go-based **reverse proxy** offloads access control from **Apache CouchDB**. It is designed
-to be deployed as a **sidecar container** alongside CouchDB instances. The proxy server
-authenticates incoming requests based on **JSON Web Tokens** (JWTs), and determines the
-authorization scope using **rule expressions** in `expr` syntax. Each rule is evaluated against
-the token claims and request parameters. The first matching rule decides. Upon a rule match, the
-request is enriched with additional `X-Auth-CouchDB-*` proxy headers and forwarded to the
-upstream server. Specifically, these headers specify the name and assigned roles of the CouchDB
-user to authenticate as. A secret key shared between the proxy and CouchDB is used to sign and
-secure the proxy headers. Configuration data is read from a YAML file on startup. JSON Web Keys
-(JWKs) for signature verification are fetched from a JWKS endpoint and kept in an auto-refreshing
-cache. The refresh interval depends on the configured policy and the `Cache-Control` header sent
-by the key provider.
+to be deployed as a **sidecar container** alongside CouchDB instances.
+
+The proxy server authenticates incoming requests based on **JSON Web Tokens** (JWTs), and
+determines the authorization scope using **rule expressions** in `expr` syntax. Each rule is
+evaluated against the token claims and request parameters. The first matching rule decides
+the outcome.
+
+Upon a rule match, the request is enriched with additional `X-Auth-CouchDB-*` proxy headers,
+containing the CouchDB user's name and roles, before forwarding it. A shared secret secures
+these headers by signing the user name.
+
+Configuration data is read from a YAML file at startup. JSON Web Keys (JWKs) for signature
+verification are fetched from a JWKS endpoint and kept in an auto-refreshing cache. The refresh
+delay depends on the configured policy and the `Cache-Control` header sent by the key provider.
 
 ## Code Quality
 
@@ -28,7 +31,8 @@ by the key provider.
 
 ## Performance
 
-- Analyze the code to identify potential performance bottlenecks, memory leaks, and concurrency issues
+- Analyze the code to identify and fix potential performance bottlenecks
+- Detect memory leaks and concurrency issues
 - Look for opportunities to optimize algorithms and data structures
 - Ensure efficient use of goroutines and channels
 
@@ -37,6 +41,8 @@ by the key provider.
 - Make use of the `assert` and `require` packages from `github.com/stretchr/testify`
 - Cover both typical use cases and edge cases
 - Write table-driven tests where applicable and parallelize them when possible
+- Avoid underscores in test names
+- Strive for high code coverage, but prioritize meaningful tests over percentages
 
 ## Documentation
 
