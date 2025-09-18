@@ -19,6 +19,8 @@ const (
 	DefaultMaxInterval = 60 * time.Minute
 	// DefaultTimeout is the default request timeout for the internal HTTP client.
 	DefaultTimeout = 30 * time.Second
+	// DefaultBackoffInterval is the default backoff interval for retries.
+	DefaultBackoffInterval = 30 * time.Second
 )
 
 // Mapper defines a function that parses a raw request payload
@@ -127,10 +129,10 @@ func WithLogger(logger *slog.Logger) Option {
 // WithBackoff sets a custom backoff strategy for handling retries.
 //
 // If nil is given, this option is ignored. By default, a constant backoff
-// equal to the configured minimum delay is used.
+// repeating calls at the DefaultBackoffInterval is used.
 //
 // In most cases, the delay for retries should be short compared to the regular
-// fetch interval, to allow for quick recovery from transient errors.
+// fetch interval. This allows for quick recovery from transient errors.
 func WithBackoff(b retry.Backoff) Option {
 	return func(o *config) {
 		if b != nil {
@@ -220,7 +222,7 @@ func New[T any](
 
 	// Use constant backoff if not customized
 	if c.backoff == nil {
-		c.backoff = retry.Constant(c.minInterval)
+		c.backoff = retry.Constant(DefaultBackoffInterval)
 	}
 
 	job := c.fetch
