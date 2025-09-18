@@ -35,7 +35,8 @@ type rule struct {
 	roles *vm.Program // optional; evaluates to []any
 }
 
-// matches checks if the rule's condition is satisfied.
+// matches checks if the rule's condition is satisfied by evaluating the
+// when expression.
 func (r *rule) matches(env Environment) (bool, error) {
 	w, err := exec[bool](r.when, env)
 	if err != nil {
@@ -44,7 +45,8 @@ func (r *rule) matches(env Environment) (bool, error) {
 	return w, nil
 }
 
-// access determines the Access defined by the rule.
+// access determines the Access defined by the rule by evaluating
+// the user and roles expressions.
 func (r *rule) access(env Environment) (auth.Access, error) {
 	user, err := exec[string](r.user, env)
 	if err != nil {

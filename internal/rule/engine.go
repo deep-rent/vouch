@@ -6,7 +6,7 @@ import (
 	"github.com/deep-rent/vouch/internal/auth"
 )
 
-// Engine is an ordered sequence of rules to evaluate.
+// Engine evaluates a list of rules in order to make an access decision.
 type Engine []Rule
 
 // Eval evaluates the rules in order and stops at the first

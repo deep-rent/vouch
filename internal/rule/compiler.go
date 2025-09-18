@@ -7,24 +7,32 @@ import (
 	"github.com/expr-lang/expr"
 )
 
+// Mode specifies whether a rule allows or denies access.
 type Mode string
 
 const (
+	// ModeAllow indicates that the rule allows access when matched.
 	ModeAllow Mode = "allow"
-	ModeDeny  Mode = "deny"
+	// ModeDeny indicates that the rule denies access when matched.
+	ModeDeny Mode = "deny"
 )
 
+// options holds compilation options tailored to the different rule expressions.
 type options struct {
 	when  []expr.Option
 	user  []expr.Option
 	roles []expr.Option
 }
 
+// Builder helps compile a Rule step-by-step.
+// It is not safe for concurrent use.
 type Builder struct {
 	opts *options
 	rule *rule
 }
 
+// When compiles and sets the when expression of the rule.
+// This expression is required for all rules.
 func (b *Builder) When(input string) error {
 	if input == "" {
 		return errors.New("required for all rules")
@@ -37,6 +45,8 @@ func (b *Builder) When(input string) error {
 	return nil
 }
 
+// User compiles and sets the user expression of the rule.
+// This expression is required for allow rules and forbidden for deny rules.
 func (b *Builder) User(input string) error {
 	if b.rule.deny {
 		return errors.New("forbidden for deny rule")
@@ -52,6 +62,8 @@ func (b *Builder) User(input string) error {
 	return nil
 }
 
+// Roles compiles and sets the roles expression of the rule.
+// This expression is optional for allow rules and forbidden for deny rules.
 func (b *Builder) Roles(input string) error {
 	if input == "" {
 		return nil
@@ -67,6 +79,8 @@ func (b *Builder) Roles(input string) error {
 	return nil
 }
 
+// Build finalizes and returns the compiled Rule.
+// It panics if the rule is incomplete.
 func (b *Builder) Build() Rule {
 	if b.rule.when == nil {
 		panic("when is required")
@@ -77,10 +91,12 @@ func (b *Builder) Build() Rule {
 	return b.rule
 }
 
+// Compiler compiles rules from their string representations.
 type Compiler struct {
 	opts *options
 }
 
+// NewCompiler initializes a new compiler.
 func NewCompiler() *Compiler {
 	base := []expr.Option{
 		expr.Env(Environment{}),
@@ -100,6 +116,7 @@ func NewCompiler() *Compiler {
 	}
 }
 
+// Builder creates a new Builder for the given rule mode.
 func (c *Compiler) Builder(mode Mode) *Builder {
 	return &Builder{
 		opts: c.opts,
