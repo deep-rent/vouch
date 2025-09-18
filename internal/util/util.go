@@ -5,8 +5,10 @@ import (
 	"time"
 )
 
+// Clock is a pluggable abstraction over time.Now for testing purposes.
 type Clock func() time.Time
 
+// DefaultClock returns the current system instant.
 var DefaultClock Clock = time.Now
 
 // Conv attempts to cast the given value to type T.
