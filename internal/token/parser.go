@@ -30,10 +30,13 @@ const (
 const OmitScheme = "none"
 
 var (
+	// errMissingHeader is returned when the token header is missing.
 	errMissingHeader = errors.New("missing authentication header")
+	// errInvalidScheme is returned when the token scheme is invalid.
 	errInvalidScheme = errors.New("invalid authentication scheme")
 )
 
+// NewParser constructs a new Parser with the given options.
 func NewParser(opts ...ParserOption) Parser {
 	cfg := defaultParserConfig()
 	for _, opt := range opts {
@@ -46,6 +49,7 @@ func NewParser(opts ...ParserOption) Parser {
 	}
 }
 
+// defaultParserConfig initializes a configuration object with default settings.
 func defaultParserConfig() parserConfig {
 	return parserConfig{
 		header: DefaultHeader,
@@ -57,14 +61,21 @@ func defaultParserConfig() parserConfig {
 	}
 }
 
+// parserConfig holds all configurable parameters for a Parser.
 type parserConfig struct {
 	header string
 	prefix string
 	opts   []jwt.ParseOption
 }
 
+// ParserOption customizes the behavior of a Parser.
 type ParserOption func(*parserConfig)
 
+// WithAudience sets the expected audience claim ("aud") in the token. If the
+// claim is absent or does not contain the given value, the token will be
+// rejected.
+//
+// An empty value will be ignored. By default, no audience is required.
 func WithAudience(aud string) ParserOption {
 	return func(cfg *parserConfig) {
 		if aud != "" {
@@ -73,6 +84,10 @@ func WithAudience(aud string) ParserOption {
 	}
 }
 
+// WithIssuer sets the expected issuer claim ("iss") in the token. If the claim
+// is absent or does not match, the token will be rejected.
+//
+// An empty value will be ignored. By default, no issuer is required.
 func WithIssuer(iss string) ParserOption {
 	return func(cfg *parserConfig) {
 		if iss != "" {
@@ -81,6 +96,11 @@ func WithIssuer(iss string) ParserOption {
 	}
 }
 
+// WithLeeway sets the acceptable clock skew for checking the token's
+// temporal validity. This is useful to account for small differences
+// between the issuer's and the verifier's clocks.
+//
+// A non-positive duration will be ignored. By default, no leeway is allowed.
 func WithLeeway(d time.Duration) ParserOption {
 	return func(cfg *parserConfig) {
 		if d > 0 {
@@ -89,6 +109,9 @@ func WithLeeway(d time.Duration) ParserOption {
 	}
 }
 
+// WithHeader sets the HTTP header from which to extract the token.
+//
+// An empty value will be ignored, and DefaultHeader will be used.
 func WithHeader(name string) ParserOption {
 	return func(cfg *parserConfig) {
 		if name != "" {
@@ -97,6 +120,11 @@ func WithHeader(name string) ParserOption {
 	}
 }
 
+// WithScheme sets the expected authentication scheme in the token header.
+//
+// An empty value will be ignored, and DefaultScheme will be used. To omit the
+// scheme entirely, pass OmitScheme. The scheme is case-sensitive and a single
+// space is appended automatically to form the header prefix.
 func WithScheme(name string) ParserOption {
 	return func(cfg *parserConfig) {
 		if name != "" {
@@ -107,6 +135,10 @@ func WithScheme(name string) ParserOption {
 	}
 }
 
+// WithKeySet provides the JWK set to use for verifying signatures.
+//
+// If nil is given, this option is ignored. A valid key set must be specified
+// for signature verification to work, or else all tokens will be rejected.
 func WithKeySet(set jwk.Set) ParserOption {
 	return func(cfg *parserConfig) {
 		if set != nil {
@@ -115,6 +147,10 @@ func WithKeySet(set jwk.Set) ParserOption {
 	}
 }
 
+// WithClock sets the reference clock used for validating time-based claims.
+//
+// If nil is given, this option is ignored. By default, the system clock is
+// used.
 func WithClock(clock util.Clock) ParserOption {
 	return func(cfg *parserConfig) {
 		if clock != nil {
@@ -123,6 +159,7 @@ func WithClock(clock util.Clock) ParserOption {
 	}
 }
 
+// parser is the default implementation of Parser.
 type parser struct {
 	header string
 	prefix string
