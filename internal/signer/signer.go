@@ -17,6 +17,8 @@ type Algorithm func() hash.Hash
 
 // Algorithms associates string identifiers with Algorithms. The keys
 // correspond to the names recognized by CouchDB.
+//
+// This map must not be modified at runtime.
 var Algorithms = map[string]Algorithm{
 	"sha":    sha1.New,
 	"sha224": sha256.New224,
