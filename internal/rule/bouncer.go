@@ -34,5 +34,8 @@ func (b *bouncer) Check(req *http.Request) (auth.Access, error) {
 			auth.ReasonAuthenticationFailure, err,
 		)
 	}
-	return b.engine.Eval(NewEnvironment(claims, req.Method, req.URL.Path))
+	method, path := req.Method, req.URL.Path
+	// The engine returns an auth.AccessError if access is denied; no further
+	// wrapping is needed.
+	return b.engine.Eval(NewEnvironment(claims, method, path))
 }
