@@ -92,57 +92,7 @@ type Backoff struct {
 }
 
 func Default() Config {
-	return Config{
-		Gateway: Gateway{
-			Host:              "",
-			Port:              0,
-			Transport:         Transport{},
-			ReadTimeout:       0,
-			ReadHeaderTimeout: 0,
-			IdleTimeout:       0,
-			MaxHeaderBytes:    0,
-			Proxy: Proxy{
-				Scheme:        "",
-				Host:          "",
-				Port:          0,
-				Path:          "",
-				FlushInterval: 0,
-				MinBufferSize: 0,
-				MaxBufferSize: 0,
-				Bouncer: Bouncer{
-					Token: Parser{
-						Header:   "",
-						Scheme:   "",
-						Issuer:   "",
-						Audience: "",
-						Leeway:   0,
-						KeySet: KeySet{
-							URL:         "",
-							MinInterval: "",
-							MaxInterval: "",
-							Timeout:     0,
-							Backoff: Backoff{
-								MinDelay: 0,
-								MaxDelay: 0,
-								Factor:   0,
-								Jitter:   0,
-							},
-						},
-					},
-					Rules: []Rule{},
-				},
-				Stamper: Stamper{
-					Header: Header{
-						User:  "",
-						Roles: "",
-						Token: "",
-					},
-					Signer: Signer{
-						Secret:    "",
-						Algorithm: "",
-					},
-				},
-			},
-		},
-	}
+	// All fields zero-valued is what we want here. The defaulting logic is
+	// outsourced to the respective packages
+	return Config{}
 }
