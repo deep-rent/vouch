@@ -17,6 +17,8 @@ const (
 	DefaultMinInterval = 15 * time.Minute
 	// DefaultMaxInterval is the default maximum time to wait between fetches.
 	DefaultMaxInterval = 60 * time.Minute
+	// DefaultTimeout is the default request timeout for the internal HTTP client.
+	DefaultTimeout = 30 * time.Second
 )
 
 // Mapper defines a function that parses a raw request payload
@@ -37,7 +39,7 @@ type config struct {
 // defaultConfig initializes a configuration object with default settings.
 func defaultConfig() config {
 	return config{
-		client:      http.DefaultClient,
+		client:      &http.Client{Timeout: DefaultTimeout},
 		logger:      slog.Default(),
 		minInterval: DefaultMinInterval,
 		maxInterval: DefaultMaxInterval,
@@ -84,10 +86,12 @@ func WithClient(client *http.Client) Option {
 
 // WithTimeout sets the request timeout for the internal HTTP client.
 //
-// Negative values are ignored. Zero means no timeout (not recommended).
+// Non-positive values are ignored, and DefaultTimeout is used. Note that zero
+// values are not allowed, as they disable timeouts entirely, which makes
+// the client vulnerable to hanging requests.
 func WithTimeout(d time.Duration) Option {
 	return func(o *config) {
-		if d < 0 {
+		if d > 0 {
 			o.client.Timeout = d
 		}
 	}
