@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -103,8 +104,7 @@ type exponential struct {
 	minDelay time.Duration
 	maxDelay time.Duration
 	factor   float64
-	mu       sync.Mutex
-	attempts int
+	attempts atomic.Int64
 }
 
 // Exponential creates a new exponential backoff strategy.
@@ -123,32 +123,26 @@ func Exponential(opts ...ExponentialOption) Backoff {
 		minDelay: cfg.minDelay,
 		maxDelay: cfg.maxDelay,
 		factor:   cfg.factor,
+		// attempts is zero-initialized
 	}
 }
 
 // Next calculates the next backoff duration.
 func (b *exponential) Next() time.Duration {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	a := b.attempts.Load()
+	d := time.Duration(float64(b.minDelay) * math.Pow(b.factor, float64(a)))
 
-	d := time.Duration(float64(b.minDelay) * math.Pow(
-		b.factor, float64(b.attempts)),
-	)
-
-	if d >= b.maxDelay {
-		return b.maxDelay
+	if d < b.maxDelay {
+		b.attempts.Add(1)
+		return d
 	}
 
-	b.attempts++
-	return d
+	return b.maxDelay
 }
 
 // Done resets the attempt counter.
 func (b *exponential) Done() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.attempts = 0
+	b.attempts.Store(0)
 }
 
 // Rand is a minimal facade for rand.Rand.
