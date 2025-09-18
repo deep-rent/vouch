@@ -47,7 +47,7 @@ type Gateway interface {
 func New(opts ...Option) Gateway {
 	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	// Combine host and port to build the network address
@@ -72,8 +72,8 @@ type config struct {
 }
 
 // defaultConfig initializes a configuration object with optimized defaults.
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() config {
+	return config{
 		host: DefaultHost,
 		port: DefaultPort,
 		server: &http.Server{

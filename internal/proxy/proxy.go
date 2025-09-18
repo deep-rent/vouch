@@ -33,7 +33,7 @@ const (
 func New(opts ...Option) http.Handler {
 	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	transport := cfg.transport
@@ -81,8 +81,8 @@ type config struct {
 }
 
 // defaultConfig initializes a configuration object with default settings.
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() config {
+	return config{
 		scheme:        DefaultScheme,
 		host:          DefaultHost,
 		port:          DefaultPort,
