@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -18,7 +17,7 @@ type Stamper interface {
 	Stamp(req *http.Request, access Access)
 }
 
-func NewStamper(opts ...StamperOption) (Stamper, error) {
+func NewStamper(opts ...StamperOption) Stamper {
 	s := &stamper{
 		userHeader:  DefaultUserHeader,
 		rolesHeader: DefaultRolesHeader,
@@ -27,12 +26,7 @@ func NewStamper(opts ...StamperOption) (Stamper, error) {
 	for _, opt := range opts {
 		opt(s)
 	}
-	if s.userHeader == s.rolesHeader ||
-		s.rolesHeader == s.tokenHeader ||
-		s.tokenHeader == s.userHeader {
-		return nil, errors.New("duplicate header key")
-	}
-	return s, nil
+	return s
 }
 
 type StamperOption func(*stamper)
