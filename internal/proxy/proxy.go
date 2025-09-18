@@ -1,109 +1,279 @@
-// Copyright (c) 2025-present deep.rent GmbH (https://www.deep.rent)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package proxy
 
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"time"
-
-	"github.com/deep-rent/vouch/internal/token"
 )
 
-// transport returns an HTTP transport tuned for CouchDB upstreams.
-// - Enables HTTP/2 where possible.
-// - Disables transparent decompression to preserve upstream encoding.
-// - Sets conservative timeouts and generous connection pooling.
-func transport() *http.Transport {
-	return &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:     true,
-		DisableCompression:    true, // Keep upstream encoding; don't decompress
-		MaxIdleConns:          512,
-		MaxIdleConnsPerHost:   256,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 01 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
+const (
+	// DefaultScheme is the default target scheme.
+	DefaultScheme = "http"
+	// DefaultHost is the default target hostname.
+	DefaultHost = "localhost"
+	// DefaultPort is the default target port.
+	DefaultPort = 5984
+	// DefaultPath is the default target path.
+	DefaultPath = ""
+	// DefaultFlushInterval is the default interval for periodic flushing.
+	DefaultFlushInterval = 200 * time.Millisecond
+	// DefaultMinBufferSize is the default minimum size of pooled buffers.
+	DefaultMinBufferSize = 32 << 10 // 32 KiB
+	// DefaultMaxBufferSize is the default maximum size of pooled buffers.
+	DefaultMaxBufferSize = 256 << 10 // 256 KiB
+)
+
+// New creates a new reverse proxy handler configured by the given options.
+func New(opts ...Option) http.Handler {
+	cfg := defaultConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	transport := cfg.transport
+	// Rely on the HTTP_PROXY and NO_PROXY environment variables
+	transport.Proxy = http.ProxyFromEnvironment
+	// CouchDB currently does not support HTTP/2; attempting the upgrade
+	// would only add latency
+	transport.ForceAttemptHTTP2 = false
+	// Disable transparent decompression to keep the upstream encoding
+	transport.DisableCompression = true
+
+	// Assemble the final target URL from its parts
+	target := &url.URL{
+		Scheme: cfg.scheme,
+		Host:   net.JoinHostPort(cfg.host, strconv.Itoa(cfg.port)),
+		Path:   cfg.path,
+	}
+
+	h := httputil.NewSingleHostReverseProxy(target)
+	h.ErrorHandler = NewErrorHandler(cfg.logger.With("name", "Proxy"))
+	h.Transport = cfg.transport
+	h.FlushInterval = cfg.flushInterval
+	h.BufferPool = NewBufferPool(cfg.minBufferSize, cfg.maxBufferSize)
+
+	// The default director need not be overridden; it already sets the
+	// X-Forwarded-Host and X-Forwarded-Proto headers, which is exactly
+	// what CouchDB expects. It also correctly rewrites the Host header
+	// to match the target (required for the sidecar setup to function)
+	// h.Director = ...
+
+	return h
+}
+
+// config holds the configurable settings for the proxy handler.
+type config struct {
+	scheme        string
+	host          string
+	port          int
+	path          string
+	transport     *http.Transport
+	flushInterval time.Duration
+	minBufferSize int
+	maxBufferSize int
+	logger        *slog.Logger
+}
+
+// defaultConfig initializes a configuration object with default settings.
+func defaultConfig() *config {
+	return &config{
+		scheme:        DefaultScheme,
+		host:          DefaultHost,
+		port:          DefaultPort,
+		path:          DefaultPath,
+		transport:     &http.Transport{},
+		flushInterval: DefaultFlushInterval,
+		minBufferSize: DefaultMinBufferSize,
+		maxBufferSize: DefaultMaxBufferSize,
+		logger:        slog.Default(),
 	}
 }
 
-const (
-	HeaderForwardedHost  = "X-Forwarded-Host"
-	HeaderForwardedFor   = "X-Forwarded-For"
-	HeaderForwardedProto = "X-Forwarded-Proto"
-)
+// Option defines a function for setting reverse proxy options.
+type Option func(*config)
 
-// New constructs a reverse proxy handler that forwards requests to the target
-// address. It applies sane defaults for CouchDB, strips sensitive headers, and
-// enriches forwarding headers (X-Forwarded-*). Upstream errors are mapped to
-// 502/504 as appropriate; client cancellations are silently ignored.
-func New(target *url.URL) http.Handler {
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	// Tune transport for upstream CouchDB.
-	proxy.Transport = transport()
-	// Helpful for long-lived responses such as the _changes feed.
-	proxy.FlushInterval = 200 * time.Millisecond
-	// Reduce allocations on large responses.
-	proxy.BufferPool = NewBufferPool(32 << 10)
+// WithTarget sets the upstream target URL for the reverse proxy.
+// If nil is given, this option is ignored.
+//
+// By default, the proxy targets http://localhost:5984.
+// func WithTarget(u *url.URL) Option {
+// 	return func(cfg *config) {
+// 		if u != nil {
+// 			cfg.target = u
+// 		}
+// 	}
+// }
 
-	// Preserve and augment request details for the upstream.
-	base := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		base(req)
-		// Strip access tokens from the outgoing request.
-		req.Header.Del(token.Header)
-		// Preserve original host
-		req.Header.Set(HeaderForwardedHost, req.Host)
-		// Augment headers with the immediate peer.
-		if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil &&
-			ip != "" {
-			req.Header.Add(HeaderForwardedFor, ip)
-		}
-		// Preserve original scheme  if not already set by upstream infrastructure.
-		if req.Header.Get(HeaderForwardedProto) == "" {
-			if req.TLS != nil {
-				req.Header.Set(HeaderForwardedProto, "https")
-			} else {
-				req.Header.Set(HeaderForwardedProto, "http")
-			}
+// WithScheme sets the scheme (e.g., "http" or "https") for the
+// upstream target.
+//
+// If empty, this option is ignored.
+// Defaults to DefaultScheme.
+func WithScheme(s string) Option {
+	return func(cfg *config) {
+		if s != "" {
+			cfg.scheme = s
 		}
 	}
+}
 
-	// Map upstream errors to reasonable statuses.
-	proxy.ErrorHandler = func(
-		res http.ResponseWriter, _ *http.Request, err error,
-	) {
-		var code = http.StatusBadGateway
-		if errors.Is(err, context.DeadlineExceeded) {
-			code = http.StatusGatewayTimeout
+// WithScheme sets the hostname (e.g., "localhost" or "couchdb.internal")
+// for the upstream target.
+//
+// If empty, this option is ignored.
+// Defaults to DefaultHost.
+func WithHost(h string) Option {
+	return func(cfg *config) {
+		if h != "" {
+			cfg.scheme = h
 		}
-		// If the client canceled, there's nothing useful to send; just close.
+	}
+}
+
+// WithPort sets the port (e.g., 5984) for the upstream target.
+//
+// If outside the valid port range, this option is ignored.
+// Defaults to DefaultPort.
+func WithPort(p int) Option {
+	return func(cfg *config) {
+		if p > 0 && p <= 65535 {
+			cfg.port = p
+		}
+	}
+}
+
+// WithPath sets the base path (e.g., "/api") for the upstream target.
+//
+// This path is prepended to the incoming request path.
+// Defaults to DefaultPath.
+func WithPath(p string) Option {
+	return func(cfg *config) {
+		cfg.path = p
+	}
+}
+
+// WithTransport sets the base http.Transport for upstream requests.
+//
+// If nil is given, this option is ignored.
+//
+// The proxy will modify this transport's Proxy, ForceAttemptHTTP2,
+// and DisableCompression fields. Use this option to tune timeouts and the
+// connection pool.
+func WithTransport(transport *http.Transport) Option {
+	return func(cfg *config) {
+		if transport != nil {
+			cfg.transport = transport
+		}
+	}
+}
+
+// WithFlushInterval specifies the periodic flush interval for copying the
+// response body to the client.
+//
+// This option intentionally ignores non-positive values, using
+// DefaultFlushInterval by default.
+//
+// While the underlying proxy normally uses zero to disable flushing (which is
+// detrimental to long-lived streams) or negative values to flush after each
+// write, this is often unnecessary. The proxy is already smart enough to
+// detect and flush true streaming responses (like the _changes feed in
+// continuous mode) immediately, regardless of this setting. Instead, we retain
+// a positive interval as a "safety net" to ensure low latency for other slow
+// but non-streaming responses, such as large attachments or complex views.
+func WithFlushInterval(d time.Duration) Option {
+	return func(cfg *config) {
+		if d > 0 {
+			cfg.flushInterval = d
+		}
+	}
+}
+
+// WithMinBufferSize specifies the minimum size of buffers allocated by the
+// buffer pool. This helps to reduce allocations for large response bodies.
+//
+// Non-positive values are ignored, and DefaultMinBufferSize is used. The
+// value will be capped at MaxBufferSize.
+//
+// The pool will automatically adjust itself for larger, common responses
+// and the MaxBufferSize will protect from memory bloat. You only need to
+// adapt this setting if you know from profiling that 99% of your responses
+// are, for example, larger than 100 KB.
+func WithMinBufferSize(n int) Option {
+	return func(cfg *config) {
+		if n > 0 {
+			cfg.minBufferSize = n
+		}
+	}
+}
+
+// WithMaxBufferSize specifies the maximum size of buffers to keep in the
+// buffer pool. Buffers that grow larger than this size will be discarded
+// after use to prevent memory bloat.
+//
+// Non-positive values are ignored, and DefaultMaxBufferSize is used.
+//
+// This is a critical tuning parameter. If your typical (e.g., P95)
+// response size is larger than this value, the pool will be
+// ineffective, as most buffers will be discarded instead of being reused.
+func WithMaxBufferSize(n int) Option {
+	return func(cfg *config) {
+		if n > 0 {
+			cfg.maxBufferSize = n
+		}
+	}
+}
+
+// WithLogger provides a custom logger for the proxy's ErrorHandler.
+// If nil is given, this option is ignored.
+//
+// By default, slog.Default() is used.
+func WithLogger(logger *slog.Logger) Option {
+	return func(cfg *config) {
+		if logger != nil {
+			cfg.logger = logger
+		}
+	}
+}
+
+// ErrorHandler defines a function for handling errors that occur during the
+// reverse proxy's operation.
+//
+// The signature matches httputil.ReverseProxy.ErrorHandler.
+type ErrorHandler = func(http.ResponseWriter, *http.Request, error)
+
+// NewErrorHandler creates an error handler that logs upstream errors using
+// the provided logger and maps them to appropriate HTTP status codes.
+func NewErrorHandler(logger *slog.Logger) ErrorHandler {
+	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
+			// Silence client-initiated disconnects; there's nothing useful to send
 			return
 		}
-		http.Error(res, http.StatusText(code), code)
-	}
 
-	return proxy
+		status := http.StatusBadGateway
+		method, uri := r.Method, r.RequestURI
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			// 504 Gateway Timeout
+			status = http.StatusGatewayTimeout
+			logger.Error(
+				"upstream request timed out",
+				"method", method, "uri", uri,
+			)
+		} else {
+			// 502 Bad Gateway for everything else
+			logger.Error(
+				"upstream request failed",
+				"method", method, "uri", uri, "error", err,
+			)
+		}
+
+		w.WriteHeader(status)
+	}
 }
