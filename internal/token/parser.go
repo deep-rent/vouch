@@ -176,10 +176,15 @@ func (p *parser) Parse(req *http.Request) (Claims, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	tok, err := jwt.ParseString(raw, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
+
+	// Strip the access token from the outbound request
+	req.Header.Del(p.header)
+
 	return NewClaims(tok), nil
 }
 
