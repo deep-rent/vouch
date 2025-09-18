@@ -23,6 +23,8 @@ const (
 // Implementations must be safe for concurrent use.
 type Backoff interface {
 	// Next returns the duration to wait before the next retry attempt.
+	// There is no stop condition; the caller must decide when to stop, or keep
+	// going indefinitely.
 	Next() time.Duration
 	// Done resets the strategy to its initial state (e.g., after a success).
 	Done()
