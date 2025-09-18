@@ -7,6 +7,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"hash"
+	"strings"
 )
 
 // DefaultAlgorithm is the name of the default algorithm used for signing.
@@ -15,16 +16,23 @@ const DefaultAlgorithm = "sha256"
 // Algorithm defines a hash function constructor.
 type Algorithm func() hash.Hash
 
-// Algorithms associates string identifiers with Algorithms. The keys
+// algorithms associates string identifiers with Algorithms. The keys
 // correspond to the names recognized by CouchDB.
 //
 // This map must not be modified at runtime.
-var Algorithms = map[string]Algorithm{
+var algorithms = map[string]Algorithm{
 	"sha":    sha1.New,
 	"sha224": sha256.New224,
 	"sha256": sha256.New,
 	"sha384": sha512.New384,
 	"sha512": sha512.New,
+}
+
+// Resolve looks up an Algorithm by name. The name is case-sensitive and
+// leading or trailing whitespace does not affect the lookup. If no such
+// algorithm exists, nil is returned.
+func Resolve(name string) Algorithm {
+	return algorithms[strings.TrimSpace(name)]
 }
 
 // Signer computes opaque tokens to secure the communication between
@@ -45,7 +53,7 @@ func New(key string, opts ...Option) Signer {
 	}
 	s := &signer{
 		key: []byte(key),
-		alg: Algorithms[DefaultAlgorithm],
+		alg: algorithms[DefaultAlgorithm],
 	}
 	for _, opt := range opts {
 		opt(s)
