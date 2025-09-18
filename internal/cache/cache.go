@@ -106,7 +106,8 @@ func WithTimeout(d time.Duration) Option {
 // WithTransport specifies the mechanism by which individual HTTP requests
 // are made.
 //
-// If nil is given, this option is ignored. The default transport is empty.
+// If nil is given, this option is ignored. The default client uses
+// http.DefaultTransport, which is usually sufficient.
 func WithTransport(t http.RoundTripper) Option {
 	return func(o *config) {
 		if t != nil {
@@ -220,9 +221,13 @@ func New[T any](
 		c.scheduler = NewScheduler(logger)
 	}
 
-	// Use constant backoff if not customized
+	// Resort to using constant backoff if not customized
 	if c.backoff == nil {
-		c.backoff = retry.Constant(DefaultBackoffInterval)
+		// The backoff interval is not supposed to exceed the minimum fetch
+		// interval. We cannot guarantee this for custom backoff strategies,
+		// however, it doesn't do any harm either
+		delay := min(c.minInterval, DefaultBackoffInterval)
+		c.backoff = retry.Constant(delay)
 	}
 
 	job := c.fetch
