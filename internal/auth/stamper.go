@@ -18,15 +18,19 @@ type Stamper interface {
 }
 
 func NewStamper(opts ...StamperOption) Stamper {
-	s := &stamper{
-		userHeader:  DefaultUserHeader,
-		rolesHeader: DefaultRolesHeader,
-		tokenHeader: DefaultTokenHeader,
-	}
+	s := defaultStamper()
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
+}
+
+func defaultStamper() *stamper {
+	return &stamper{
+		userHeader:  DefaultUserHeader,
+		rolesHeader: DefaultRolesHeader,
+		tokenHeader: DefaultTokenHeader,
+	}
 }
 
 type StamperOption func(*stamper)
