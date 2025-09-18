@@ -52,7 +52,9 @@ type Option func(*config)
 
 // WithMinInterval sets the minimum time to wait between fetches.
 //
-// Non-positive values are ignored, and DefaultMinInterval is used.
+// Non-positive values are ignored, and DefaultMinInterval is used. The value
+// will be bounded above by the maximum interval at configuration time. If
+// both are equal, the cache will be refreshed at a constant rate.
 func WithMinInterval(d time.Duration) Option {
 	return func(o *config) {
 		if d > 0 {
@@ -63,7 +65,9 @@ func WithMinInterval(d time.Duration) Option {
 
 // WithMaxInterval sets the maximum time to wait between fetches.
 //
-// Non-positive values are ignored, and DefaultMaxInterval is used.
+// Non-positive values are ignored, and DefaultMaxInterval is used. The value
+// will be bounded below by the minimum interval at configuration time. If
+// both are equal, the cache will be refreshed at a constant rate.
 func WithMaxInterval(d time.Duration) Option {
 	return func(o *config) {
 		if d > 0 {
@@ -202,8 +206,8 @@ func New[T any](
 		cancel:      cancel,
 		logger:      logger,
 		client:      cfg.client,
-		minInterval: cfg.minInterval,
-		maxInterval: cfg.maxInterval,
+		minInterval: min(cfg.minInterval, cfg.maxInterval),
+		maxInterval: max(cfg.minInterval, cfg.maxInterval),
 		clock:       cfg.clock,
 		scheduler:   cfg.scheduler,
 		backoff:     cfg.backoff,
@@ -292,13 +296,13 @@ func (c *Cache[T]) delay(header http.Header) time.Duration {
 	// Adaptive delay case:
 	d := c.minInterval
 	if header != nil {
-		// Try Cache-Control first, as it takes precedence
+		// Try Cache-Control first, since it takes precedence
 		if ttl, ok := MaxAge(header); ok {
 			d = ttl
 		} else if expires, ok := Expires(header); ok {
-			// Calculate the duration from now ttl the expiry time
+			// Calculate the duration from now until the expiry time
 			if ttl := expires.Sub(c.clock()); ttl > 0 {
-				// Only use the duration if the expiry time is in the future
+				// Only use the duration if the expiry time lies in the future
 				d = ttl
 			}
 		}
