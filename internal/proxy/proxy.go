@@ -52,17 +52,15 @@ func New(opts ...Option) http.Handler {
 		Path:   cfg.path,
 	}
 
+	logger := cfg.logger.With("name", "Proxy")
+	logger.Info("proxying to upstream target", "url", target.String())
+
 	h := httputil.NewSingleHostReverseProxy(target)
-	h.ErrorHandler = NewErrorHandler(cfg.logger.With("name", "Proxy"))
+	h.ErrorHandler = cfg.errorHandler(logger)
 	h.Transport = cfg.transport
 	h.FlushInterval = cfg.flushInterval
 	h.BufferPool = NewBufferPool(cfg.minBufferSize, cfg.maxBufferSize)
-
-	// The default director need not be overridden; it already sets the
-	// X-Forwarded-Host and X-Forwarded-Proto headers, which is exactly
-	// what CouchDB expects. It also correctly rewrites the Host header
-	// to match the target (required for the sidecar setup to function)
-	// h.Director = ...
+	h.Director = cfg.director(h.Director)
 
 	return h
 }
@@ -77,6 +75,8 @@ type config struct {
 	flushInterval time.Duration
 	minBufferSize int
 	maxBufferSize int
+	director      DirectorFactory
+	errorHandler  ErrorHandlerFactory
 	logger        *slog.Logger
 }
 
@@ -91,6 +91,8 @@ func defaultConfig() *config {
 		flushInterval: DefaultFlushInterval,
 		minBufferSize: DefaultMinBufferSize,
 		maxBufferSize: DefaultMaxBufferSize,
+		director:      NewDirector,
+		errorHandler:  NewErrorHandler,
 		logger:        slog.Default(),
 	}
 }
@@ -114,8 +116,7 @@ func WithScheme(s string) Option {
 // WithScheme sets the hostname (e.g., "localhost" or "couchdb.internal")
 // for the upstream target.
 //
-// If empty, this option is ignored.
-// Defaults to DefaultHost.
+// Empty values are ignored, and DefaultHost is used.
 func WithHost(h string) Option {
 	return func(cfg *config) {
 		if h != "" {
@@ -126,11 +127,10 @@ func WithHost(h string) Option {
 
 // WithPort sets the port (e.g., 5984) for the upstream target.
 //
-// If outside the valid port range, this option is ignored.
-// Defaults to DefaultPort.
+// Non-positive values are ignored, and DefaultPort is used.
 func WithPort(p int) Option {
 	return func(cfg *config) {
-		if p > 0 && p <= 65535 {
+		if p > 0 {
 			cfg.port = p
 		}
 	}
@@ -139,7 +139,7 @@ func WithPort(p int) Option {
 // WithPath sets the base path (e.g., "/api") for the upstream target.
 //
 // This path is prepended to the incoming request path.
-// Defaults to DefaultPath.
+// Empty values are allowed. If no specified, DefaultPath is used.
 func WithPath(p string) Option {
 	return func(cfg *config) {
 		cfg.path = p
@@ -153,10 +153,10 @@ func WithPath(p string) Option {
 // The proxy will modify this transport's Proxy, ForceAttemptHTTP2,
 // and DisableCompression fields. Use this option to tune timeouts and the
 // connection pool.
-func WithTransport(transport *http.Transport) Option {
+func WithTransport(t *http.Transport) Option {
 	return func(cfg *config) {
-		if transport != nil {
-			cfg.transport = transport
+		if t != nil {
+			cfg.transport = t
 		}
 	}
 }
@@ -217,10 +217,31 @@ func WithMaxBufferSize(n int) Option {
 	}
 }
 
-// WithLogger provides a custom logger for the proxy's ErrorHandler.
-// If nil is given, this option is ignored.
+// WithDirector provides a custom DirectorFactory for the proxy.
 //
-// By default, slog.Default() is used.
+// If nil is given, this option is ignored. By default, NewDirector is used.
+func WithDirector(f DirectorFactory) Option {
+	return func(cfg *config) {
+		if f != nil {
+			cfg.director = f
+		}
+	}
+}
+
+// WithErrorHandler provides a custom ErrorHandlerFactory for the proxy.
+//
+// If nil is given, this option is ignored. By default, NewErrorHandler is used.
+func WithErrorHandler(f ErrorHandlerFactory) Option {
+	return func(cfg *config) {
+		if f != nil {
+			cfg.errorHandler = f
+		}
+	}
+}
+
+// WithLogger provides a custom logger for the proxy's ErrorHandler.
+//
+// If nil is given, this option is ignored. By default, slog.Default() is used.
 func WithLogger(logger *slog.Logger) Option {
 	return func(cfg *config) {
 		if logger != nil {
@@ -229,13 +250,37 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+// Director defines a function to modify the request before it is sent to the
+// upstream target.
+//
+// The signature matches httputil.ReverseProxy.Director.
+type Director func(*http.Request)
+
+// DirectorFactory creates a Director using the provided original Director.
+// The returned Director may call original to retain its behavior.
+type DirectorFactory = func(original Director) Director
+
+// NewDirector is the default DirectorFactory for the proxy.
+// It returns the original Director unmodified.
+func NewDirector(original Director) Director {
+	// The default director need not be overridden; it already sets the
+	// X-Forwarded-Host and X-Forwarded-Proto headers, which is exactly
+	// what CouchDB expects. It also correctly rewrites the Host header
+	// to match the target (required for the sidecar setup to function)
+	return original
+}
+
 // ErrorHandler defines a function for handling errors that occur during the
 // reverse proxy's operation.
 //
 // The signature matches httputil.ReverseProxy.ErrorHandler.
 type ErrorHandler = func(http.ResponseWriter, *http.Request, error)
 
-// NewErrorHandler creates an error handler that logs upstream errors using
+// ErrorHandlerFactory creates an ErrorHandler using the provided logger.
+type ErrorHandlerFactory = func(logger *slog.Logger) ErrorHandler
+
+// NewErrorHandler is the default ErrorHandlerFactory for the proxy.
+// It creates an error handler that logs upstream errors using
 // the provided logger and maps them to appropriate HTTP status codes.
 func NewErrorHandler(logger *slog.Logger) ErrorHandler {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
