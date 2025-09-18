@@ -14,7 +14,9 @@ import (
 )
 
 const (
+	// DefaultMinDelay is the default minimum delay between fetches.
 	DefaultMinDelay = 15 * time.Minute
+	// DefaultMaxDelay is the default maximum delay between fetches.
 	DefaultMaxDelay = 60 * time.Minute
 )
 
@@ -22,32 +24,8 @@ const (
 // into a generic type T.
 type Mapper[T any] func(body []byte) (T, error)
 
-// MaxAge extracts the 'max-age' directive from a Cache-Control header string.
-func MaxAge(v string) (time.Duration, bool) {
-	for p := range strings.SplitSeq(v, ",") {
-		p = strings.TrimSpace(p)
-		if s, ok := strings.CutPrefix(p, "max-age="); ok {
-			if d, err := strconv.Atoi(s); err == nil && d > 0 {
-				return time.Duration(d) * time.Second, true
-			}
-		}
-	}
-	return 0, false
-}
-
-func Expires(v string) (time.Time, bool) {
-	if v == "" {
-		return time.Time{}, false
-	}
-	t, err := http.ParseTime(v)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return t, true
-}
-
-// options holds all configurable parameters for a Cache.
-type options struct {
+// config holds all configurable parameters for a Cache.
+type config struct {
 	minDelay  time.Duration
 	maxDelay  time.Duration
 	client    *http.Client
@@ -56,8 +34,9 @@ type options struct {
 	clock     util.Clock
 }
 
-func defaults() *options {
-	return &options{
+// defaultConfig initializes a configuration object with default settings.
+func defaultConfig() *config {
+	return &config{
 		client:   http.DefaultClient,
 		logger:   slog.Default(),
 		minDelay: DefaultMinDelay,
@@ -66,19 +45,25 @@ func defaults() *options {
 	}
 }
 
-// Option configures the generic Cache.
-type Option func(*options)
+// Option defines a function for setting cache options.
+type Option func(*config)
 
+// WithMinDelay sets the minimum delay between fetches.
+//
+// Non-positive values are ignored, and DefaultMinDelay is used.
 func WithMinDelay(d time.Duration) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if d > 0 {
 			o.minDelay = d
 		}
 	}
 }
 
+// WithMinDelay sets the minimum delay between fetches.
+//
+// Non-positive values are ignored, and DefaultMaxDelay is used.
 func WithMaxDelay(d time.Duration) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if d > 0 {
 			o.maxDelay = d
 		}
@@ -87,48 +72,74 @@ func WithMaxDelay(d time.Duration) Option {
 
 // WithClient provides the http.Client to use for fetching.
 func WithClient(client *http.Client) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if client != nil {
 			o.client = client
 		}
 	}
 }
 
+// WithTimeout sets the request timeout for the internal HTTP client.
+//
+// Negative values are ignored. Zero means no timeout (not recommended).
 func WithTimeout(d time.Duration) Option {
-	return func(o *options) {
-		if d > 0 {
-			o.client = &http.Client{Timeout: d}
+	return func(o *config) {
+		if d < 0 {
+			o.client.Timeout = d
 		}
 	}
 }
 
-// WithLogger provides the slog.Logger for logging.
+// WithTransport specifies the mechanism by which individual HTTP requests
+// are made.
+//
+// If nil is given, this option is ignored. The default transport is empty.
+func WithTransport(t http.RoundTripper) Option {
+	return func(o *config) {
+		if t != nil {
+			o.client.Transport = t
+		}
+	}
+}
+
+// WithLogger provides a custom logger for the cache.
+//
+// If nil is given, this option is ignored. By default, slog.Default() is used.
 func WithLogger(logger *slog.Logger) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if logger != nil {
 			o.logger = logger
 		}
 	}
 }
 
-// WithScheduler allows injecting a custom (or mock) Scheduler.
+// WithScheduler allows injecting a custom scheduler.
+//
+// This option should only be overridden for testing.
 func WithScheduler(s Scheduler) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if s != nil {
 			o.scheduler = s
 		}
 	}
 }
 
+// WithClock allows injecting a custom time provider.
+//
+// This option should only be overridden for testing.
 func WithClock(clock util.Clock) Option {
-	return func(o *options) {
+	return func(o *config) {
 		if clock != nil {
 			o.clock = clock
 		}
 	}
 }
 
-// Cache holds a generic, cached resource and manages its refresh cycle.
+// Cache stores a generic resource of type T and manages its refresh cycle.
+// It periodically fetches the resource from a given URL, using HTTP caching
+// headers to minimize data transfer. The resource is parsed through a user-
+// provided Mapper function and can be accessed via Get. All methods are safe
+// for concurrent use.
 type Cache[T any] struct {
 	url          string
 	client       *http.Client
@@ -154,27 +165,27 @@ func New[T any](
 ) *Cache[T] {
 	ctx, cancel := context.WithCancel(ctx)
 
-	o := defaults()
+	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(o)
+		opt(cfg)
 	}
+
+	logger := cfg.logger.With("name", "Cache", "url", url)
 
 	c := &Cache[T]{
 		url:       url,
 		mapper:    mapper,
 		cancel:    cancel,
-		client:    o.client,
-		logger:    o.logger,
-		minDelay:  o.minDelay,
-		maxDelay:  o.maxDelay,
-		clock:     o.clock,
-		scheduler: o.scheduler,
+		logger:    logger,
+		client:    cfg.client,
+		minDelay:  cfg.minDelay,
+		maxDelay:  cfg.maxDelay,
+		clock:     cfg.clock,
+		scheduler: cfg.scheduler,
 	}
 
-	c.logger = c.logger.With("name", "cache.Cache", "url", c.url)
-
 	if c.scheduler == nil {
-		c.scheduler = NewScheduler(c.logger)
+		c.scheduler = NewScheduler(logger)
 	}
 
 	job := c.fetch
@@ -243,6 +254,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	return c.delay(res.Header)
 }
 
+// retry returns the delay to use after a failed fetch attempt.
 func (c *Cache[T]) retry() time.Duration {
 	return c.delay(nil)
 }
@@ -282,6 +294,7 @@ func (c *Cache[T]) delay(header http.Header) time.Duration {
 	return duration
 }
 
+// Get returns the currently cached resource.
 func (c *Cache[T]) Get() T {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -291,6 +304,35 @@ func (c *Cache[T]) Get() T {
 
 // Stop terminates the background refresh scheduler.
 func (c *Cache[T]) Stop() {
-	// Logging happens inside the scheduler.
+	// Logging happens inside the scheduler
 	c.cancel()
+}
+
+// MaxAge extracts the 'max-age' directive from a Cache-Control header string.
+// If valid, it returns the duration and true, false otherwise.
+func MaxAge(v string) (time.Duration, bool) {
+	if v != "" {
+		for p := range strings.SplitSeq(v, ",") {
+			p = strings.TrimSpace(p)
+			if s, ok := strings.CutPrefix(p, "max-age="); ok {
+				if d, err := strconv.Atoi(s); err == nil && d > 0 {
+					return time.Duration(d) * time.Second, true
+				}
+			}
+		}
+	}
+	return 0, false
+}
+
+// Expires parses an HTTP Expires header value.
+// If valid, it returns the timestamp and true, false otherwise.
+func Expires(v string) (time.Time, bool) {
+	if v == "" {
+		return time.Time{}, false
+	}
+	t, err := http.ParseTime(v)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }
