@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	// Predefined errors for cachedSet.
 	errImmutable = errors.New("set is read-only")
 	errNotLoaded = errors.New("set is not yet loaded")
 )
