@@ -102,6 +102,8 @@ func NewCompiler() *Compiler {
 		expr.Env(Environment{}),
 		expr.Optimize(true),
 	}
+	// Tell the compiler what type we expect for each expression to enable
+	// further optimizations
 	hint := func(k reflect.Kind) []expr.Option {
 		opts := make([]expr.Option, 0, len(base)+1)
 		copy(opts, base)
