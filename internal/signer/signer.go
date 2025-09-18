@@ -9,8 +9,14 @@ import (
 	"hash"
 )
 
+// DefaultAlgorithm is the name of the default algorithm used for signing.
+const DefaultAlgorithm = "sha256"
+
+// Algorithm defines a hash function constructor.
 type Algorithm func() hash.Hash
 
+// Algorithms associates string identifiers with Algorithms. The keys
+// correspond to the names recognized by CouchDB.
 var Algorithms = map[string]Algorithm{
 	"sha":    sha1.New,
 	"sha224": sha256.New224,
@@ -19,14 +25,25 @@ var Algorithms = map[string]Algorithm{
 	"sha512": sha512.New,
 }
 
+// Signer computes opaque tokens to secure the communication between
+// the proxy and CouchDB. It uses a secret key shared between both parties to
+// sign user names.
 type Signer interface {
+	// Sign hashes the given user name to obtain a proxy authentication token.
 	Sign(user string) string
 }
 
+// New creates a new Signer using a secret key and options.
+// If the key is empty, this function panics. The key should contain at least
+// 32 characters to achieve sufficient entropy, although a length check is
+// not performed.
 func New(key string, opts ...Option) Signer {
+	if key == "" {
+		panic("key must not be empty")
+	}
 	s := &signer{
 		key: []byte(key),
-		alg: Algorithms["sha256"],
+		alg: Algorithms[DefaultAlgorithm],
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -34,8 +51,12 @@ func New(key string, opts ...Option) Signer {
 	return s
 }
 
+// Option customizes the behavior of a Signer.
 type Option func(*signer)
 
+// WithAlgorithm sets the hash algorithm used for signing.
+//
+// If nil is given, this option is ignored. By default, SHA-256 is used.
 func WithAlgorithm(alg Algorithm) Option {
 	return func(s *signer) {
 		if alg != nil {
@@ -44,11 +65,13 @@ func WithAlgorithm(alg Algorithm) Option {
 	}
 }
 
+// signer is the default implementation of Signer.
 type signer struct {
 	key []byte
 	alg Algorithm
 }
 
+// Sign implements the Signer interface.
 func (s *signer) Sign(user string) string {
 	mac := hmac.New(s.alg, s.key)
 	// Writing cannot fail for in-memory hashes, so the write error is
