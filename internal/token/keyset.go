@@ -98,7 +98,11 @@ var mapper cache.Mapper[KeySet] = func(body []byte) (KeySet, error) {
 	return jwk.Parse(body)
 }
 
-// NewKeySet creates a new auto-refreshing, immutable KeySet.
+// NewKeySet returns an immutable, auto-refreshing KeySet that fetches
+// and caches JWKs from the specified URL. The returned KeySet is safe
+// for concurrent use and always reflects the latest successfully loaded
+// keys. If the cache is not yet filled, read operations either behave as if
+// the set were empty or return an error.
 func NewKeySet(
 	ctx context.Context,
 	url string,
