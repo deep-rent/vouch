@@ -27,9 +27,9 @@ const (
 	ReasonInsufficientPrivilege
 )
 
-// reasonText maps a Reason to a human-readable string for use in error
+// ReasonText maps a Reason to a human-readable string for use in error
 // messages.
-func reasonText(r Reason) string {
+func ReasonText(r Reason) string {
 	switch r {
 	case ReasonInsufficientPrivilege:
 		return "insufficient privilege"
@@ -38,9 +38,9 @@ func reasonText(r Reason) string {
 	}
 }
 
-// statusCode maps a Reason to a corresponding HTTP status code for use in
+// StatusCode maps a Reason to a corresponding HTTP status code for use in
 // client-facing responses.
-func statusCode(r Reason) int {
+func StatusCode(r Reason) int {
 	switch r {
 	case ReasonInsufficientPrivilege:
 		return http.StatusForbidden
@@ -72,16 +72,16 @@ func NewAccessError(reason Reason, err error) *AccessError {
 func (e *AccessError) Error() string {
 	if e.Err == nil {
 		// There should always be a cause, but just in case...
-		return reasonText(e.Reason)
+		return ReasonText(e.Reason)
 	}
 	// The slog.Logger does not handle nested errors well, so we take care of
 	// formatting the message ourselves.
-	return reasonText(e.Reason) + ": " + e.Err.Error()
+	return ReasonText(e.Reason) + ": " + e.Err.Error()
 }
 
 // StatusCode returns the appropriate HTTP status code to respond with.
 func (e *AccessError) StatusCode() int {
-	return statusCode(e.Reason)
+	return StatusCode(e.Reason)
 }
 
 // Unwrap reveals the original error.
