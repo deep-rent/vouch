@@ -72,7 +72,8 @@ type ExponentialOption func(*exponentialConfig)
 
 // WithMinDelay sets the initial (base) delay for the first retry.
 //
-// Defaults to DefaultMinDelay if not set or non-positive.
+// Defaults to DefaultMinDelay if not set or non-positive. When the minimum
+// delay is greater than or equal to the maximum delay, the backoff is constant.
 func WithMinDelay(d time.Duration) ExponentialOption {
 	return func(c *exponentialConfig) {
 		if d > 0 {
@@ -83,7 +84,8 @@ func WithMinDelay(d time.Duration) ExponentialOption {
 
 // WithMaxDelay sets the upper bound (limit) for any retry delay.
 //
-// Defaults to DefaultMaxDelay if not set or non-positive.
+// Defaults to DefaultMaxDelay if not set or non-positive. When the maximum
+// delay is less than or equal to the minimum delay, the backoff is constant.
 func WithMaxDelay(d time.Duration) ExponentialOption {
 	return func(c *exponentialConfig) {
 		if d > 0 {
@@ -95,6 +97,9 @@ func WithMaxDelay(d time.Duration) ExponentialOption {
 // WithFactor sets the base factor (multiplier) for each subsequent retry.
 //
 // If less than or equal to 1.0, the value is ignored and DefaultFactor is used.
+// Pick a value that balances retry frequency with the expected time for
+// recovery from transient errors. For example, a factor of 2.0 doubles the
+// delay with each attempt.
 func WithFactor(f float64) ExponentialOption {
 	return func(c *exponentialConfig) {
 		if f > 1.0 {
@@ -124,23 +129,28 @@ type exponential struct {
 //
 // The delay increases exponentially with each call to Next, starting from the
 // minimum delay and up to the maximum delay. The attempt counter is reset by
-// calling Done. Growth is controlled by the base factor. Note that the actual
-// delay may fall below the minimum delay if jitter is introduced.
+// calling Done. Growth is controlled by the factor. Also bear in mind that
+// the actual delay may fall below the maximum delay if jitter is introduced.
 func Exponential(opts ...ExponentialOption) Backoff {
 	cfg := defaultExponentialConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	cfg.maxDelay = max(cfg.maxDelay, cfg.minDelay)
-	e := &exponential{
-		minDelay: cfg.minDelay,
-		maxDelay: cfg.maxDelay,
-		factor:   cfg.factor,
-		// attempts is zero-initialized
+	var b Backoff
+	if cfg.maxDelay <= cfg.minDelay {
+		// Degenerate case: constant backoff
+		b = Constant(cfg.minDelay)
+	} else {
+		b = &exponential{
+			minDelay: cfg.minDelay,
+			maxDelay: cfg.maxDelay,
+			factor:   cfg.factor,
+			// attempts is zero-initialized
+		}
 	}
 
-	return Jitter(e, WithAmount(cfg.jitter))
+	return Jitter(b, WithAmount(cfg.jitter))
 }
 
 // Next calculates the next backoff duration.
@@ -161,7 +171,7 @@ func (b *exponential) Done() {
 	b.attempts.Store(0)
 }
 
-// Rand is a minimal facade for rand.Rand.
+// Rand is a minimal facade for rand.Rand to ease mocking.
 type Rand interface {
 	// Float64 returns a pseudo-random number in [0.0, 1.0).
 	Float64() float64
@@ -186,8 +196,9 @@ type JitterOption func(*jitterConfig)
 
 // WithAmount sets the amount of jitter as a percentage.
 //
-// The value is clamped to at most 1.0 (full jitter). If non-positive, no
-// jitter is applied.
+// For example, a value of 0.25 (25%) means the actual delay will be in the
+// range [75%, 100%] of the original delay. The value is clamped to at most
+// 1.0 (full jitter). If non-positive, no jitter is applied.
 func WithAmount(p float64) JitterOption {
 	return func(c *jitterConfig) {
 		c.p = min(1.0, p)
