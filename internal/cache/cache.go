@@ -165,10 +165,10 @@ func WithClock(clock util.Clock) Option {
 }
 
 // Cache stores a generic resource of type T and manages its refresh cycle.
-// It periodically fetches the resource from a given URL, using HTTP caching
-// headers to minimize data transfer. The resource is parsed through a user-
-// provided Mapper function and can be accessed via Get. All methods are safe
-// for concurrent use.
+// It periodically fetches the resource from a given URL, factoring in HTTP
+// caching headers to minimize data transfer. The resource is parsed through
+// a user-provided Mapper function and can be accessed via Get. All methods
+// are safe for concurrent use.
 type Cache[T any] struct {
 	url         string
 	client      *http.Client
@@ -177,11 +177,11 @@ type Cache[T any] struct {
 	clock       util.Clock
 	minInterval time.Duration
 	maxInterval time.Duration
-	mu          sync.RWMutex // guards resource, etag
-	resource    T
-	etag        ETag
-	scheduler   Scheduler
-	cancel      context.CancelFunc
+	mu          sync.RWMutex       // Guards resource, etag
+	resource    T                  // Assigned atomically
+	etag        ETag               // Assigned atomically
+	scheduler   Scheduler          // Triggers the refresh job
+	cancel      context.CancelFunc // Cancels scheduler
 	backoff     retry.Backoff
 }
 
