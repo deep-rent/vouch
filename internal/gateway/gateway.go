@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/middleware"
-	"github.com/deep-rent/vouch/internal/util"
 )
 
 const (
@@ -119,10 +118,11 @@ func WithHost(h string) Option {
 
 // WithPort sets the port for the server to bind to.
 //
-// Values outside the valid port range will be ignored, and DefaultPort is used.
+// Values outside the valid port range (1-65535) will be ignored, and
+// DefaultPort is used.
 func WithPort(p int) Option {
 	return func(cfg *config) {
-		if util.Port(p) {
+		if p > 0 && p <= 65535 {
 			cfg.port = p
 		}
 	}
