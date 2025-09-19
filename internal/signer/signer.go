@@ -10,9 +10,6 @@ import (
 	"strings"
 )
 
-// DefaultAlgorithm is the name of the default algorithm used for signing.
-const DefaultAlgorithm = "sha256"
-
 // Algorithm defines a hash function constructor.
 type Algorithm func() hash.Hash
 
@@ -26,6 +23,11 @@ var algorithms = map[string]Algorithm{
 	"sha256": sha256.New,
 	"sha384": sha512.New384,
 	"sha512": sha512.New,
+}
+
+// DefaultAlgorithm returns the default Algorithm.
+func DefaultAlgorithm() Algorithm {
+	return algorithms["sha256"]
 }
 
 // Resolve looks up an Algorithm by name. The name is case-sensitive and
@@ -53,7 +55,7 @@ func New(key string, opts ...Option) Signer {
 	}
 	s := &signer{
 		key: []byte(key),
-		alg: algorithms[DefaultAlgorithm],
+		alg: DefaultAlgorithm(),
 	}
 	for _, opt := range opts {
 		opt(s)
