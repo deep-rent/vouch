@@ -5,7 +5,7 @@ import (
 	"github.com/deep-rent/vouch/internal/util"
 )
 
-// Environment provides contextual information for rule evaluation.
+// Environment serves as a context container for rule evaluation.
 // The public fields and methods are directly accessible in rule expressions.
 type Environment struct {
 	claims token.Claims
