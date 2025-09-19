@@ -8,16 +8,6 @@ import (
 	"github.com/expr-lang/expr"
 )
 
-// Mode specifies whether a rule allows or denies access.
-type Mode string
-
-const (
-	// ModeAllow indicates that the rule allows access when matched.
-	ModeAllow Mode = "allow"
-	// ModeDeny indicates that the rule denies access when matched.
-	ModeDeny Mode = "deny"
-)
-
 // options holds compilation options tailored to the different rule expressions.
 type options struct {
 	when  []expr.Option
@@ -120,9 +110,9 @@ func NewCompiler() *Compiler {
 }
 
 // Builder creates a new Builder for the given rule mode.
-func (c *Compiler) Builder(mode Mode) *Builder {
+func (c *Compiler) Builder(deny bool) *Builder {
 	return &Builder{
 		opts: c.opts,
-		rule: &rule{deny: mode != ModeAllow},
+		rule: &rule{deny: deny},
 	}
 }
