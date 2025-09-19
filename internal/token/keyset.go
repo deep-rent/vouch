@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	// Predefined errors for cachedSet.
-	errImmutable = errors.New("set is read-only")
-	errNotLoaded = errors.New("set is not yet loaded")
+	// Predefined KeySet errors.
+	errImmutable = errors.New("set is read-only")      // immutability violation
+	errNotLoaded = errors.New("set is not yet loaded") // cache not ready
 )
 
 // KeySet is an alias of jwk.Set.
@@ -22,6 +22,8 @@ type KeySet jwk.Set
 // nil-safe implementation of the KeySet interface.
 type keySet struct{ cache *cache.Cache[KeySet] }
 
+// cached returns the currently cached KeySet, which may be nil if the cache
+// has not yet been populated.
 func (s *keySet) cached() jwk.Set {
 	return s.cache.Get()
 }
@@ -102,7 +104,7 @@ func (s *keySet) Clone() (jwk.Set, error) {
 	return nil, errNotLoaded
 }
 
-// Asserts at compile time that *keySet satisfies the KeySet interface.
+// Assert at compile time that *keySet satisfies the KeySet interface.
 var _ KeySet = (*keySet)(nil)
 
 // mapper transforms the response body into a KeySet.
