@@ -122,6 +122,8 @@ func WithTokenHeader(k string) StamperOption {
 }
 
 // WithSigner sets the Signer used to generate proxy authentication tokens.
+// This is crucial for establishing trust between the proxy service and CouchDB.
+//
 // If nil is given, no tokens will be included in requests (default). For
 // production use, users are strongly advised to provide a secure Signer.
 func WithSigner(s signer.Signer) StamperOption {
