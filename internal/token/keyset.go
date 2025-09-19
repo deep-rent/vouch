@@ -28,25 +28,11 @@ func (s *keySet) cached() jwk.Set {
 	return s.cache.Get()
 }
 
-func (s *keySet) AddKey(jwk.Key) error {
-	return errImmutable
-}
-
-func (s *keySet) Clear() error {
-	return errImmutable
-}
-
-func (s *keySet) Set(string, any) error {
-	return errImmutable
-}
-
-func (s *keySet) Remove(string) error {
-	return errImmutable
-}
-
-func (s *keySet) RemoveKey(jwk.Key) error {
-	return errImmutable
-}
+func (s *keySet) AddKey(jwk.Key) error    { return errImmutable }
+func (s *keySet) Clear() error            { return errImmutable }
+func (s *keySet) Set(string, any) error   { return errImmutable }
+func (s *keySet) Remove(string) error     { return errImmutable }
+func (s *keySet) RemoveKey(jwk.Key) error { return errImmutable }
 
 func (s *keySet) Key(i int) (jwk.Key, bool) {
 	set := s.cached()
