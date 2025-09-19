@@ -11,7 +11,10 @@ type Job = func(ctx context.Context) time.Duration
 
 // Scheduler defines the interface for running a refresh job.
 type Scheduler interface {
-	// Dispatch starts the scheduling loop.
+	// Dispatch starts the scheduling loop. The given job is executed immediately,
+	// and then repeatedly after the duration it returns. The loop continues until
+	// the context is cancelled. This method blocks meanwhile, so it should be run
+	// in a separate goroutine.
 	Dispatch(ctx context.Context, job Job)
 }
 
@@ -25,7 +28,7 @@ func NewScheduler(logger *slog.Logger) Scheduler {
 	return &scheduler{logger: logger}
 }
 
-// Dispatch starts the scheduling loop, passing the context to the job.
+// Dispatch implements the Scheduler interface.
 func (s *scheduler) Dispatch(ctx context.Context, job Job) {
 	s.logger.Debug("Starting scheduler")
 	defer s.logger.Debug("Stopping scheduler")
