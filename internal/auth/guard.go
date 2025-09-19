@@ -14,8 +14,8 @@ type Guard interface {
 	Permits(w http.ResponseWriter, r *http.Request) bool
 }
 
-// NewGuard creates a new Guard using the given Bouncer and Stamper.
-// Additional options can be provided to customize its behavior.
+// NewGuard creates a new Guard using the given Bouncer and Stamper. Additional
+// options can be provided to customize its behavior.
 func NewGuard(bouncer Bouncer, stamper Stamper, opts ...GuardOption) Guard {
 	g := &guard{
 		bouncer: bouncer,
@@ -56,8 +56,8 @@ func (g *guard) Permits(w http.ResponseWriter, r *http.Request) bool {
 	logger := g.logger.With("method", r.Method, "path", r.URL.Path)
 	access, err := g.bouncer.Check(r)
 
-	// Currently, AccessError must be top-level. If this changes, we may need to
-	// switch to errors.As to find it in the error stack.
+	// Currently, AccessError is guaranteed to be top-level. If this changes, we
+	// may need to switch to errors.As to find it in the error stack.
 	if e, ok := err.(*AccessError); ok {
 		logger.Debug("Access denied", "error", e)
 		w.WriteHeader(e.StatusCode())
