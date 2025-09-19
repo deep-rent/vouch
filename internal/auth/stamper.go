@@ -16,27 +16,27 @@ const (
 	DefaultTokenHeader = "X-Auth-CouchDB-Token"
 )
 
-// header contains the names of the HTTP header used for proxy authentication.
-type header struct {
-	// user is the header used to convey the authenticated user name.
-	user string
-	// roles is the header used to convey the authenticated user roles.
-	roles string
-	// token is the header used to convey the proxy token.
-	token string
+// Header contains the names of the HTTP Header used for proxy authentication.
+type Header struct {
+	// User is the header used to convey the authenticated User name.
+	User string
+	// Roles is the header used to convey the authenticated user Roles.
+	Roles string
+	// Token is the header used to convey the proxy Token.
+	Token string
 }
 
-// unique reports whether all header names are distinct.
-func (h header) unique() bool {
-	return h.user != h.roles && h.user != h.token && h.roles != h.token
+// Unique reports whether all header names are distinct.
+func (h Header) Unique() bool {
+	return h.User != h.Roles && h.User != h.Token && h.Roles != h.Token
 }
 
-// defaultHeader returns a header initialized with default values.
-func defaultHeader() header {
-	return header{
-		user:  DefaultUserHeader,
-		roles: DefaultRolesHeader,
-		token: DefaultTokenHeader,
+// DefaultHeader returns a Header initialized with default values.
+func DefaultHeader() Header {
+	return Header{
+		User:  DefaultUserHeader,
+		Roles: DefaultRolesHeader,
+		Token: DefaultTokenHeader,
 	}
 }
 
@@ -59,7 +59,7 @@ func NewStamper(opts ...StamperOption) Stamper {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	if !cfg.header.unique() {
+	if !cfg.header.Unique() {
 		panic("duplicate header name")
 	}
 	return &stamper{
@@ -70,14 +70,14 @@ func NewStamper(opts ...StamperOption) Stamper {
 
 // stamperConfig holds configuration settings for a Stamper.
 type stamperConfig struct {
-	header header
+	header Header
 	signer signer.Signer
 }
 
 // defaultStamperConfig initializes a stamperConfig with default settings.
 func defaultStamperConfig() stamperConfig {
 	return stamperConfig{
-		header: defaultHeader(),
+		header: DefaultHeader(),
 		signer: nil, // No signing by default; must be explicitly set
 	}
 }
@@ -92,7 +92,7 @@ type StamperOption func(*stamperConfig)
 func WithUserHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.header.user = http.CanonicalHeaderKey(k)
+			cfg.header.User = http.CanonicalHeaderKey(k)
 		}
 	}
 }
@@ -104,7 +104,7 @@ func WithUserHeader(k string) StamperOption {
 func WithRolesHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.header.roles = http.CanonicalHeaderKey(k)
+			cfg.header.Roles = http.CanonicalHeaderKey(k)
 		}
 	}
 }
@@ -116,23 +116,23 @@ func WithRolesHeader(k string) StamperOption {
 func WithTokenHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.header.token = http.CanonicalHeaderKey(k)
+			cfg.header.Token = http.CanonicalHeaderKey(k)
 		}
 	}
 }
 
 // WithSigner sets the Signer used to generate proxy authentication tokens.
 // If nil is given, no tokens will be included in requests (default). For
-// production use, a secure Signer is strongly recommended.
+// production use, users are strongly advised to provide a secure Signer.
 func WithSigner(s signer.Signer) StamperOption {
 	return func(cfg *stamperConfig) {
-		cfg.signer = s
+		cfg.signer = s // nilable
 	}
 }
 
 // stamper is the default implementation of Stamper.
 type stamper struct {
-	header header
+	header Header
 	signer signer.Signer
 }
 
@@ -140,19 +140,20 @@ type stamper struct {
 func (s *stamper) Stamp(req *http.Request, access Access) error {
 	s.sanitize(req)
 	user := access.User
-	req.Header.Set(s.header.user, user)
+	req.Header.Set(s.header.User, user)
 	if roles := access.Roles; len(roles) != 0 {
-		req.Header.Set(s.header.roles, strings.Join(roles, ","))
+		// Roles are joined with commas, as CouchDB expects
+		req.Header.Set(s.header.Roles, strings.Join(roles, ","))
 	}
 	if s.signer != nil {
-		req.Header.Set(s.header.token, s.signer.Sign(user))
+		req.Header.Set(s.header.Token, s.signer.Sign(user))
 	}
 	return nil
 }
 
 // sanitize clears any existing headers to prevent malicious forgery.
 func (s *stamper) sanitize(req *http.Request) {
-	req.Header.Del(s.header.user)
-	req.Header.Del(s.header.roles)
-	req.Header.Del(s.header.token)
+	req.Header.Del(s.header.User)
+	req.Header.Del(s.header.Roles)
+	req.Header.Del(s.header.Token)
 }
