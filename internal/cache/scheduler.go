@@ -9,7 +9,7 @@ import (
 // Job defines the function signature for a schedulable refresh task.
 type Job = func(ctx context.Context) time.Duration
 
-// Scheduler defines the interface for running a refresh job.
+// Scheduler triggers a refresh job in a loop.
 type Scheduler interface {
 	// Dispatch starts the scheduling loop. The given job is executed immediately,
 	// and then repeatedly after the duration it returns. The loop continues until
