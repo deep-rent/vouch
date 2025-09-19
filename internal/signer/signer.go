@@ -42,6 +42,7 @@ func Resolve(name string) Algorithm {
 // sign user names.
 type Signer interface {
 	// Sign hashes the given user name to obtain a proxy authentication token.
+	// The result is deterministic for the same user and key.
 	Sign(user string) string
 }
 
