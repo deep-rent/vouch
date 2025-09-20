@@ -10,9 +10,9 @@ type headerTransport struct {
 	base http.RoundTripper
 }
 
-// setHeader creates a new http.RoundTripper that sets the specified
+// SetHeader creates a new http.RoundTripper that sets the specified
 // header (key-value pair) on each request, then invokes the provided base.
-func setHeader(base http.RoundTripper, k, v string) http.RoundTripper {
+func SetHeader(base http.RoundTripper, k, v string) http.RoundTripper {
 	return &headerTransport{
 		key:  http.CanonicalHeaderKey(k),
 		val:  v,

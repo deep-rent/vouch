@@ -129,7 +129,7 @@ func WithHeader(k, v string) Option {
 		v = strings.TrimSpace(v)
 		if k != "" && v != "" {
 			base := o.client.Transport
-			o.client.Transport = setHeader(base, k, v)
+			o.client.Transport = SetHeader(base, k, v)
 		}
 	}
 }
