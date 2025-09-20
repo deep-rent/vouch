@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,7 +40,10 @@ type config struct {
 // defaultConfig initializes a configuration object with default settings.
 func defaultConfig() config {
 	return config{
-		client:      &http.Client{Timeout: DefaultTimeout},
+		client: &http.Client{
+			Timeout:   DefaultTimeout,
+			Transport: http.DefaultTransport,
+		},
 		log:         slog.Default(),
 		minInterval: DefaultMinInterval,
 		maxInterval: DefaultMaxInterval,
@@ -113,6 +117,27 @@ func WithTransport(t http.RoundTripper) Option {
 		}
 	}
 }
+
+// WithHeader instructs the underlying HTTP client to set a custom header
+// on each outgoing request.
+//
+// If either the key or value is empty after trimming whitespace, this option
+// is ignored. Multiple calls to this function will stack headers.
+func WithHeader(k, v string) Option {
+	return func(o *config) {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k != "" && v != "" {
+			base := o.client.Transport
+			o.client.Transport = setHeader(base, k, v)
+		}
+	}
+}
+
+// WithUserAgent sets the User-Agent header for all outgoing requests.
+//
+// It is a shorthand for WithHeader.
+func WithUserAgent(v string) Option { return WithHeader("User-Agent", v) }
 
 // WithLogger provides a custom logger for the cache.
 //
