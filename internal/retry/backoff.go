@@ -28,6 +28,10 @@ type Backoff interface {
 	Next() time.Duration
 	// Done resets the strategy to its initial state (e.g., after a success).
 	Done()
+	// MinDelay returns the minimum interval between retries.
+	MinDelay() time.Duration
+	// MaxDelay returns the maximum interval between retries.
+	MaxDelay() time.Duration
 }
 
 // constant implements a Backoff strategy with a constant delay.
@@ -46,8 +50,10 @@ func Constant(delay time.Duration) Backoff {
 	return &constant{delay: delay}
 }
 
-func (b *constant) Next() time.Duration { return b.delay }
-func (b *constant) Done()               {}
+func (b *constant) Next() time.Duration     { return b.delay }
+func (b *constant) Done()                   {}
+func (b *constant) MinDelay() time.Duration { return b.delay }
+func (b *constant) MaxDelay() time.Duration { return b.delay }
 
 // exponentialConfig holds the configuration for exponential backoff.
 type exponentialConfig struct {
@@ -171,6 +177,9 @@ func (b *exponential) Done() {
 	b.attempts.Store(0)
 }
 
+func (b *exponential) MinDelay() time.Duration { return b.minDelay }
+func (b *exponential) MaxDelay() time.Duration { return b.maxDelay }
+
 // Rand is a minimal facade for rand.Rand to ease mocking.
 type Rand interface {
 	// Float64 returns a pseudo-random number in [0.0, 1.0).
@@ -261,6 +270,15 @@ func (j *jitter) Next() time.Duration {
 func (j *jitter) Done() {
 	j.wrapped.Done()
 }
+
+// MinDelay returns the minimum interval of the wrapped backoff, damped by
+// the jitter percentage.
+func (j *jitter) MinDelay() time.Duration {
+	return time.Duration(float64(j.wrapped.MinDelay()) * (1.0 - j.p))
+}
+
+// MaxDelay returns the maximum interval of the wrapped backoff.
+func (j *jitter) MaxDelay() time.Duration { return j.wrapped.MaxDelay() }
 
 // seed creates a new random number generator seeded with the current time.
 func seed() Rand {
