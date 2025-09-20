@@ -19,11 +19,11 @@ const (
 // Header contains the names of the HTTP Header used for proxy authentication.
 type Header struct {
 	// User is the header used to convey the authenticated User name.
-	User string
+	User string `yaml:"user"  json:"user"`
 	// Roles is the header used to convey the authenticated user Roles.
-	Roles string
+	Roles string `yaml:"roles" json:"roles"`
 	// Token is the header used to convey the proxy Token.
-	Token string
+	Token string `yaml:"token" json:"token"`
 }
 
 // Unique reports whether all header names are distinct.
