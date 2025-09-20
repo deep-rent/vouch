@@ -19,23 +19,19 @@ type Scheduler interface {
 }
 
 // scheduler runs a job, then waits for the duration returned by the job.
-type scheduler struct {
-	logger *slog.Logger
-}
+type scheduler struct{ log *slog.Logger }
 
 // NewScheduler creates the default implementation of the Scheduler interface.
-func NewScheduler(logger *slog.Logger) Scheduler {
-	return &scheduler{logger: logger}
-}
+func NewScheduler(log *slog.Logger) Scheduler { return &scheduler{log} }
 
 // Dispatch implements the Scheduler interface.
 func (s *scheduler) Dispatch(ctx context.Context, job Job) {
-	s.logger.Debug("Starting scheduler")
-	defer s.logger.Debug("Stopping scheduler")
+	s.log.Debug("Starting scheduler")
+	defer s.log.Debug("Stopping scheduler")
 	d := job(ctx)
 
 	for {
-		s.logger.Debug("Scheduler waiting", "delay", d)
+		s.log.Debug("Scheduler waiting", "delay", d)
 		timer := time.NewTimer(d)
 		select {
 		case <-ctx.Done():

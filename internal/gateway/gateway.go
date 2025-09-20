@@ -59,7 +59,7 @@ func New(opts ...Option) Gateway {
 
 	return &gateway{
 		server: cfg.server,
-		logger: cfg.logger.With("name", "Gateway"),
+		log:    cfg.log.With("name", "Gateway"),
 	}
 }
 
@@ -68,7 +68,7 @@ type config struct {
 	host       string
 	port       int
 	server     *http.Server
-	logger     *slog.Logger
+	log        *slog.Logger
 	middleware []middleware.Pipe
 }
 
@@ -85,7 +85,7 @@ func defaultConfig() config {
 			MaxHeaderBytes:               DefaultMaxHeaderBytes,
 			DisableGeneralOptionsHandler: true,
 		},
-		logger:     slog.Default(),
+		log:        slog.Default(),
 		middleware: make([]middleware.Pipe, 0, 5),
 	}
 }
@@ -217,10 +217,10 @@ func WithMiddleware(pipes ...middleware.Pipe) Option {
 // WithLogger sets the logger to notify about the gateway's lifecycle events.
 //
 // If nil, this option is ignored and slog.Default() is used.
-func WithLogger(logger *slog.Logger) Option {
+func WithLogger(log *slog.Logger) Option {
 	return func(cfg *config) {
-		if logger != nil {
-			cfg.logger = logger
+		if log != nil {
+			cfg.log = log
 		}
 	}
 }
@@ -228,32 +228,32 @@ func WithLogger(logger *slog.Logger) Option {
 // gateway is the internal implementation of the Gateway interface.
 type gateway struct {
 	server *http.Server
-	logger *slog.Logger
+	log    *slog.Logger
 }
 
 // Start implements the Gateway interface.
 func (g *gateway) Start() error {
-	g.logger.Info("starting server", "address", g.server.Addr)
+	g.log.Info("starting server", "address", g.server.Addr)
 
 	if err := g.server.ListenAndServe(); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
-		g.logger.Error("server exited with error", "error", err)
+		g.log.Error("server exited with error", "error", err)
 		return err
 	}
 
-	g.logger.Info("server stopped")
+	g.log.Info("server stopped")
 	return nil
 }
 
 // Stop implements the Gateway interface.
 func (g *gateway) Stop(ctx context.Context) error {
-	g.logger.Info("stopping server")
+	g.log.Info("stopping server")
 
 	if err := g.server.Shutdown(ctx); err != nil {
-		g.logger.Error("server shutdown failed", "error", err)
+		g.log.Error("server shutdown failed", "error", err)
 		return err
 	}
 
-	g.logger.Info("server stopped gracefully")
+	g.log.Info("server stopped gracefully")
 	return nil
 }

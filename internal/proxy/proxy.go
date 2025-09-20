@@ -53,11 +53,11 @@ func New(opts ...Option) http.Handler {
 		Path:   cfg.path,
 	}
 
-	logger := cfg.logger.With("name", "Proxy")
-	logger.Info("proxying to upstream target", "url", target.String())
+	log := cfg.log.With("name", "Proxy")
+	log.Info("proxying to upstream target", "url", target.String())
 
 	h := httputil.NewSingleHostReverseProxy(target)
-	h.ErrorHandler = cfg.errorHandler(logger)
+	h.ErrorHandler = cfg.errorHandler(log)
 	h.Transport = cfg.transport
 	h.FlushInterval = cfg.flushInterval
 	h.BufferPool = NewBufferPool(cfg.minBufferSize, cfg.maxBufferSize)
@@ -78,7 +78,7 @@ type config struct {
 	maxBufferSize int
 	director      DirectorFactory
 	errorHandler  ErrorHandlerFactory
-	logger        *slog.Logger
+	log           *slog.Logger
 }
 
 // defaultConfig initializes a configuration object with default settings.
@@ -94,7 +94,7 @@ func defaultConfig() config {
 		maxBufferSize: DefaultMaxBufferSize,
 		director:      NewDirector,
 		errorHandler:  NewErrorHandler,
-		logger:        slog.Default(),
+		log:           slog.Default(),
 	}
 }
 
@@ -244,10 +244,10 @@ func WithErrorHandler(f ErrorHandlerFactory) Option {
 // WithLogger provides a custom logger for the proxy's ErrorHandler.
 //
 // If nil is given, this option is ignored. By default, slog.Default() is used.
-func WithLogger(logger *slog.Logger) Option {
+func WithLogger(log *slog.Logger) Option {
 	return func(cfg *config) {
-		if logger != nil {
-			cfg.logger = logger
+		if log != nil {
+			cfg.log = log
 		}
 	}
 }
@@ -279,12 +279,12 @@ func NewDirector(original Director) Director {
 type ErrorHandler = func(http.ResponseWriter, *http.Request, error)
 
 // ErrorHandlerFactory creates an ErrorHandler using the provided logger.
-type ErrorHandlerFactory = func(logger *slog.Logger) ErrorHandler
+type ErrorHandlerFactory = func(*slog.Logger) ErrorHandler
 
 // NewErrorHandler is the default ErrorHandlerFactory for the proxy.
 // It creates an error handler that logs upstream errors using
 // the provided logger and maps them to appropriate HTTP status codes.
-func NewErrorHandler(logger *slog.Logger) ErrorHandler {
+func NewErrorHandler(log *slog.Logger) ErrorHandler {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
 			// Silence client-initiated disconnects; there's nothing useful to send
@@ -297,13 +297,13 @@ func NewErrorHandler(logger *slog.Logger) ErrorHandler {
 		if errors.Is(err, context.DeadlineExceeded) {
 			// 504 Gateway Timeout
 			status = http.StatusGatewayTimeout
-			logger.Error(
+			log.Error(
 				"upstream request timed out",
 				"method", method, "uri", uri,
 			)
 		} else {
 			// 502 Bad Gateway for everything else
-			logger.Error(
+			log.Error(
 				"upstream request failed",
 				"method", method, "uri", uri, "error", err,
 			)

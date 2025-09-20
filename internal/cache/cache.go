@@ -30,7 +30,7 @@ type config struct {
 	minInterval time.Duration
 	maxInterval time.Duration
 	client      *http.Client
-	logger      *slog.Logger
+	log         *slog.Logger
 	backoff     retry.Backoff
 	scheduler   Scheduler
 	clock       util.Clock
@@ -40,7 +40,7 @@ type config struct {
 func defaultConfig() config {
 	return config{
 		client:      &http.Client{Timeout: DefaultTimeout},
-		logger:      slog.Default(),
+		log:         slog.Default(),
 		minInterval: DefaultMinInterval,
 		maxInterval: DefaultMaxInterval,
 		clock:       util.DefaultClock,
@@ -117,10 +117,10 @@ func WithTransport(t http.RoundTripper) Option {
 // WithLogger provides a custom logger for the cache.
 //
 // If nil is given, this option is ignored. By default, slog.Default() is used.
-func WithLogger(logger *slog.Logger) Option {
+func WithLogger(log *slog.Logger) Option {
 	return func(o *config) {
-		if logger != nil {
-			o.logger = logger
+		if log != nil {
+			o.log = log
 		}
 	}
 }
@@ -169,7 +169,7 @@ func WithClock(clock util.Clock) Option {
 type Cache[T any] struct {
 	url         string
 	client      *http.Client
-	logger      *slog.Logger
+	log         *slog.Logger
 	mapper      Mapper[T]
 	clock       util.Clock
 	minInterval time.Duration
@@ -198,13 +198,13 @@ func New[T any](
 		opt(&cfg)
 	}
 
-	logger := cfg.logger.With("name", "Cache", "url", url)
+	log := cfg.log.With("name", "Cache", "url", url)
 
 	c := &Cache[T]{
 		url:         url,
 		mapper:      mapper,
 		cancel:      cancel,
-		logger:      logger,
+		log:         log,
 		client:      cfg.client,
 		minInterval: min(cfg.minInterval, cfg.maxInterval),
 		maxInterval: max(cfg.minInterval, cfg.maxInterval),
@@ -215,7 +215,7 @@ func New[T any](
 
 	// Use default scheduler if none provided
 	if c.scheduler == nil {
-		c.scheduler = NewScheduler(logger)
+		c.scheduler = NewScheduler(log)
 	}
 
 	// Resort to using constant backoff if not customized
@@ -232,10 +232,10 @@ func New[T any](
 
 // fetch performs the HTTP request, parses the body, and returns the next delay.
 func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
-	c.logger.Debug("Fetching resource")
+	c.log.Debug("Fetching resource")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
 	if err != nil {
-		c.logger.Error("Failed to create request", "error", err)
+		c.log.Error("Failed to create request", "error", err)
 		return c.backoff.Next()
 	}
 
@@ -246,14 +246,14 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	res, err := c.client.Do(req)
 	if err != nil {
 		if err != context.Canceled {
-			c.logger.Warn("HTTP request failed", "error", err)
+			c.log.Warn("HTTP request failed", "error", err)
 		}
 		return c.backoff.Next()
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNotModified {
-		c.logger.Debug("ETag match, resource unchanged", "etag", c.etag)
+		c.log.Debug("ETag match, resource unchanged", "etag", c.etag)
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
@@ -262,18 +262,18 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		c.logger.Warn("Unsuccessful HTTP status", "status", res.Status)
+		c.log.Warn("Unsuccessful HTTP status", "status", res.Status)
 		return c.backoff.Next()
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		c.logger.Error("Failed to read response body", "error", err)
+		c.log.Error("Failed to read response body", "error", err)
 		return c.backoff.Next()
 	}
 	parsed, err := c.mapper(body)
 	if err != nil {
-		c.logger.Error("Couldn't parse response body", "error", err)
+		c.log.Error("Couldn't parse response body", "error", err)
 		return c.backoff.Next()
 	}
 
@@ -284,7 +284,7 @@ func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 
 	c.backoff.Done()
 
-	c.logger.Info("Resource updated")
+	c.log.Info("Resource updated")
 	return c.delay(res.Header)
 }
 
@@ -311,12 +311,12 @@ func (c *Cache[T]) delay(header http.Header) time.Duration {
 	}
 
 	if d < c.minInterval {
-		c.logger.Debug("Clamping delay", "raw", d, "min", c.minInterval)
+		c.log.Debug("Clamping delay", "raw", d, "min", c.minInterval)
 		return c.minInterval
 	}
 
 	if d > c.maxInterval {
-		c.logger.Debug("Clamping delay", "raw", d, "max", c.maxInterval)
+		c.log.Debug("Clamping delay", "raw", d, "max", c.maxInterval)
 		return c.maxInterval
 	}
 
