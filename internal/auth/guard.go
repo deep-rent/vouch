@@ -60,6 +60,7 @@ func (g *guard) Permits(w http.ResponseWriter, r *http.Request) bool {
 	// may need to switch to errors.As to find it in the error stack.
 	if e, ok := err.(*AccessError); ok {
 		log.Debug("Access denied", "error", e)
+		// CouchDB wouldn't send a body either in these situations
 		w.WriteHeader(e.StatusCode())
 		return false
 	}

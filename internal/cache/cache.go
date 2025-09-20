@@ -255,7 +255,7 @@ func New[T any](
 	return c
 }
 
-// fetch performs the HTTP request, parses the body, and returns the next delay.
+// fetch performs the HTTP request, parses the body, and yields the next delay.
 func (c *Cache[T]) fetch(ctx context.Context) time.Duration {
 	c.log.Debug("Fetching resource")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
