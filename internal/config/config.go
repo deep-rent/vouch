@@ -31,6 +31,11 @@ func infer(path string) Decoder {
 	}
 }
 
+// Default returns a Config struct initialized with defaults.
+func Default() Config {
+	return Config{}
+}
+
 // Load reads the configuration file from the given path, decodes it,
 // and returns a populated Config struct by value.
 // If dec is nil, it attempts to infer the decoder from the file extension.
@@ -44,7 +49,7 @@ func Load(path string, dec Decoder) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("reading failed: %w", err)
 	}
-	var cfg Config
+	cfg := Default()
 	if err := dec(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parsing failed: %w", err)
 	}
