@@ -2,31 +2,38 @@ package cache
 
 import "net/http"
 
-// headerTransport is a custom http.RoundTripper that adds a specific header
+// headersTransport is a custom http.RoundTripper that adds multiple headers
 // to each outgoing HTTP request.
-type headerTransport struct {
-	key  string // header key
-	val  string // header value
-	base http.RoundTripper
+type headersTransport struct {
+	base    http.RoundTripper
+	headers map[string]string // header key-value pairs
 }
 
-// SetHeader creates a new http.RoundTripper that sets the specified
-// header (key-value pair) on each request, then invokes the provided base.
-func SetHeader(base http.RoundTripper, k, v string) http.RoundTripper {
-	return &headerTransport{
-		key:  http.CanonicalHeaderKey(k),
-		val:  v,
-		base: base,
+// SetHeaders creates a new http.RoundTripper that sets the specified
+// headers on each request, then invokes the provided base.
+func SetHeaders(
+	base http.RoundTripper,
+	headers map[string]string,
+) http.RoundTripper {
+	h := make(map[string]string, len(headers))
+	for k, v := range headers {
+		h[http.CanonicalHeaderKey(k)] = v
+	}
+	return &headersTransport{
+		headers: h,
+		base:    base,
 	}
 }
 
 // RoundTrip implements the http.RoundTripper interface.
-func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Set the custom header on the request.
-	req.Header.Set(t.key, t.val)
-	// Feed the modified request into the original transport.
+func (t *headersTransport) RoundTrip(
+	req *http.Request,
+) (*http.Response, error) {
+	for k, v := range t.headers {
+		req.Header.Set(k, v)
+	}
 	return t.base.RoundTrip(req)
 }
 
-// Ensure headerTransport satisfies the http.RoundTripper interface.
-var _ http.RoundTripper = (*headerTransport)(nil)
+// Ensure headersTransport satisfies the http.RoundTripper interface.
+var _ http.RoundTripper = (*headersTransport)(nil)
