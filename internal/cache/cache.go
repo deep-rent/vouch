@@ -2,8 +2,10 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -30,20 +32,21 @@ type Mapper[T any] func(body []byte) (T, error)
 type config struct {
 	minInterval time.Duration
 	maxInterval time.Duration
-	client      *http.Client
+	timeout     time.Duration
+	headers     map[string]string
+	tls         *tls.Config
 	log         *slog.Logger
 	backoff     retry.Backoff
 	scheduler   Scheduler
 	clock       util.Clock
+	client      *http.Client
 }
 
 // defaultConfig initializes a configuration object with default settings.
 func defaultConfig() config {
 	return config{
-		client: &http.Client{
-			Timeout:   DefaultTimeout,
-			Transport: http.DefaultTransport,
-		},
+		timeout:     DefaultTimeout,
+		headers:     make(map[string]string),
 		log:         slog.Default(),
 		minInterval: DefaultMinInterval,
 		maxInterval: DefaultMaxInterval,
@@ -80,23 +83,13 @@ func WithMaxInterval(d time.Duration) Option {
 	}
 }
 
-// WithClient provides the http.Client to use for fetching.
+// WithTimeout sets the total request timeout for the internal HTTP client.
 //
-// If nil is given, this option is ignored. Setting a custom client overrides
-// previous timeout and transport settings.
-func WithClient(client *http.Client) Option {
-	return func(o *config) {
-		if client != nil {
-			o.client = client
-		}
-	}
-}
-
-// WithTimeout sets the request timeout for the internal HTTP client.
-//
-// Non-positive values are ignored, and DefaultTimeout is used. Note that zero
-// values are not allowed, as they disable timeouts entirely, which makes
-// the client vulnerable to hanging requests.
+// Non-positive values are ignored, and DefaultTimeout is used. Other timeouts
+// (e.g. dial, TLS handshake, response header) will be derived as fractions of
+// this value when the client is created internally. Note that zero values are
+// not allowed, as they disable timeouts entirely, which makes the client
+// vulnerable to hanging requests.
 func WithTimeout(d time.Duration) Option {
 	return func(o *config) {
 		if d > 0 {
@@ -105,15 +98,14 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
-// WithTransport specifies the mechanism by which individual HTTP requests
-// are made.
+// WithTLSConfig sets the TLS configuration for the internal HTTP client.
 //
-// If nil is given, this option is ignored. The default client uses
-// http.DefaultTransport, which is usually sufficient.
-func WithTransport(t http.RoundTripper) Option {
+// If nil is given, this option is ignored. By default, the system's root CAs
+// are used.
+func WithTLSConfig(cfg *tls.Config) Option {
 	return func(o *config) {
-		if t != nil {
-			o.client.Transport = t
+		if cfg != nil {
+			o.tls = cfg
 		}
 	}
 }
@@ -128,8 +120,7 @@ func WithHeader(k, v string) Option {
 		k = strings.TrimSpace(k)
 		v = strings.TrimSpace(v)
 		if k != "" && v != "" {
-			base := o.client.Transport
-			o.client.Transport = SetHeader(base, k, v)
+			o.headers[k] = v
 		}
 	}
 }
@@ -171,6 +162,17 @@ func WithScheduler(s Scheduler) Option {
 	return func(o *config) {
 		if s != nil {
 			o.scheduler = s
+		}
+	}
+}
+
+// WithClient allows injecting a custom HTTP client for fetching.
+//
+// This option should only be overridden for testing.
+func WithClient(client *http.Client) Option {
+	return func(o *config) {
+		if client != nil {
+			o.client = client
 		}
 	}
 }
@@ -236,6 +238,34 @@ func New[T any](
 		clock:       cfg.clock,
 		scheduler:   cfg.scheduler,
 		backoff:     cfg.backoff,
+	}
+
+	if c.client == nil {
+		// The total timeout is split between the various stages of the request
+		// lifecycle. The values below are somewhat arbitrary, but should
+		// generally work well
+		timeout := cfg.timeout
+
+		// Keep-alives and connection pooling are disabled because requests are
+		// too infrequent to benefit from them in typical use cases
+		dialer := &net.Dialer{
+			Timeout:   timeout / 3,
+			KeepAlive: 0,
+		}
+		transport := &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			TLSHandshakeTimeout:   timeout / 3,
+			ResponseHeaderTimeout: timeout * 9 / 10,
+			ExpectContinueTimeout: 1 * time.Second,
+			DisableKeepAlives:     true,
+			TLSClientConfig:       cfg.tls,
+		}
+
+		c.client = &http.Client{
+			Timeout:   timeout,
+			Transport: SetHeaders(transport, cfg.headers),
+		}
 	}
 
 	// Use default scheduler if none provided
