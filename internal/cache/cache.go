@@ -63,9 +63,9 @@ type Option func(*config)
 // will be bounded above by the maximum interval at configuration time. If
 // both are equal, the cache will be refreshed at a constant rate.
 func WithMinInterval(d time.Duration) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if d > 0 {
-			o.minInterval = d
+			cfg.minInterval = d
 		}
 	}
 }
@@ -76,9 +76,9 @@ func WithMinInterval(d time.Duration) Option {
 // will be bounded below by the minimum interval at configuration time. If
 // both are equal, the cache will be refreshed at a constant rate.
 func WithMaxInterval(d time.Duration) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if d > 0 {
-			o.maxInterval = d
+			cfg.maxInterval = d
 		}
 	}
 }
@@ -91,21 +91,21 @@ func WithMaxInterval(d time.Duration) Option {
 // not allowed, as they disable timeouts entirely, which makes the client
 // vulnerable to hanging requests.
 func WithTimeout(d time.Duration) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if d > 0 {
-			o.client.Timeout = d
+			cfg.client.Timeout = d
 		}
 	}
 }
 
-// WithTLSConfig sets the TLS configuration for the internal HTTP client.
+// WithTLSConfig sets the internal client's TLS configuration.
 //
 // If nil is given, this option is ignored. By default, the system's root CAs
 // are used.
-func WithTLSConfig(cfg *tls.Config) Option {
-	return func(o *config) {
-		if cfg != nil {
-			o.tls = cfg
+func WithTLSConfig(c *tls.Config) Option {
+	return func(cfg *config) {
+		if c != nil {
+			cfg.tls = c
 		}
 	}
 }
@@ -116,11 +116,11 @@ func WithTLSConfig(cfg *tls.Config) Option {
 // If either the key or value is empty after trimming whitespace, this option
 // is ignored. Multiple calls to this function will stack headers.
 func WithHeader(k, v string) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		k = strings.TrimSpace(k)
 		v = strings.TrimSpace(v)
 		if k != "" && v != "" {
-			o.headers[k] = v
+			cfg.headers[k] = v
 		}
 	}
 }
@@ -134,9 +134,9 @@ func WithUserAgent(v string) Option { return WithHeader("User-Agent", v) }
 //
 // If nil is given, this option is ignored. By default, slog.Default() is used.
 func WithLogger(log *slog.Logger) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if log != nil {
-			o.log = log
+			cfg.log = log
 		}
 	}
 }
@@ -148,9 +148,9 @@ func WithLogger(log *slog.Logger) Option {
 // delay for retries should be relatively short compared to the regular fetch
 // interval. This allows for quick recovery from transient errors.
 func WithBackoff(b retry.Backoff) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if b != nil {
-			o.backoff = b
+			cfg.backoff = b
 		}
 	}
 }
@@ -159,9 +159,9 @@ func WithBackoff(b retry.Backoff) Option {
 //
 // This option should only be overridden for testing.
 func WithScheduler(s Scheduler) Option {
-	return func(o *config) {
+	return func(cfg *config) {
 		if s != nil {
-			o.scheduler = s
+			cfg.scheduler = s
 		}
 	}
 }
@@ -169,10 +169,10 @@ func WithScheduler(s Scheduler) Option {
 // WithClient allows injecting a custom HTTP client for fetching.
 //
 // This option should only be overridden for testing.
-func WithClient(client *http.Client) Option {
-	return func(o *config) {
-		if client != nil {
-			o.client = client
+func WithClient(c *http.Client) Option {
+	return func(cfg *config) {
+		if c != nil {
+			cfg.client = c
 		}
 	}
 }
@@ -180,10 +180,10 @@ func WithClient(client *http.Client) Option {
 // WithClock allows injecting a custom time provider.
 //
 // This option should only be overridden for testing.
-func WithClock(clock util.Clock) Option {
-	return func(o *config) {
-		if clock != nil {
-			o.clock = clock
+func WithClock(c util.Clock) Option {
+	return func(cfg *config) {
+		if c != nil {
+			cfg.clock = c
 		}
 	}
 }

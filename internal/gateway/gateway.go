@@ -192,13 +192,13 @@ func WithMaxHeaderBytes(n int) Option {
 	}
 }
 
-// WithTLSConfig sets the server's tls.Config for HTTPS.
+// WithTLSConfig sets the server's TLS configuration.
 //
 // If nil, this option is ignored.
-func WithTLSConfig(tls *tls.Config) Option {
+func WithTLSConfig(c *tls.Config) Option {
 	return func(cfg *config) {
-		if tls != nil {
-			cfg.server.TLSConfig = tls
+		if c != nil {
+			cfg.server.TLSConfig = c
 		}
 	}
 }
