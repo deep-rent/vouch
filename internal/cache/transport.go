@@ -15,6 +15,9 @@ func SetHeaders(
 	base http.RoundTripper,
 	headers map[string]string,
 ) http.RoundTripper {
+	if len(headers) == 0 {
+		return base
+	}
 	h := make(map[string]string, len(headers))
 	for k, v := range headers {
 		h[http.CanonicalHeaderKey(k)] = v
