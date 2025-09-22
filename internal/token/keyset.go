@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	// Predefined KeySet errors.
-	errImmutable = errors.New("set is read-only")      // immutability violation
-	errNotLoaded = errors.New("set is not yet loaded") // cache not ready
+	// errImmutable indicates that the set's immutability has been violated.
+	errImmutable = errors.New("set is read-only")
+	// errNotLoaded indicates that the cache is not ready.
+	errNotLoaded = errors.New("set is not yet loaded")
 )
 
 // KeySet is an alias of jwk.Set.
