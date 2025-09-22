@@ -21,6 +21,15 @@ func Conv[T any](v any) (T, error) {
 	return vt, nil
 }
 
+// Keys returns the keys of the given map as a slice.
+func Keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // DB extracts the database name as the first segment of the
 // given CouchDB URL path. It returns an empty string if the path
 // is empty, does not start with a slash, or does not have a segment.
