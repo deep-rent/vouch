@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"hash"
 	"strings"
+
+	"github.com/deep-rent/vouch/internal/util"
 )
 
 // MinimumKeyLength is the recommended minimum length for secret keys.
@@ -44,11 +46,7 @@ func ResolveAlgorithm(name string) Algorithm {
 
 // SupportedAlgorithms returns the list of supported algorithm names.
 func SupportedAlgorithms() []string {
-	keys := make([]string, 0, len(algorithms))
-	for k := range algorithms {
-		keys = append(keys, k)
-	}
-	return keys
+	return util.Keys(algorithms)
 }
 
 // Signer computes opaque tokens to secure the communication between
