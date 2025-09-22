@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
-
-	"github.com/deep-rent/vouch/internal/util"
 )
 
 // Parser parses JWTs from HTTP requests.
@@ -153,7 +151,7 @@ func WithKeySet(set KeySet) ParserOption {
 //
 // If nil is given, this option is ignored. By default, the system clock is
 // used.
-func WithClock(clock util.Clock) ParserOption {
+func WithClock(clock func() time.Time) ParserOption {
 	return func(cfg *parserConfig) {
 		if clock != nil {
 			cfg.opts = append(cfg.opts, jwt.WithClock(jwt.ClockFunc(clock)))

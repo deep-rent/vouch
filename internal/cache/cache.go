@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/retry"
-	"github.com/deep-rent/vouch/internal/util"
 )
 
 const (
@@ -38,7 +37,7 @@ type config struct {
 	log         *slog.Logger
 	backoff     retry.Backoff
 	scheduler   Scheduler
-	clock       util.Clock
+	clock       func() time.Time
 	client      *http.Client
 }
 
@@ -50,7 +49,7 @@ func defaultConfig() config {
 		log:         slog.Default(),
 		minInterval: DefaultMinInterval,
 		maxInterval: DefaultMaxInterval,
-		clock:       util.DefaultClock,
+		clock:       time.Now,
 	}
 }
 
@@ -177,10 +176,10 @@ func WithClient(c *http.Client) Option {
 	}
 }
 
-// WithClock allows injecting a custom time provider.
+// WithClock allows plugging in a custom abstraction over time.Now.
 //
 // This option should only be overridden for testing.
-func WithClock(c util.Clock) Option {
+func WithClock(c func() time.Time) Option {
 	return func(cfg *config) {
 		if c != nil {
 			cfg.clock = c
@@ -198,7 +197,7 @@ type Cache[T any] struct {
 	client      *http.Client
 	log         *slog.Logger
 	mapper      Mapper[T]
-	clock       util.Clock
+	clock       func() time.Time
 	minInterval time.Duration
 	maxInterval time.Duration
 	mu          sync.RWMutex       // Guards resource, etag
