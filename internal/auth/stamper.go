@@ -16,22 +16,6 @@ const (
 	DefaultTokenHeader = "X-Auth-CouchDB-Token"
 )
 
-// headers holds the names of the HTTP headers used for proxy authentication.
-type headers struct {
-	user  string
-	roles string
-	token string
-}
-
-// defaultHeaders returns a headers object initialized with default values.
-func defaultHeaders() headers {
-	return headers{
-		user:  DefaultUserHeader,
-		roles: DefaultRolesHeader,
-		token: DefaultTokenHeader,
-	}
-}
-
 // Stamper is responsible for attaching CouchDB-specific proxy authentication
 // headers to outbound requests. It works in conjunction with a Bouncer.
 type Stamper interface {
@@ -50,22 +34,28 @@ func NewStamper(opts ...StamperOption) Stamper {
 		opt(&cfg)
 	}
 	return &stamper{
-		headers: cfg.headers,
-		signer:  cfg.signer,
+		userHeader:  cfg.userHeader,
+		rolesHeader: cfg.rolesHeader,
+		tokenHeader: cfg.tokenHeader,
+		signer:      cfg.signer,
 	}
 }
 
 // stamperConfig holds configuration settings for a Stamper.
 type stamperConfig struct {
-	headers headers
-	signer  signer.Signer
+	userHeader  string
+	rolesHeader string
+	tokenHeader string
+	signer      signer.Signer
 }
 
 // defaultStamperConfig initializes a stamperConfig with default settings.
 func defaultStamperConfig() stamperConfig {
 	return stamperConfig{
-		headers: defaultHeaders(),
-		signer:  nil, // No signing by default; must be explicitly set
+		userHeader:  DefaultUserHeader,
+		rolesHeader: DefaultRolesHeader,
+		tokenHeader: DefaultTokenHeader,
+		signer:      nil, // No signing by default; must be explicitly set
 	}
 }
 
@@ -79,7 +69,7 @@ type StamperOption func(*stamperConfig)
 func WithUserHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.headers.user = http.CanonicalHeaderKey(k)
+			cfg.userHeader = http.CanonicalHeaderKey(k)
 		}
 	}
 }
@@ -91,7 +81,7 @@ func WithUserHeader(k string) StamperOption {
 func WithRolesHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.headers.roles = http.CanonicalHeaderKey(k)
+			cfg.rolesHeader = http.CanonicalHeaderKey(k)
 		}
 	}
 }
@@ -103,7 +93,7 @@ func WithRolesHeader(k string) StamperOption {
 func WithTokenHeader(k string) StamperOption {
 	return func(cfg *stamperConfig) {
 		if k = strings.TrimSpace(k); k != "" {
-			cfg.headers.token = http.CanonicalHeaderKey(k)
+			cfg.tokenHeader = http.CanonicalHeaderKey(k)
 		}
 	}
 }
@@ -121,28 +111,30 @@ func WithSigner(s signer.Signer) StamperOption {
 
 // stamper is the default implementation of Stamper.
 type stamper struct {
-	headers headers
-	signer  signer.Signer
+	userHeader  string
+	rolesHeader string
+	tokenHeader string
+	signer      signer.Signer
 }
 
 // Stamp implements the Stamper interface.
 func (s *stamper) Stamp(req *http.Request, access Access) error {
 	s.sanitize(req)
 	user := access.User
-	req.Header.Set(s.headers.user, user)
+	req.Header.Set(s.userHeader, user)
 	if roles := access.Roles; len(roles) != 0 {
 		// Roles are joined with commas, as CouchDB expects
-		req.Header.Set(s.headers.roles, strings.Join(roles, ","))
+		req.Header.Set(s.rolesHeader, strings.Join(roles, ","))
 	}
 	if s.signer != nil {
-		req.Header.Set(s.headers.token, s.signer.Sign(user))
+		req.Header.Set(s.tokenHeader, s.signer.Sign(user))
 	}
 	return nil
 }
 
 // sanitize clears any existing headers to prevent malicious forgery.
 func (s *stamper) sanitize(req *http.Request) {
-	req.Header.Del(s.headers.user)
-	req.Header.Del(s.headers.roles)
-	req.Header.Del(s.headers.token)
+	req.Header.Del(s.userHeader)
+	req.Header.Del(s.rolesHeader)
+	req.Header.Del(s.tokenHeader)
 }
