@@ -19,6 +19,20 @@ var (
 // KeySet is an alias of jwk.Set.
 type KeySet jwk.Set
 
+// NewKeySet returns an immutable, auto-refreshing KeySet that fetches
+// and caches JWKs from the specified URL. The returned KeySet is safe
+// for concurrent use and always reflects the latest successfully loaded
+// keys. If the cache is not yet filled, read operations either behave as if
+// the set were empty or return an error.
+func NewKeySet(
+	ctx context.Context,
+	url string,
+	opts ...cache.Option,
+) KeySet {
+	cache := cache.New(ctx, url, mapper, opts...)
+	return &keySet{cache: cache}
+}
+
 // keySet wraps a refreshing cache to provide an immutable,
 // nil-safe implementation of the KeySet interface.
 type keySet struct{ cache *cache.Cache[KeySet] }
@@ -97,18 +111,4 @@ var _ KeySet = (*keySet)(nil)
 // mapper transforms the response body into a KeySet.
 var mapper cache.Mapper[KeySet] = func(body []byte) (KeySet, error) {
 	return jwk.Parse(body)
-}
-
-// NewKeySet returns an immutable, auto-refreshing KeySet that fetches
-// and caches JWKs from the specified URL. The returned KeySet is safe
-// for concurrent use and always reflects the latest successfully loaded
-// keys. If the cache is not yet filled, read operations either behave as if
-// the set were empty or return an error.
-func NewKeySet(
-	ctx context.Context,
-	url string,
-	opts ...cache.Option,
-) KeySet {
-	cache := cache.New(ctx, url, mapper, opts...)
-	return &keySet{cache: cache}
 }
