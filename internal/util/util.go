@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+// Zero returns the zero value of type T.
+func Zero[T any]() T {
+	var zero T
+	return zero
+}
+
 // Conv attempts to cast the given value to type T.
 func Conv[T any](v any) (T, error) {
 	vt, ok := v.(T)
