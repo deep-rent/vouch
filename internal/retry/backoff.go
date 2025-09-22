@@ -14,9 +14,9 @@ const (
 	// DefaultMaxDelay is the default maximum delay for exponential backoff.
 	DefaultMaxDelay = 1 * time.Minute
 	// DefaultFactor is the default base factor for exponential backoff.
-	DefaultFactor = 2.0
+	DefaultFactor float64 = 2.0
 	// DefaultJitter is the default jitter amount.
-	DefaultJitter = 0.5
+	DefaultJitter float64 = 0.5
 )
 
 // Backoff defines a retry strategy.
