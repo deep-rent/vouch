@@ -34,7 +34,11 @@ func DefaultAlgorithm() Algorithm {
 // leading or trailing whitespace does not affect the lookup. If no such
 // algorithm exists, nil is returned.
 func Resolve(name string) Algorithm {
-	return algorithms[strings.TrimSpace(name)]
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return DefaultAlgorithm()
+	}
+	return algorithms[name]
 }
 
 // Signer computes opaque tokens to secure the communication between
