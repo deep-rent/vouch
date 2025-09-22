@@ -10,10 +10,14 @@ import (
 	"strings"
 )
 
+// MinimumKeyLength is the recommended minimum length for secret keys.
+const MinimumKeyLength = 32
+
+// DefaultAlgorithm is the name of the default hash algorithm.
+const DefaultAlgorithm = "sha256"
+
 // Algorithm defines a hash function constructor.
 type Algorithm func() hash.Hash
-
-const MinimumKeyLength = 32
 
 // algorithms associates string identifiers with Algorithms. The keys
 // correspond to the names recognized by CouchDB.
@@ -27,20 +31,24 @@ var algorithms = map[string]Algorithm{
 	"sha512": sha512.New,
 }
 
-// DefaultAlgorithm returns the default Algorithm.
-func DefaultAlgorithm() Algorithm {
-	return algorithms["sha256"]
-}
-
-// Resolve looks up an Algorithm by name. The name is case-sensitive and
-// leading or trailing whitespace does not affect the lookup. If no such
-// algorithm exists, nil is returned.
-func Resolve(name string) Algorithm {
+// ResolveAlgorithm looks up an Algorithm by name. The name is case-sensitive
+// and leading or trailing whitespace does not affect the lookup. An empty
+// name yields DefaultAlgorithm(). If no such algorithm exists, nil is returned.
+func ResolveAlgorithm(name string) Algorithm {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return DefaultAlgorithm()
+		name = DefaultAlgorithm
 	}
 	return algorithms[name]
+}
+
+// SupportedAlgorithms returns the list of supported algorithm names.
+func SupportedAlgorithms() []string {
+	keys := make([]string, 0, len(algorithms))
+	for k := range algorithms {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // Signer computes opaque tokens to secure the communication between
@@ -62,7 +70,7 @@ func New(key string, opts ...Option) Signer {
 	}
 	s := &signer{
 		key: []byte(key),
-		alg: DefaultAlgorithm(),
+		alg: algorithms[DefaultAlgorithm],
 	}
 	for _, opt := range opts {
 		opt(s)
