@@ -13,6 +13,8 @@ import (
 // Algorithm defines a hash function constructor.
 type Algorithm func() hash.Hash
 
+const MinimumKeyLength = 32
+
 // algorithms associates string identifiers with Algorithms. The keys
 // correspond to the names recognized by CouchDB.
 //
