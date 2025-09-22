@@ -46,7 +46,6 @@ func Constant(delay time.Duration) Backoff {
 	if delay <= 0 {
 		panic("delay is non-positive")
 	}
-
 	return &constant{delay: delay}
 }
 
@@ -188,15 +187,15 @@ type Rand interface {
 
 // jitterConfig holds the configuration for jitter.
 type jitterConfig struct {
-	p float64
-	r Rand
+	p    float64
+	rand Rand
 }
 
 // defaultJitterConfig initializes a configuration object with defaults.
 func defaultJitterConfig() jitterConfig {
 	return jitterConfig{
-		p: DefaultJitter,
-		r: nil, // lazy init
+		p:    DefaultJitter,
+		rand: nil, // lazy init
 	}
 }
 
@@ -220,7 +219,7 @@ func WithAmount(p float64) JitterOption {
 func WithRand(r Rand) JitterOption {
 	return func(c *jitterConfig) {
 		if r != nil {
-			c.r = r
+			c.rand = r
 		}
 	}
 }
@@ -229,8 +228,8 @@ func WithRand(r Rand) JitterOption {
 type jitter struct {
 	wrapped Backoff
 	p       float64
-	mu      sync.Mutex // guards r
-	r       Rand
+	mu      sync.Mutex // Protects rand
+	rand    Rand
 }
 
 // Jitter wraps a Backoff strategy to employ randomized jitter, spreading
@@ -245,13 +244,13 @@ func Jitter(b Backoff, opts ...JitterOption) Backoff {
 	if cfg.p <= 0.0 {
 		return b // No jitter requested
 	}
-	if cfg.r == nil {
-		cfg.r = seed()
+	if cfg.rand == nil {
+		cfg.rand = seed()
 	}
 	return &jitter{
 		wrapped: b,
 		p:       cfg.p,
-		r:       cfg.r,
+		rand:    cfg.rand,
 	}
 }
 
@@ -260,7 +259,7 @@ func (j *jitter) Next() time.Duration {
 	d := float64(j.wrapped.Next())
 
 	j.mu.Lock()
-	r := j.r.Float64()
+	r := j.rand.Float64()
 	j.mu.Unlock()
 
 	return time.Duration(d * (1.0 - r*j.p))
@@ -283,6 +282,6 @@ func (j *jitter) MaxDelay() time.Duration { return j.wrapped.MaxDelay() }
 // seed creates a new random number generator seeded with the current time.
 func seed() Rand {
 	s1 := uint64(time.Now().UnixNano())
-	s2 := s1 + 1
+	s2 := s1 + 1 // Must be different
 	return rand.New(rand.NewPCG(s1, s2))
 }
