@@ -99,6 +99,11 @@ type Headers struct {
 	Token string `yaml:"token" json:"token"`
 }
 
+// Unique reports whether the configured header names are distinct.
+func (h Headers) Unique() bool {
+	return h.User != h.Roles && h.User != h.Token && h.Roles != h.Token
+}
+
 // Rule represents a single access control rule.
 type Rule struct {
 	// Deny specifies whether to allow or deny matching requests.
