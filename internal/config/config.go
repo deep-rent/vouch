@@ -197,27 +197,27 @@ type TLS struct {
 	// If empty, no maximum is enforced.
 	MaxVersion string `yaml:"maxVersion" json:"maxVersion"`
 
-	// CipherSuites is a list of supported cipher suites. If empty, a default
+	// Ciphers is a list of supported cipher suites. If empty, a default
 	// list from the crypto/tls package will be used.
 	// Example values: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 	// "TLS_AES_128_GCM_SHA256".
-	CipherSuites []string `yaml:"ciphers" json:"ciphers"`
+	Ciphers []string `yaml:"ciphers" json:"ciphers"`
 
-	// CertFile is the path to the client's certificate file for mTLS.
-	CertFile string `yaml:"cert" json:"cert"`
+	// Certificate is the path to the client's certificate file for mTLS.
+	Certificate string `yaml:"certificate" json:"certificate"`
 
-	// KeyFile is the path to the client's private key file for mTLS.
-	KeyFile string `yaml:"key" json:"key"`
+	// Key is the path to the client's private key file for mTLS.
+	Key string `yaml:"key" json:"key"`
 
-	// CAFile is the path to the Root Certificate Authority (CA) file
+	// CA is the path to the Root Certificate Authority (CA) file
 	// used to verify the server's certificate.
-	CAFile string `yaml:"ca" json:"ca"`
+	CA string `yaml:"ca" json:"ca"`
 
-	// InsecureSkipVerify controls whether a client verifies the server's
+	// Insecure controls whether a client verifies the server's
 	// certificate chain and host name. If true, TLS is susceptible to
 	// man-in-the-middle attacks. This should be used only for testing.
 	// Defaults to false.
-	InsecureSkipVerify bool `yaml:"insecure" json:"insecure"`
+	Insecure bool `yaml:"insecure" json:"insecure"`
 }
 
 // Decoder decodes raw configuration data into the provided Go value.
