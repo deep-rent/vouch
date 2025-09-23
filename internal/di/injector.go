@@ -1,6 +1,7 @@
 package di
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -37,15 +38,23 @@ type binding struct {
 // It holds all service bindings and manages their singleton instances.
 // An Injector is safe for concurrent use.
 type Injector struct {
+	ctx      context.Context
 	bindings map[any]*binding
 	lock     sync.RWMutex
 }
 
-// NewInjector creates and returns a new, empty Injector.
-func NewInjector() *Injector {
+// NewInjector creates and returns a new, empty Injector with the specified
+// application context.
+func NewInjector(ctx context.Context) *Injector {
 	return &Injector{
+		ctx:      ctx,
 		bindings: make(map[any]*binding),
 	}
+}
+
+// Context returns the application context.
+func (in *Injector) Context() context.Context {
+	return in.ctx
 }
 
 // Bind registers a provider function for a specific service slot.
