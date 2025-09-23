@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/deep-rent/vouch/internal/util"
@@ -34,22 +35,68 @@ type binding struct {
 	resolver Resolver
 }
 
+// injectorConfig holds configuration options for an Injector.
+type injectorConfig struct {
+	version string
+	ctx     context.Context
+}
+
+// defaultInjectorConfig returns the default configuration for an Injector.
+func defaultInjectorConfig() injectorConfig {
+	return injectorConfig{
+		version: "development",
+		ctx:     context.Background(),
+	}
+}
+
+// InjectorOption configures an Injector.
+type InjectorOption func(*injectorConfig)
+
+// WithVersion sets the application version for the Injector.
+func WithVersion(version string) InjectorOption {
+	return func(cfg *injectorConfig) {
+		if version = strings.TrimSpace(version); version != "" {
+			cfg.version = version
+		}
+	}
+}
+
+// WithContext sets the application context for the Injector.
+func WithContext(ctx context.Context) InjectorOption {
+	return func(cfg *injectorConfig) {
+		if ctx != nil {
+			cfg.ctx = ctx
+		}
+	}
+}
+
 // Injector is the main dependency injection container.
 // It holds all service bindings and manages their singleton instances.
 // An Injector is safe for concurrent use.
 type Injector struct {
+	version  string
 	ctx      context.Context
 	bindings map[any]*binding
 	lock     sync.RWMutex
 }
 
-// NewInjector creates and returns a new, empty Injector with the specified
-// application context.
-func NewInjector(ctx context.Context) *Injector {
+// NewInjector creates and returns a new, empty Injector with given options.
+func NewInjector(opts ...InjectorOption) *Injector {
+	cfg := defaultInjectorConfig()
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	return &Injector{
-		ctx:      ctx,
+		version:  cfg.version,
+		ctx:      cfg.ctx,
 		bindings: make(map[any]*binding),
 	}
+}
+
+// Version returns the application version.
+func (in *Injector) Version() string {
+	return in.version
 }
 
 // Context returns the application context.
