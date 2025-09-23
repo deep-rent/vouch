@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/expr-lang/expr"
+
+	"github.com/deep-rent/vouch/internal/util"
 )
 
 // options holds compilation options tailored to the different rule expressions.
@@ -96,9 +98,7 @@ func NewCompiler() *Compiler {
 	// Tell the compiler what type we expect for each expression to enable
 	// further optimizations
 	hint := func(k reflect.Kind) []expr.Option {
-		opts := make([]expr.Option, 0, len(base)+1)
-		copy(opts, base)
-		return append(opts, expr.AsKind(k))
+		return util.Concat(base, expr.AsKind(k))
 	}
 	return &Compiler{
 		opts: &options{

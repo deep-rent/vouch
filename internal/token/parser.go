@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
+
+	"github.com/deep-rent/vouch/internal/util"
 )
 
 // Parser parses JWTs from HTTP requests.
@@ -168,9 +170,7 @@ type parser struct {
 
 // Parse implements the Parser interface.
 func (p *parser) Parse(req *http.Request) (Claims, error) {
-	opts := make([]jwt.ParseOption, len(p.opts)+1)
-	copy(opts, p.opts)
-	opts = append(opts, jwt.WithContext(req.Context()))
+	opts := util.Concat[jwt.ParseOption](p.opts, jwt.WithContext(req.Context()))
 
 	raw, err := p.extract(req)
 	if err != nil {
