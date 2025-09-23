@@ -29,6 +29,17 @@ func Keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
+// Concat takes a slice and a variable number of values, and returns a new slice
+// containing all the elements without modifying the original.
+func Concat[T any](src []T, add ...T) []T {
+	n := len(src)
+	k := len(add)
+	res := make([]T, n+k)
+	copy(res, src)
+	copy(res[n:], add)
+	return res
+}
+
 // DB extracts the database name as the first segment of the
 // given CouchDB URL path. It returns an empty string if the path
 // is empty, does not start with a slash, or does not have a segment.
