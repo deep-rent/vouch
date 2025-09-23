@@ -27,13 +27,10 @@ func NewSlot[T any]() Slot[T] {
 // for the same Slot.
 type Provider[T any] func(in *Injector) (T, error)
 
-// binding contains the internal state for a single bound service,
-// including its provider, its singleton instance, and its creation status.
+// binding holds the provider and its associated resolution strategy.
 type binding struct {
 	provider any
-	instance any
-	err      error
-	once     sync.Once
+	resolver Resolver
 }
 
 // Injector is the main dependency injection container.
@@ -53,7 +50,12 @@ func NewInjector() *Injector {
 
 // Bind registers a provider function for a specific service slot.
 // It panics the slot is already bound.
-func Bind[T any](in *Injector, slot Slot[T], provider Provider[T]) {
+func Bind[T any](
+	in *Injector,
+	slot Slot[T],
+	provider Provider[T],
+	resolver Resolver,
+) {
 	in.lock.Lock()
 	defer in.lock.Unlock()
 
@@ -63,6 +65,7 @@ func Bind[T any](in *Injector, slot Slot[T], provider Provider[T]) {
 
 	in.bindings[slot] = &binding{
 		provider: provider,
+		resolver: resolver,
 	}
 }
 
@@ -143,25 +146,5 @@ func (in *Injector) resolve(slot any, visiting map[any]bool) (any, error) {
 		return nil, fmt.Errorf("no provider bound for slot %v", slot)
 	}
 
-	b.once.Do(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				b.err = fmt.Errorf(
-					"panic during provider call for slot %v: %v",
-					slot, r,
-				)
-			}
-		}()
-
-		val := reflect.ValueOf(b.provider)
-		out := val.Call([]reflect.Value{reflect.ValueOf(in)})
-
-		if out[1].IsNil() {
-			b.instance = out[0].Interface()
-		} else {
-			b.err = out[1].Interface().(error)
-		}
-	})
-
-	return b.instance, b.err
+	return b.resolver.Resolve(in, b.provider, slot)
 }
