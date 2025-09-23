@@ -18,12 +18,12 @@ func Catch(log *slog.Logger) Pipe {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				// Intercept a panic from downstream handlers.
-				if err := recover(); err != nil {
+				if rec := recover(); rec != nil {
 					log.Error(
 						"An unhandled panic occurred",
 						"method", r.Method,
 						"path", r.URL.Path,
-						"error", err,
+						"error", rec,
 						"stack", string(debug.Stack()),
 					)
 					w.WriteHeader(http.StatusInternalServerError)
