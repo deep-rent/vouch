@@ -40,6 +40,14 @@
     "--stdin"
   ],
   "go.toolsManagement.autoUpdate": true,
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/.git": true,
+    "**/.hg": true,
+    "**/.svn": true,
+    "**/bin": true,
+    "**/Thumbs.db": true
+  },
   "search.exclude": {
     "**/.husky/_": true,
     "**/.pnp.*": true,
