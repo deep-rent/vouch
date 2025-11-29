@@ -39,13 +39,16 @@
     "fmt",
     "--stdin"
   ],
+  "go.toolsEnvVars": {
+    "GOEXPERIMENT": "jsonv2"
+  },
   "go.toolsManagement.autoUpdate": true,
   "files.exclude": {
     "**/.DS_Store": true,
     "**/.git": true,
     "**/.hg": true,
     "**/.svn": true,
-    "**/bin": true,
+    // "**/bin": true,
     "**/Thumbs.db": true
   },
   "search.exclude": {
