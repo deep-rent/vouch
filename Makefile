@@ -1,12 +1,10 @@
 VERSION ?= $(or $(shell git describe --tags --always --dirty 2>/dev/null),dev)
 
-# Go parameters
 BINDIR ?= bin
 BINARY_NAME=vouch
 BINARY_PATH=./cmd/vouch
 LDFLAGS = -ldflags="-s -w -X 'main.version=${VERSION}'"
 
-# Docker parameters
 IMAGE ?= ghcr.io/deep-rent/vouch
 PLATFORMS ?= linux/amd64,linux/arm64
 
