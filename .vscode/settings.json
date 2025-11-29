@@ -13,17 +13,43 @@
     "editor.defaultFormatter": "vscode.json-language-features"
   },
   "[go]": {
+    "editor.rulers": [
+      80
+    ],
     "editor.defaultFormatter": "golang.go",
     "editor.codeActionsOnSave": {
       "source.organizeImports": "always"
     }
   },
-  "go.formatTool": "goimports",
+  "[markdown]": {
+    "editor.rulers": [
+      100
+    ]
+  },
   "go.lintTool": "golangci-lint",
+  "go.lintFlags": [
+    "--path-mode=abs",
+    "--fast-only"
+  ],
+  "go.formatTool": "custom",
+  "go.alternateTools": {
+    "customFormatter": "golangci-lint"
+  },
+  "go.formatFlags": [
+    "fmt",
+    "--stdin"
+  ],
   "go.toolsManagement.autoUpdate": true,
   "search.exclude": {
+    "**/.husky/_": true,
+    "**/.pnp.*": true,
     "**/.yarn": true,
-    "**/vendor": true,
-    "**/.pnp.*": true
-  },
+    "**/*.lock": true,
+    "**/bin": true,
+    "**/coverage.out": true,
+    "**/dist": true,
+    "**/go.sum": true,
+    "**/tmp": true,
+    "**/vendor": true
+  }
 }
