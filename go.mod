@@ -1,3 +1,3 @@
 module github.com/deep-rent/vouch
 
-go 1.25
+go 1.25.4
