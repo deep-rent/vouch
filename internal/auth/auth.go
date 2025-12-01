@@ -11,14 +11,16 @@ import (
 	"github.com/deep-rent/vouch/internal/couch"
 )
 
+const RoleAdmin = "couch_admin"
+
 type Claims struct {
 	jwt.Reserved
 
-	// Team holds the identifier for the team the user belongs to.
-	Team string `json:"tid"`
+	// Tenant holds the identifier for the tenant the user belongs to.
+	Tenant string `json:"deep.rent/tenant"`
 
 	// Roles is a list of roles assigned to the user.
-	Roles []string `json:"rol"`
+	Roles []string `json:"deep.rent/roles"`
 }
 
 type Bouncer struct {
@@ -41,14 +43,14 @@ func (b *Bouncer) Bounce(r *http.Request) (*Claims, error) {
 }
 
 func isAllowed(claims *Claims, r *http.Request) bool {
-	if slices.Contains(claims.Roles, "admin") {
+	if slices.Contains(claims.Roles, RoleAdmin) {
 		return true
 	}
 	db := couch.Database(r.URL.Path)
 	if db == "" {
 		return false
 	}
-	return db == "user_"+claims.Sub || db == "team_"+claims.Team
+	return db == "user_"+claims.Sub || db == "tenant_"+claims.Tenant
 }
 
 type Stamper struct {
