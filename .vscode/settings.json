@@ -1,10 +1,6 @@
 {
   "editor.formatOnSave": true,
   "editor.formatOnType": true,
-  "files.associations": {
-    "*.yaml.*": "yaml",
-    "**/charts/**/*.yaml": "helm",
-  },
   "files.encoding": "utf8",
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
@@ -48,14 +44,9 @@
     "**/.git": true,
     "**/.hg": true,
     "**/.svn": true,
-    // "**/bin": true,
     "**/Thumbs.db": true
   },
   "search.exclude": {
-    "**/.husky/_": true,
-    "**/.pnp.*": true,
-    "**/.yarn": true,
-    "**/*.lock": true,
     "**/bin": true,
     "**/coverage.out": true,
     "**/dist": true,
