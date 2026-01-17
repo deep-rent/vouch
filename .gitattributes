@@ -1,27 +1,17 @@
 *          text=auto
-.husky/*   text eol=lf
 *.bat      text eol=crlf
-*.cjs      text
 *.go       text
-*.gz       binary
 *.ini      text
-*.js       text
 *.json     text
-*.lock     text
 *.md       text diff=markdown
-*.mjs      text
 *.png      binary
 *.sh       text eol=lf
 *.svg      text
 *.yaml     text
 *.yml      text
-*.zip      binary
 Dockerfile text
 go.mod     text
 go.sum     text
 LICENSE    text
 Makefile   text
 
-.yarn/**   linguist-vendored
-*.pnp.*    linguist-vendored
-vendor/**  linguist-vendored
