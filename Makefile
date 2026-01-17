@@ -33,15 +33,6 @@ clean: ## Remove the built binary and test cache
 #     @command -v golangci-lint >/dev/null 2>&1 || (echo "golangci-lint not found. Please install: https://golangci-lint.run/usage/install/" && exit 1)
 #     golangci-lint run
 
-up: ## Start the docker-compose stack in the background
-		docker compose up --build -d
-
-down: ## Stop and remove the docker-compose stack
-		docker compose down
-
-logs: ## View logs from the docker-compose stack
-		docker compose logs -f
-
 image: ## Build the multi-platform Docker image
 		docker buildx build \
 			--platform $(PLATFORMS) \

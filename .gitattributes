@@ -1,7 +1,6 @@
 *          text=auto
 *.bat      text eol=crlf
 *.go       text
-*.ini      text
 *.json     text
 *.md       text diff=markdown
 *.png      binary
