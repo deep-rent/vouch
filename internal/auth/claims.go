@@ -5,9 +5,9 @@ import "github.com/deep-rent/nexus/jose/jwt"
 type Claims struct {
 	jwt.Reserved
 
-	// Team holds the identifier for the team the user belongs to.
-	Team string `json:"deep.rent/team"`
+	// Tid holds the unique identifier of the team the user belongs to.
+	Tid string `json:"tid"`
 
-	// Roles is a list of roles assigned to the user.
-	Roles []string `json:"deep.rent/roles"`
+	// Scp holds a list of scopes assigned to the user.
+	Scp []string `json:"scp"`
 }

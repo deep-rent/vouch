@@ -10,7 +10,7 @@ import (
 	"github.com/deep-rent/vouch/internal/couch"
 )
 
-const RoleAdmin = "admin"
+const scopeAdmin = "couch:admin"
 
 const userPrefix = "user_"
 const teamPrefix = "team_"
@@ -41,21 +41,22 @@ func (b *Bouncer) Bounce(r *http.Request) (*Claims, error) {
 }
 
 func isAllowed(claims *Claims, r *http.Request) bool {
-	if slices.Contains(claims.Roles, RoleAdmin) {
+	// Admins have access to everything:
+	if slices.Contains(claims.Scp, scopeAdmin) {
 		return true
 	}
 	db := couch.Database(r.URL.Path)
 	if db == "" {
 		return false
 	}
-	// Check if it's the user's personal database:
-	if u := claims.Subject(); u != "" && db == userPrefix+u {
+	// Check if it's the user's database:
+	if u := claims.Sub; u != "" && db == userPrefix+u {
 		return true
 	}
-	// Check if the database belongs to the user's team:
-	if t := claims.Team; t != "" && db == teamPrefix+t {
+	// Check if it's the team's database:
+	if t := claims.Tid; t != "" && db == teamPrefix+t {
 		return true
 	}
-	// The user has no access to this database.
+	// Else, the user has no access to this database.
 	return false
 }
