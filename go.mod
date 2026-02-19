@@ -2,10 +2,10 @@ module github.com/deep-rent/vouch
 
 go 1.26.0
 
-require github.com/deep-rent/nexus v1.1.8
+require github.com/deep-rent/nexus v1.1.9
 
 require (
-	github.com/cloudflare/circl v1.6.2 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 )
