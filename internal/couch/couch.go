@@ -1,15 +1,10 @@
 package couch
 
-import "strings"
-
-func Database(path string) string {
-	const start = 1
-	if len(path) <= start {
-		return ""
-	}
-	end := strings.IndexByte(path[start:], '/')
-	if end == -1 {
-		return path[start:]
-	}
-	return path[start:(start + end)]
-}
+const (
+	// CouchDBUserNameHeader is the header used to proxy the username to CouchDB.
+	CouchDBUserNameHeader = "X-Auth-CouchDB-UserName"
+	// CouchDBRolesHeader is the header used to proxy the roles to CouchDB.
+	CouchDBRolesHeader = "X-Auth-CouchDB-Roles"
+	// CouchDBTokenHeader is the header used for the proxy's shared secret with CouchDB.
+	CouchDBTokenHeader = "X-Auth-CouchDB-Token"
+)

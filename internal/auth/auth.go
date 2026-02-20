@@ -1,52 +1,63 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
-	"strings"
+	"time"
 
+	"github.com/deep-rent/nexus/cache"
 	"github.com/deep-rent/nexus/header"
+	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
+	"github.com/deep-rent/nexus/scheduler"
+	"github.com/deep-rent/vouch/internal/config"
 )
 
-var (
-	ErrMissingToken = errors.New("missing or invalid token")
-	ErrInvalidToken = errors.New("invalid token")
-)
+var ErrMissingCredentials = errors.New("missing credentials")
 
-type Bouncer struct {
-	verifier jwt.Verifier[*jwt.DynamicClaims]
+// Claims represents the JWT claims, including standard and dynamic claims.
+type Claims struct {
+	jwt.DynamicClaims
 }
 
-func (b *Bouncer) Bounce(r *http.Request) (*jwt.DynamicClaims, error) {
+// Authenticator provides JWT authentication capabilities.
+type Authenticator struct {
+	verifier *jwt.Verifier[*Claims]
+	keySet   jwk.CacheSet
+}
+
+// New creates a new Authenticator.
+func New(cfg *config.Config) *Authenticator {
+	keySet := jwk.NewCacheSet(
+		cfg.JWKSURL.String(),
+		cache.WithMinInterval(5*time.Minute),
+		cache.WithTimeout(cfg.JWKSFetchTimeout),
+	)
+
+	// Start a scheduler to refresh the key set in the background.
+	sched := scheduler.New(context.Background())
+	sched.Dispatch(keySet)
+
+	return &Authenticator{
+		verifier: jwt.NewVerifier[*Claims](keySet),
+		keySet:   keySet,
+	}
+}
+
+// Authenticate validates the JWT from the request and returns the claims.
+func (a *Authenticator) Authenticate(r *http.Request) (*Claims, error) {
+	// Extract the token from the "Authorization" header.
 	token := header.Credentials(r.Header, "Bearer")
 	if token == "" {
-		return nil, ErrMissingToken
+		return nil, ErrMissingCredentials
 	}
-	claims, err := b.verifier.Verify([]byte(token))
-	if err != nil || claims.Sub == "" {
-		return nil, ErrInvalidToken
+
+	// Validate the token.
+	claims, err := a.verifier.Verify([]byte(token))
+	if err != nil {
+		return nil, err
 	}
+
 	return claims, nil
-}
-
-type Stamper struct {
-	roleClaim  string
-	userHeader string
-	roleHeader string
-}
-
-func (s *Stamper) Stamp(claims *jwt.DynamicClaims, r *http.Request) {
-	r.Header.Set(s.userHeader, claims.Sub)
-
-	roles, ok := jwt.Get[[]string](claims, s.roleClaim)
-
-	if ok && len(roles) != 0 {
-		r.Header.Set(s.roleHeader, strings.Join(roles, ","))
-	}
-}
-
-type Guard struct {
-	bouncer *Bouncer
-	stamper *Stamper
 }

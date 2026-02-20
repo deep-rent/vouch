@@ -2,29 +2,61 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
+	"github.com/deep-rent/vouch/internal/auth"
+	"github.com/deep-rent/vouch/internal/config"
+	"github.com/deep-rent/vouch/internal/forward"
 )
 
 func main() {
-	logger := log.New(
-		// TODO: Fetch log level and format from environment configuration
-		log.WithLevel("info"),
-		log.WithFormat("text"),
-	)
+	// Load configuration.
+	cfg, err := config.New()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Initialize logger.
+	logger := log.New(log.WithLevel(cfg.Level))
 
 	runnable := func(ctx context.Context) error {
-		// Starting application
+		logger.Info("Vouch proxy starting...")
+
+		// Initialize authenticator.
+		authenticator := auth.New(cfg)
+
+		// Initialize proxy handler.
+		proxy := forward.New(authenticator, cfg, logger)
+
+		// Create HTTP server.
+		server := &http.Server{
+			Addr:    fmt.Sprintf(":%s", cfg.Port),
+			Handler: proxy,
+		}
+
+		// Start server in a goroutine.
+		go func() {
+			logger.Info("Server listening", "port", cfg.Port)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Server failed", "error", err)
+			}
+		}()
+
+		// Wait for stop signal.
 		<-ctx.Done()
-		// Shutting down
-		return nil
+		logger.Info("Shutting down server...")
+
+		// Shutdown the server.
+		return server.Shutdown(context.Background())
 	}
 
 	if err := app.Run(runnable, app.WithLogger(logger)); err != nil {
-		logger.Error("Failed to run application", slog.Any("error", err))
+		logger.Error("Application failed", "error", err)
 		os.Exit(1)
 	}
 }
