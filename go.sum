@@ -2,8 +2,6 @@ github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deep-rent/nexus v1.1.12 h1:3oKmNI65nOfnxsOg4LXV8yr5dX/sAAMWoapXsryE6DQ=
-github.com/deep-rent/nexus v1.1.12/go.mod h1:1eRmJhwougRUQ4bqqwZ9fhocdwIczPar23FgP/tcR6Y=
 github.com/deep-rent/nexus v1.1.13 h1:AiSJqRoMIm+mTtd6RkTSVzYIsF5ufeZs2fMF7xARHrY=
 github.com/deep-rent/nexus v1.1.13/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
