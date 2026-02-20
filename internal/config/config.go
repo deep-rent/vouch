@@ -3,7 +3,8 @@ package config
 import "github.com/deep-rent/nexus/env"
 
 type Config struct {
-	JWKS       string   `env:",required"`
+	JWKS string `env:",required"`
+	// TODO: Add JWKS refresh interval option
 	UserAgent  string   `env:",default=Vouch"`
 	RoleClaim  string   `env:",default:_couchdb.roles"`
 	Audiences  []string `env:",split"`
