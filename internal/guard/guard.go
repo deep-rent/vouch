@@ -14,7 +14,7 @@ import (
 type Guard struct {
 	bouncer *bouncer.Bouncer
 	stamper *stamper.Stamper
-	handler http.Handler
+	backend http.Handler
 }
 
 func New(cfg *config.Config) *Guard {
@@ -32,7 +32,7 @@ func New(cfg *config.Config) *Guard {
 	return &Guard{
 		bouncer: bouncer.New(cfg),
 		stamper: stamper.New(cfg),
-		handler: handler,
+		backend: handler,
 	}
 }
 
@@ -43,5 +43,5 @@ func (g *Guard) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	g.stamper.Stamp(req, pass)
-	g.handler.ServeHTTP(res, req)
+	g.backend.ServeHTTP(res, req)
 }
