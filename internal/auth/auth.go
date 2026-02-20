@@ -50,15 +50,3 @@ type Guard struct {
 	bouncer *Bouncer
 	stamper *Stamper
 }
-
-func (g *Guard) Guard(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, err := g.bouncer.Bounce(r)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		g.stamper.Stamp(claims, r)
-		next.ServeHTTP(w, r)
-	})
-}
