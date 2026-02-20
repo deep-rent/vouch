@@ -1,5 +1,7 @@
 package config
 
+import "github.com/deep-rent/nexus/env"
+
 type Config struct {
 	JWKS       string   `env:",required"`
 	UserAgent  string   `env:",default=Vouch"`
@@ -10,4 +12,12 @@ type Config struct {
 	MaxAge     int      `env:",default=0"`
 	UserHeader string   `env:",default:X-Auth-CouchDB-UserName"`
 	RoleHeader string   `env:",default:X-Auth-CouchDB-Roles"`
+}
+
+func Load() (*Config, error) {
+	var cfg *Config
+	if err := env.Unmarshal(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
