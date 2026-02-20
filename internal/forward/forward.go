@@ -1,8 +1,6 @@
 package forward
 
 import (
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -64,14 +62,4 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Forward the request to CouchDB.
 	p.proxy.ServeHTTP(w, r)
-}
-
-// errorf writes a JSON error message to the response.
-func (p *Proxy) errorf(w http.ResponseWriter, code int, format string, a ...interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	response := map[string]string{"error": "vouch_proxy", "reason": fmt.Sprintf(format, a...)}
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		p.logger.Error("Failed to encode error response", "error", err)
-	}
 }
