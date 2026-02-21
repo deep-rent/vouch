@@ -10,7 +10,6 @@ import (
 type Config struct {
 	LogLevel                string        `env:",default:info"`
 	LogFormat               string        `env:",default:json"`
-	Target                  *url.URL      `env:",default:http://localhost:5984"`
 	Host                    string        `env:",default:0.0.0.0"`
 	Port                    string        `env:",default:5984"`
 	ReadHeaderTimeout       time.Duration `env:",unit:s,default:5"`
@@ -20,6 +19,7 @@ type Config struct {
 	MaxHeaderBytes          int           `env:",default:0"`
 	UserNameHeader          string        `env:",default:X-Auth-CouchDB-UserName"`
 	RolesHeader             string        `env:",default:X-Auth-CouchDB-Roles"`
+	Target                  *url.URL      `env:",default:http://localhost:5984"`
 	FlushInterval           time.Duration `env:",unit:ms,default:-1"`
 	MinBufferSize           int           `env:",default:32768"`
 	MaxBufferSize           int           `env:",default:262144"`
@@ -34,8 +34,8 @@ type Config struct {
 	KeysURL                 string        `env:",required"`
 	KeysUserAgent           string        `env:",default:Vouch"`
 	KeysTimeout             time.Duration `env:",unit:s,default:10"`
-	KeysMinRefreshInterval  time.Duration `env:",unit:s,default:60"`
-	KeysMaxRefreshInterval  time.Duration `env:",unit:s,default:28800"`
+	KeysMinRefreshInterval  time.Duration `env:",unit:m,default:60"`
+	KeysMaxRefreshInterval  time.Duration `env:",unit:m,default:28800"`
 	KeysBackoffMinDelay     time.Duration `env:",unit:s,default:1"`
 	KeysBackoffMaxDelay     time.Duration `env:",unit:s,default:120"`
 	KeysBackoffGrowthFactor float64       `env:",default:1.75"`
