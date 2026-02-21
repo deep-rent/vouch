@@ -11,7 +11,7 @@ import (
 )
 
 type Config struct {
-	Gateway           *gateway.Config
+	Gateway           *gateway.Gateway
 	Host              string
 	Port              string
 	ReadHeaderTimeout time.Duration
@@ -30,7 +30,7 @@ func New(cfg *Config) *Server {
 	return &Server{
 		server: &http.Server{
 			Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
-			Handler:           gateway.New(cfg.Gateway),
+			Handler:           cfg.Gateway,
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 			ReadTimeout:       cfg.ReadTimeout,
 			WriteTimeout:      cfg.WriteTimeout,

@@ -13,8 +13,8 @@ import (
 )
 
 type Config struct {
-	Bouncer         *bouncer.Config
-	Stamper         *stamper.Config
+	Bouncer         *bouncer.Bouncer
+	Stamper         *stamper.Stamper
 	URL             *url.URL
 	FlushInterval   time.Duration
 	MinBufferSize   int
@@ -62,8 +62,8 @@ func New(cfg *Config) http.Handler {
 		middleware.Recover(cfg.Logger),
 	)
 	return &Gateway{
-		bouncer: bouncer.New(cfg.Bouncer),
-		stamper: stamper.New(cfg.Stamper),
+		bouncer: cfg.Bouncer,
+		stamper: cfg.Stamper,
 		backend: handler,
 	}
 }
