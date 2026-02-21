@@ -91,6 +91,11 @@ func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	}
 	claims, err := b.verifier.Verify([]byte(token))
 	if err != nil {
+		b.logger.DebugContext(
+			req.Context(),
+			"Token verification failed",
+			slog.String("token", token), slog.Any("error", err),
+		)
 		return nil, ErrInvalidToken
 	}
 	name := claims.Sub
