@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"net/http"
 	"os"
 
@@ -21,7 +21,7 @@ func main() {
 
 	runnable := func(ctx context.Context) error {
 		server := &http.Server{
-			Addr:    fmt.Sprintf(":%s", cfg.Port),
+			Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
 			Handler: guard.New(&guard.Config{}),
 		}
 
