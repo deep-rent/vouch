@@ -1,3 +1,5 @@
+// Package config provides the configuration structure and loading logic for the
+// Vouch application.
 package config
 
 import (
