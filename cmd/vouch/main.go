@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 
 	"github.com/deep-rent/nexus/app"
@@ -71,9 +72,20 @@ func main() {
 			Logger:            logger,
 		})
 
-		go s.Start()
-		<-ctx.Done()
-		return s.Stop()
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.Start()
+		}()
+
+		select {
+		case err := <-errCh:
+			if err != nil && err != http.ErrServerClosed {
+				return err
+			}
+			return nil
+		case <-ctx.Done():
+			return s.Stop()
+		}
 	}
 
 	if err := app.Run(runnable, app.WithLogger(logger)); err != nil {
