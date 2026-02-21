@@ -6,12 +6,10 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/deep-rent/vouch/internal/gateway"
 )
 
 type Config struct {
-	Gateway           *gateway.Gateway
+	Handler           http.Handler
 	Host              string
 	Port              string
 	ReadHeaderTimeout time.Duration
@@ -30,7 +28,7 @@ func New(cfg *Config) *Server {
 	return &Server{
 		server: &http.Server{
 			Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
-			Handler:           cfg.Gateway,
+			Handler:           cfg.Handler,
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 			ReadTimeout:       cfg.ReadTimeout,
 			WriteTimeout:      cfg.WriteTimeout,
