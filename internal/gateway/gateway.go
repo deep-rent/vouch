@@ -60,9 +60,11 @@ func New(cfg *Config) http.Handler {
 		proxy.WithLogger(cfg.Logger),
 	)
 
-	pipes := []middleware.Pipe{
-		middleware.Recover(cfg.Logger),
-	}
+	// Collect middleware to apply to the handler.
+	pipes := []middleware.Pipe{middleware.Recover(cfg.Logger)}
+
+	// Only add logging middleware if debug logging is enabled, to avoid the
+	// overhead of logging every request when it's not necessary.
 	if cfg.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		pipes = append(pipes, middleware.Log(cfg.Logger))
 	}
