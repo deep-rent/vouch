@@ -48,7 +48,7 @@ func TestBouncer_Bounce(t *testing.T) {
 
 	cfg := &bouncer.Config{
 		TokenIssuers:            []string{"https://issuer.com"},
-		TokenAudiences:          []string{"my-api"},
+		TokenAudiences:          []string{"consumer"},
 		TokenAuthScheme:         "Bearer",
 		TokenRolesClaim:         "roles",
 		KeysURL:                 s.URL,
@@ -79,7 +79,7 @@ func TestBouncer_Bounce(t *testing.T) {
 	validPayload := map[string]any{
 		"sub": "warmup",
 		"iss": "https://issuer.com",
-		"aud": "my-api",
+		"aud": "consumer",
 		"exp": time.Now().Add(time.Hour).Unix(),
 	}
 	validToken := createToken(validPayload)
@@ -99,9 +99,9 @@ func TestBouncer_Bounce(t *testing.T) {
 		payload := map[string]any{
 			"sub":   "alice",
 			"iss":   "https://issuer.com",
-			"aud":   "my-api",
+			"aud":   "consumer",
 			"exp":   time.Now().Add(time.Hour).Unix(),
-			"roles": []string{"admin", "editor"},
+			"roles": []string{"admin", "basic"},
 		}
 		token := createToken(payload)
 
@@ -111,43 +111,48 @@ func TestBouncer_Bounce(t *testing.T) {
 		user, err := b.Bounce(req)
 		require.NoError(t, err)
 		assert.Equal(t, "alice", user.Name)
-		assert.Equal(t, []string{"admin", "editor"}, user.Roles)
+		assert.Equal(t, []string{"admin", "basic"}, user.Roles)
 		assert.Empty(t, req.Header.Get("Authorization"))
 	})
 
-	t.Run("Missing Token", func(t *testing.T) {
+	t.Run("MissingToken", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
 		_, err := b.Bounce(req)
 		assert.ErrorIs(t, err, bouncer.ErrMissingToken)
 	})
 
-	t.Run("Invalid Scheme", func(t *testing.T) {
+	t.Run("InvalidScheme", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Authorization", "Basic xyz")
 		_, err := b.Bounce(req)
 		assert.ErrorIs(t, err, bouncer.ErrMissingToken)
 	})
 
-	t.Run("Invalid Signature", func(t *testing.T) {
-		otherKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		otherPair := jwk.NewKeyBuilder(jwa.ES256).WithKeyID("other").BuildPair(otherKey)
+	t.Run("InvalidSignature", func(t *testing.T) {
+		otherKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.Nil(t, err)
+
+		otherKeyPair := jwk.NewKeyBuilder(jwa.ES256).
+			WithKeyID("other").
+			BuildPair(otherKey)
 
 		payload := map[string]any{"sub": "hacker"}
-		token, _ := jwt.Sign(otherPair, payload)
+		token, err := jwt.Sign(otherKeyPair, payload)
+		require.Nil(t, err)
 
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Authorization", "Bearer "+string(token))
 
-		_, err := b.Bounce(req)
+		_, err = b.Bounce(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid access token")
 	})
 
-	t.Run("Expired Token", func(t *testing.T) {
+	t.Run("ExpiredToken", func(t *testing.T) {
 		payload := map[string]any{
 			"sub": "bob",
 			"iss": "https://issuer.com",
-			"aud": "my-api",
+			"aud": "consumer",
 			"exp": time.Now().Add(-time.Hour).Unix(),
 		}
 		token := createToken(payload)
@@ -160,11 +165,11 @@ func TestBouncer_Bounce(t *testing.T) {
 		assert.Contains(t, err.Error(), "token is expired")
 	})
 
-	t.Run("Wrong Issuer", func(t *testing.T) {
+	t.Run("WrongIssuer", func(t *testing.T) {
 		payload := map[string]any{
 			"sub": "charlie",
 			"iss": "https://evil.com",
-			"aud": "my-api",
+			"aud": "consumer",
 		}
 		token := createToken(payload)
 
@@ -179,7 +184,7 @@ func TestBouncer_Bounce(t *testing.T) {
 	t.Run("MissingUsername", func(t *testing.T) {
 		payload := map[string]any{
 			"iss": "https://issuer.com",
-			"aud": "my-api",
+			"aud": "consumer",
 		}
 		token := createToken(payload)
 
@@ -191,11 +196,17 @@ func TestBouncer_Bounce(t *testing.T) {
 	})
 
 	t.Run("RolesNotArray", func(t *testing.T) {
-		payload := map[string]any{"sub": "dave", "roles": "admin"}
+		payload := map[string]any{
+			"sub":   "joe",
+			"iss":   "https://issuer.com",
+			"aud":   "consumer",
+			"roles": "admin",
+		}
 		token := createToken(payload)
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		user, err := b.Bounce(req)
+
 		require.NoError(t, err)
 		assert.Empty(t, user.Roles)
 	})
