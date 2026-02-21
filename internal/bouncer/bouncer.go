@@ -19,9 +19,9 @@ var (
 	ErrUndefinedUserName = errors.New("undefined subject in access token")
 )
 
-type Pass struct {
-	UserName string
-	Roles    []string
+type User struct {
+	Name  string
+	Roles []string
 }
 
 type Config struct {
@@ -74,7 +74,7 @@ func New(cfg *Config) *Bouncer {
 	}
 }
 
-func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
+func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	token := header.Credentials(req.Header, b.authScheme)
 	// Strip the token from the request header to prevent it from being forwarded
 	// to the upstream service.
@@ -86,16 +86,16 @@ func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 	if err != nil {
 		return nil, err
 	}
-	userName := claims.Sub
-	if userName == "" {
+	name := claims.Sub
+	if name == "" {
 		return nil, ErrUndefinedUserName
 	}
 	roles, ok := jwt.Get[[]string](claims, b.rolesClaim)
 	if !ok {
 		roles = make([]string, 0)
 	}
-	return &Pass{
-		UserName: userName,
-		Roles:    roles,
+	return &User{
+		Name:  name,
+		Roles: roles,
 	}, nil
 }

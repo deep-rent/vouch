@@ -8,26 +8,27 @@ import (
 )
 
 type Config struct {
-	UserNameHeader string
-	RolesHeader    string
+	NameHeader string
+	RoleHeader string
 }
 
 type Stamper struct {
-	userNameHeader string
-	rolesHeader    string
+	nameHeader string
+	roleHeader string
 }
 
 func New(cfg *Config) *Stamper {
 	return &Stamper{
-		userNameHeader: cfg.UserNameHeader,
-		rolesHeader:    cfg.RolesHeader,
+		nameHeader: cfg.NameHeader,
+		roleHeader: cfg.RoleHeader,
 	}
 }
 
-func (s *Stamper) Stamp(req *http.Request, pass *bouncer.Pass) {
-	req.Header.Set(s.userNameHeader, pass.UserName)
+func (s *Stamper) Stamp(req *http.Request, u *bouncer.User) {
+	req.Header.Set(s.nameHeader, u.Name)
 
-	if len(pass.Roles) != 0 {
-		req.Header.Set(s.rolesHeader, strings.Join(pass.Roles, ","))
+	if len(u.Roles) != 0 {
+		roles := strings.Join(u.Roles, ",")
+		req.Header.Set(s.roleHeader, roles)
 	}
 }
