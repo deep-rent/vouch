@@ -26,11 +26,11 @@ type User struct {
 }
 
 type Config struct {
-	JWKS                string
 	Issuers             []string
 	Audiences           []string
 	Leeway              time.Duration
 	MaxAge              time.Duration
+	JWKS                string
 	UserAgent           string
 	Timeout             time.Duration
 	MinRefreshInterval  time.Duration
