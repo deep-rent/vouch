@@ -26,7 +26,8 @@ func New(cfg *Config) *Stamper {
 
 func (s *Stamper) Stamp(req *http.Request, pass *bouncer.Pass) {
 	req.Header.Set(s.userNameHeader, pass.UserName)
-	if len(pass.Roles) > 0 {
+
+	if len(pass.Roles) != 0 {
 		req.Header.Set(s.rolesHeader, strings.Join(pass.Roles, ","))
 	}
 }
