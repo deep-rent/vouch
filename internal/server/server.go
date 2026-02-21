@@ -16,6 +16,7 @@ type Config struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
+	MaxHeaderBytes    int
 	Logger            *slog.Logger
 }
 
@@ -33,6 +34,7 @@ func New(cfg *Config) *Server {
 			ReadTimeout:       cfg.ReadTimeout,
 			WriteTimeout:      cfg.WriteTimeout,
 			IdleTimeout:       cfg.IdleTimeout,
+			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 		},
 		logger: cfg.Logger,
 	}
