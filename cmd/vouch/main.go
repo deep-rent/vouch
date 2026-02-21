@@ -16,6 +16,7 @@ import (
 	"github.com/deep-rent/vouch/internal/stamper"
 )
 
+// The application version injected via -ldflags during build time.
 var version = "dev"
 
 func main() {
