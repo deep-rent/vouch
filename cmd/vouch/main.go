@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -14,7 +16,17 @@ import (
 	"github.com/deep-rent/vouch/internal/stamper"
 )
 
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("v", false, "Show version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err.Error())
