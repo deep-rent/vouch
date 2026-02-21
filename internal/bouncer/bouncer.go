@@ -48,6 +48,7 @@ type Bouncer struct {
 	verifier   *jwt.Verifier[*jwt.DynamicClaims]
 	authScheme string
 	rolesClaim string
+	logger     *slog.Logger
 }
 
 func New(cfg *Config) *Bouncer {
@@ -76,6 +77,7 @@ func New(cfg *Config) *Bouncer {
 			WithMaxAge(cfg.MaxAge),
 		authScheme: cfg.AuthScheme,
 		rolesClaim: cfg.RolesClaim,
+		logger:     cfg.Logger,
 	}
 }
 
