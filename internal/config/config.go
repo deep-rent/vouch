@@ -9,8 +9,11 @@ import (
 	"github.com/deep-rent/nexus/env"
 )
 
+// Prefix is the environment variable prefix used by the application.
+const Prefix = "VOUCH_"
+
 // Config holds the application configuration. It is populated from environment
-// variables prefixed with "VOUCH_". The struct tags define the default values
+// variables prefixed with [Prefix]. The struct tags define the default values
 // and parsing rules for each field.
 type Config struct {
 	LogLevel                string        `env:",default:info"`
@@ -49,11 +52,11 @@ type Config struct {
 }
 
 // Load reads the configuration from environment variables, applying the
-// "VOUCH_" prefix to all lookups. It returns an error if required variables
-// are missing or if parsing fails.
+// [Prefix] to all lookups. It returns an error if required variables are
+// missing or if parsing fails.
 func Load() (*Config, error) {
 	var cfg Config
-	if err := env.Unmarshal(&cfg, env.WithPrefix("VOUCH_")); err != nil {
+	if err := env.Unmarshal(&cfg, env.WithPrefix(Prefix)); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
