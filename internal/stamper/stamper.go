@@ -29,8 +29,7 @@ func (s *Stamper) Stamp(req *http.Request, user *bouncer.User) {
 
 	if len(user.Roles) == 0 {
 		req.Header.Del(s.rolesHeader)
-		return
+	} else {
+		req.Header.Set(s.rolesHeader, strings.Join(user.Roles, ","))
 	}
-
-	req.Header.Set(s.rolesHeader, strings.Join(user.Roles, ","))
 }
