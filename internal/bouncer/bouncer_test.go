@@ -1,6 +1,7 @@
 package bouncer_test
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -64,6 +65,10 @@ func TestBouncer_Bounce(t *testing.T) {
 	}
 
 	b := bouncer.New(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go b.Start(ctx)
 
 	createToken := func(claims any) string {
 		token, err := jwt.Sign(keyPair, claims)

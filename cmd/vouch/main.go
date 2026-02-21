@@ -85,8 +85,11 @@ func main() {
 		})
 
 		errCh := make(chan error, 1)
+		go func() { errCh <- s.Start() }()
 		go func() {
-			errCh <- s.Start()
+			if err := bouncer.Start(ctx); err != nil {
+				errCh <- err
+			}
 		}()
 
 		select {

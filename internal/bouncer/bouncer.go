@@ -1,6 +1,7 @@
 package bouncer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
 	"github.com/deep-rent/nexus/retry"
+	"github.com/deep-rent/nexus/scheduler"
 )
 
 var (
@@ -49,6 +51,7 @@ type Bouncer struct {
 	verifier   *jwt.Verifier[*jwt.DynamicClaims]
 	authScheme string
 	rolesClaim string
+	tick       scheduler.Tick
 }
 
 func New(cfg *Config) *Bouncer {
@@ -78,7 +81,17 @@ func New(cfg *Config) *Bouncer {
 			WithMaxAge(cfg.TokenMaxAge),
 		authScheme: cfg.TokenAuthScheme,
 		rolesClaim: cfg.TokenRolesClaim,
+		tick:       set,
 	}
+}
+
+func (b *Bouncer) Start(ctx context.Context) error {
+	sched := scheduler.New(ctx)
+	sched.Dispatch(b.tick)
+
+	<-ctx.Done()
+	sched.Shutdown()
+	return nil
 }
 
 func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
