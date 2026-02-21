@@ -37,6 +37,7 @@ type Config struct {
 	KeysTimeout             time.Duration
 	KeysMinRefreshInterval  time.Duration
 	KeysMaxRefreshInterval  time.Duration
+	KeysAttemptLimit        int
 	KeysBackoffMinDelay     time.Duration
 	KeysBackoffMaxDelay     time.Duration
 	KeysBackoffGrowthFactor float64
@@ -61,6 +62,7 @@ func New(cfg *Config) *Bouncer {
 		cache.WithHeader("User-Agent", cfg.KeysUserAgent),
 		cache.WithRetryOptions(
 			retry.WithLogger(cfg.Logger),
+			retry.WithAttemptLimit(cfg.KeysAttemptLimit),
 			retry.WithBackoff(backoff.New(
 				backoff.WithMinDelay(cfg.KeysBackoffMinDelay),
 				backoff.WithMaxDelay(cfg.KeysBackoffMaxDelay),

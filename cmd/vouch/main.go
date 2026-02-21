@@ -23,18 +23,23 @@ func main() {
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			TokenIssuers:           cfg.TokenIssuers,
-			TokenAudiences:         cfg.TokenAudiences,
-			TokenLeeway:            cfg.TokenLeeway,
-			TokenMaxAge:            cfg.TokenMaxAge,
-			TokenAuthScheme:        cfg.TokenAuthScheme,
-			TokenRolesClaim:        cfg.TokenRolesClaim,
-			KeysURL:                cfg.KeysURL,
-			KeysUserAgent:          cfg.KeysUserAgent,
-			KeysTimeout:            cfg.KeysTimeout,
-			KeysMinRefreshInterval: cfg.KeysMinRefreshInterval,
-			KeysMaxRefreshInterval: cfg.KeysMaxRefreshInterval,
-			Logger:                 logger,
+			TokenIssuers:            cfg.TokenIssuers,
+			TokenAudiences:          cfg.TokenAudiences,
+			TokenLeeway:             cfg.TokenLeeway,
+			TokenMaxAge:             cfg.TokenMaxAge,
+			TokenAuthScheme:         cfg.TokenAuthScheme,
+			TokenRolesClaim:         cfg.TokenRolesClaim,
+			KeysURL:                 cfg.KeysURL,
+			KeysUserAgent:           cfg.KeysUserAgent,
+			KeysTimeout:             cfg.KeysTimeout,
+			KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
+			KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,
+			KeysAttemptLimit:        cfg.KeysAttemptLimit,
+			KeysBackoffMinDelay:     cfg.KeysBackoffMinDelay,
+			KeysBackoffMaxDelay:     cfg.KeysBackoffMaxDelay,
+			KeysBackoffGrowthFactor: cfg.KeysBackoffGrowthFactor,
+			KeysBackoffJitterAmount: cfg.KeysBackoffJitterAmount,
+			Logger:                  logger,
 		})
 
 		stamper := stamper.New(&stamper.Config{

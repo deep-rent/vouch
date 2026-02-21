@@ -36,6 +36,7 @@ type Config struct {
 	KeysTimeout             time.Duration `env:",unit:s,default:10"`
 	KeysMinRefreshInterval  time.Duration `env:",unit:m,default:60"`
 	KeysMaxRefreshInterval  time.Duration `env:",unit:m,default:28800"`
+	KeysAttemptLimit        int           `env:",default:0"`
 	KeysBackoffMinDelay     time.Duration `env:",unit:s,default:1"`
 	KeysBackoffMaxDelay     time.Duration `env:",unit:s,default:120"`
 	KeysBackoffGrowthFactor float64       `env:",default:1.75"`
