@@ -41,10 +41,16 @@ func New(cfg *Config) *Server {
 }
 
 func (s *Server) Start() {
-	s.logger.Info("Server listening", "address", s.server.Addr)
-	if err := s.server.ListenAndServe(); err != nil &&
-		err != http.ErrServerClosed {
-		s.logger.Error("Server failed", "error", err)
+	host, port, _ := net.SplitHostPort(s.server.Addr)
+	s.logger.Info(
+		"Server listening",
+		slog.String("host", host),
+		slog.String("port", port),
+	)
+
+	err := s.server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		s.logger.Error("Server failed", slog.Any("error", err))
 	}
 }
 
