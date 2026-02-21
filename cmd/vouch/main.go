@@ -44,22 +44,26 @@ func main() {
 		})
 
 		gateway := gateway.New(&gateway.Config{
-			Bouncer: bouncer,
-			Stamper: stamper,
-			URL:     cfg.URL,
-
-			FlushInterval: -1,
-			Logger:        logger,
+			Bouncer:         bouncer,
+			Stamper:         stamper,
+			URL:             cfg.URL,
+			FlushInterval:   -1,
+			MinBufferSize:   0,
+			MaxBufferSize:   0,
+			MaxIdleConns:    0,
+			IdleConnTimeout: time.Second,
+			Logger:          logger,
 		})
 
 		s := server.New(&server.Config{
 			Handler:           gateway,
-			Host:              "",
-			Port:              "8080",
-			ReadHeaderTimeout: time.Second,
-			ReadTimeout:       time.Second,
-			WriteTimeout:      time.Second,
-			IdleTimeout:       time.Second,
+			Host:              cfg.Host,
+			Port:              cfg.Port,
+			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+			ReadTimeout:       cfg.ReadTimeout,
+			WriteTimeout:      cfg.WriteTimeout,
+			IdleTimeout:       cfg.IdleTimeout,
+			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 			Logger:            logger,
 		})
 		go s.Start()
