@@ -11,7 +11,7 @@ type Config struct {
 	Level  string `env:",default:info"`
 	Format string `env:",default:json"`
 
-	Target            *url.URL      `env:",required"`
+	URL               *url.URL      `env:",required"`
 	Host              string        `env:",default:"`
 	Port              string        `env:",default:8080"`
 	ReadHeaderTimeout time.Duration `env:",unit:s,default:5"`

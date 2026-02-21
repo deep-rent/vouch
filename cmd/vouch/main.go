@@ -8,39 +8,46 @@ import (
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
 	"github.com/deep-rent/vouch/internal/bouncer"
+	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/gateway"
 	"github.com/deep-rent/vouch/internal/server"
 	"github.com/deep-rent/vouch/internal/stamper"
 )
 
 func main() {
-	logger := log.New(log.WithLevel("info"), log.WithFormat(log.FormatJSON))
+	cfg, err := config.Load()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	logger := log.New(log.WithLevel(cfg.Level), log.WithFormat(cfg.Format))
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			JWKS:               "",
-			Issuers:            []string{},
-			Audiences:          []string{},
-			Leeway:             time.Minute,
-			MaxAge:             time.Hour,
-			UserAgent:          "Vouch",
-			Timeout:            10 * time.Second,
-			MinRefreshInterval: time.Minute,
-			MaxRefreshInterval: 8 * time.Hour,
-			AuthScheme:         "Bearer",
-			RolesClaim:         "_couchdb.roles",
+			JWKS:               cfg.JWKS,
+			Issuers:            cfg.Issuers,
+			Audiences:          cfg.Audiences,
+			Leeway:             cfg.Leeway,
+			MaxAge:             cfg.MaxAge,
+			UserAgent:          cfg.UserAgent,
+			Timeout:            cfg.Timeout,
+			MinRefreshInterval: cfg.MinRefreshInterval,
+			MaxRefreshInterval: cfg.MaxRefreshInterval,
+			AuthScheme:         cfg.AuthScheme,
+			RolesClaim:         cfg.RolesClaim,
 			Logger:             logger,
 		})
 
 		stamper := stamper.New(&stamper.Config{
-			UserNameHeader: "X-Auth-CouchDB-UserName",
-			RolesHeader:    "X-Auth-CouchDB-Roles",
+			UserNameHeader: cfg.UserNameHeader,
+			RolesHeader:    cfg.RolesHeader,
 		})
 
 		gateway := gateway.New(&gateway.Config{
-			Bouncer:       bouncer,
-			Stamper:       stamper,
-			URL:           nil,
+			Bouncer: bouncer,
+			Stamper: stamper,
+			URL:     cfg.URL,
+
 			FlushInterval: -1,
 			Logger:        logger,
 		})
