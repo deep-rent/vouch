@@ -18,17 +18,31 @@ func main() {
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			JWKS: "",
+			JWKS:               "",
+			Issuers:            []string{},
+			Audiences:          []string{},
+			Leeway:             time.Minute,
+			MaxAge:             time.Hour,
+			UserAgent:          "Vouch",
+			Timeout:            10 * time.Second,
+			MinRefreshInterval: time.Minute,
+			MaxRefreshInterval: 8 * time.Hour,
+			AuthScheme:         "Bearer",
+			RolesClaim:         "_couchdb.roles",
+			Logger:             logger,
 		})
 
 		stamper := stamper.New(&stamper.Config{
-			UserNameHeader: "X-Auth-CouchDB-UserName",
-			RolesHeader:    "X-Auth-CouchDB-Roles",
+			NameHeader: "X-Auth-CouchDB-UserName",
+			RoleHeader: "X-Auth-CouchDB-Roles",
 		})
 
 		gateway := gateway.New(&gateway.Config{
-			Bouncer: bouncer,
-			Stamper: stamper,
+			Bouncer:       bouncer,
+			Stamper:       stamper,
+			URL:           nil,
+			FlushInterval: -1,
+			Logger:        logger,
 		})
 
 		s := server.New(&server.Config{
