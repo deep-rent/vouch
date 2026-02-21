@@ -16,6 +16,7 @@ import (
 
 var (
 	ErrMissingToken      = errors.New("missing access token")
+	ErrInvalidToken      = errors.New("invalid access token")
 	ErrUndefinedUserName = errors.New("undefined subject in access token")
 )
 
@@ -88,7 +89,7 @@ func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	}
 	claims, err := b.verifier.Verify([]byte(token))
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidToken
 	}
 	name := claims.Sub
 	if name == "" {
