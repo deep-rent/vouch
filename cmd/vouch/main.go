@@ -23,22 +23,18 @@ func main() {
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			Token: &bouncer.TokenConfig{
-				Issuers:    cfg.TokenIssuers,
-				Audiences:  cfg.TokenAudiences,
-				Leeway:     cfg.TokenLeeway,
-				MaxAge:     cfg.TokenMaxAge,
-				AuthScheme: cfg.TokenAuthScheme,
-				RolesClaim: cfg.TokenRolesClaim,
-			},
-			Keys: &bouncer.KeysConfig{
-				URL:                cfg.KeysURL,
-				UserAgent:          cfg.KeysUserAgent,
-				Timeout:            cfg.KeysTimeout,
-				MinRefreshInterval: cfg.KeysMinRefreshInterval,
-				MaxRefreshInterval: cfg.KeysMaxRefreshInterval,
-			},
-			Logger: logger,
+			TokenIssuers:           cfg.TokenIssuers,
+			TokenAudiences:         cfg.TokenAudiences,
+			TokenLeeway:            cfg.TokenLeeway,
+			TokenMaxAge:            cfg.TokenMaxAge,
+			TokenAuthScheme:        cfg.TokenAuthScheme,
+			TokenRolesClaim:        cfg.TokenRolesClaim,
+			KeysURL:                cfg.KeysURL,
+			KeysUserAgent:          cfg.KeysUserAgent,
+			KeysTimeout:            cfg.KeysTimeout,
+			KeysMinRefreshInterval: cfg.KeysMinRefreshInterval,
+			KeysMaxRefreshInterval: cfg.KeysMaxRefreshInterval,
+			Logger:                 logger,
 		})
 
 		stamper := stamper.New(&stamper.Config{
@@ -69,6 +65,7 @@ func main() {
 			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 			Logger:            logger,
 		})
+
 		go s.Start()
 		<-ctx.Done()
 		return s.Stop()

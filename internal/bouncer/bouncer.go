@@ -25,31 +25,23 @@ type User struct {
 	Roles []string
 }
 
-type TokenConfig struct {
-	Issuers    []string
-	Audiences  []string
-	Leeway     time.Duration
-	MaxAge     time.Duration
-	AuthScheme string
-	RolesClaim string
-}
-
-type KeysConfig struct {
-	URL                 string
-	UserAgent           string
-	Timeout             time.Duration
-	MinRefreshInterval  time.Duration
-	MaxRefreshInterval  time.Duration
-	BackoffMinDelay     time.Duration
-	BackoffMaxDelay     time.Duration
-	BackoffGrowthFactor float64
-	BackoffJitterAmount float64
-}
-
 type Config struct {
-	Token  *TokenConfig
-	Keys   *KeysConfig
-	Logger *slog.Logger
+	TokenIssuers            []string
+	TokenAudiences          []string
+	TokenLeeway             time.Duration
+	TokenMaxAge             time.Duration
+	TokenAuthScheme         string
+	TokenRolesClaim         string
+	KeysURL                 string
+	KeysUserAgent           string
+	KeysTimeout             time.Duration
+	KeysMinRefreshInterval  time.Duration
+	KeysMaxRefreshInterval  time.Duration
+	KeysBackoffMinDelay     time.Duration
+	KeysBackoffMaxDelay     time.Duration
+	KeysBackoffGrowthFactor float64
+	KeysBackoffJitterAmount float64
+	Logger                  *slog.Logger
 }
 
 type Bouncer struct {
@@ -61,30 +53,30 @@ type Bouncer struct {
 
 func New(cfg *Config) *Bouncer {
 	set := jwk.NewCacheSet(
-		cfg.Keys.URL,
+		cfg.KeysURL,
 		cache.WithLogger(cfg.Logger),
-		cache.WithTimeout(cfg.Keys.Timeout),
-		cache.WithMinInterval(cfg.Keys.MinRefreshInterval),
-		cache.WithMaxInterval(cfg.Keys.MaxRefreshInterval),
-		cache.WithHeader("User-Agent", cfg.Keys.UserAgent),
+		cache.WithTimeout(cfg.KeysTimeout),
+		cache.WithMinInterval(cfg.KeysMinRefreshInterval),
+		cache.WithMaxInterval(cfg.KeysMaxRefreshInterval),
+		cache.WithHeader("User-Agent", cfg.KeysUserAgent),
 		cache.WithRetryOptions(
 			retry.WithLogger(cfg.Logger),
 			retry.WithBackoff(backoff.New(
-				backoff.WithMinDelay(cfg.Keys.BackoffMinDelay),
-				backoff.WithMaxDelay(cfg.Keys.BackoffMaxDelay),
-				backoff.WithJitterAmount(cfg.Keys.BackoffJitterAmount),
-				backoff.WithGrowthFactor(cfg.Keys.BackoffGrowthFactor),
+				backoff.WithMinDelay(cfg.KeysBackoffMinDelay),
+				backoff.WithMaxDelay(cfg.KeysBackoffMaxDelay),
+				backoff.WithJitterAmount(cfg.KeysBackoffJitterAmount),
+				backoff.WithGrowthFactor(cfg.KeysBackoffGrowthFactor),
 			)),
 		),
 	)
 	return &Bouncer{
 		verifier: jwt.NewVerifier[*jwt.DynamicClaims](set).
-			WithIssuers(cfg.Token.Issuers...).
-			WithAudiences(cfg.Token.Audiences...).
-			WithLeeway(cfg.Token.Leeway).
-			WithMaxAge(cfg.Token.MaxAge),
-		authScheme: cfg.Token.AuthScheme,
-		rolesClaim: cfg.Token.RolesClaim,
+			WithIssuers(cfg.TokenIssuers...).
+			WithAudiences(cfg.TokenAudiences...).
+			WithLeeway(cfg.TokenLeeway).
+			WithMaxAge(cfg.TokenMaxAge),
+		authScheme: cfg.TokenAuthScheme,
+		rolesClaim: cfg.TokenRolesClaim,
 		logger:     cfg.Logger,
 	}
 }
