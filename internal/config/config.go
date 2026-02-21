@@ -1,6 +1,35 @@
 package config
 
+import "time"
+
 type Config struct {
-	LogLevel  string `env:",default=info"`
-	LogFormat string `env:",default=json"`
+	Level  string `env:",default:info"`
+	Format string `env:",default:json"`
+
+	Host              string        `env:",default:0.0.0.0"`
+	Port              string        `env:",default:8080"`
+	ReadHeaderTimeout time.Duration `env:",unit:s,default:5"`
+	ReadTimeout       time.Duration `env:",unit:s,default:5"`
+	WriteTimeout      time.Duration `env:",unit:s,default:5"`
+	IdleTimeout       time.Duration `env:",unit:s,default:5"`
+	MaxHeaderBytes    int           `env:",default:0"`
+	UserNameHeader    string        `env:",default:X-Auth-CouchDB-UserName"`
+	RolesHeader       string        `env:",default:X-Auth-CouchDB-Roles"`
+
+	Issuers    []string      `env:",split"`
+	Audiences  []string      `env:",split"`
+	Leeway     time.Duration `env:",unit:s,default:30"`
+	MaxAge     time.Duration `env:",unit:s,default:0"`
+	AuthScheme string        `env:",default:Bearer"`
+	RolesClaim string        `env:",default:_couchdb.roles"`
+
+	JWKS                string        `env:",required"`
+	UserAgent           string        `env:",default:Vouch"`
+	Timeout             time.Duration `env:",unit:s,default:10"`
+	MinRefreshInterval  time.Duration `env:",unit:s,default:60"`
+	MaxRefreshInterval  time.Duration `env:",unit:s,default:28800"`
+	BackoffMinDelay     time.Duration `env:",unit:s,default:1"`
+	BackoffMaxDelay     time.Duration `env:",unit:s,default:120"`
+	BackoffGrowthFactor float64       `env:",default:1.75"`
+	BackoffJitterAmount float64       `env:",default:0.66"`
 }
