@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	Level              string
+	LogLevel           string
+	LogFormat          string
 	Host               string
 	Port               string
-	URL                *url.URL
+	Target             *url.URL
 	JWKS               string
 	Issuers            []string
 	Audiences          []string
