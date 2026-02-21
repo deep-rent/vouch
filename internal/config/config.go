@@ -23,7 +23,7 @@ type Config struct {
 	FlushInterval           time.Duration `env:",unit:ms,default:-1"`
 	MinBufferSize           int           `env:",default:32768"`
 	MaxBufferSize           int           `env:",default:262144"`
-	MaxIdleConns            int           `env:",default:1000"`
+	MaxIdleConns            int           `env:",default:512"`
 	IdleConnTimeout         time.Duration `env:",unit:s,default:90"`
 	TokenIssuers            []string      `env:",split"`
 	TokenAudiences          []string      `env:",split"`
