@@ -35,6 +35,10 @@ func New(cfg *Config) *Server {
 			WriteTimeout:      cfg.WriteTimeout,
 			IdleTimeout:       cfg.IdleTimeout,
 			MaxHeaderBytes:    cfg.MaxHeaderBytes,
+			ErrorLog: slog.NewLogLogger(
+				cfg.Logger.Handler(),
+				slog.LevelError,
+			),
 		},
 		logger: cfg.Logger,
 	}
