@@ -34,7 +34,7 @@ func main() {
 
 		stamper := stamper.New(&stamper.Config{
 			UserNameHeader: "X-Auth-CouchDB-UserName",
-			RolesHeader: "X-Auth-CouchDB-Roles",
+			RolesHeader:    "X-Auth-CouchDB-Roles",
 		})
 
 		gateway := gateway.New(&gateway.Config{
