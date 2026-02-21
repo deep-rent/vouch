@@ -94,12 +94,13 @@ func main() {
 
 		select {
 		case err := <-errCh:
+			return err
+		case <-ctx.Done():
+			err := s.Stop()
 			if err != nil && err != http.ErrServerClosed {
 				return err
 			}
 			return nil
-		case <-ctx.Done():
-			return s.Stop()
 		}
 	}
 
