@@ -25,18 +25,22 @@ type User struct {
 }
 
 type Config struct {
-	JWKS               string
-	Issuers            []string
-	Audiences          []string
-	Leeway             time.Duration
-	MaxAge             time.Duration
-	UserAgent          string
-	Timeout            time.Duration
-	MinRefreshInterval time.Duration
-	MaxRefreshInterval time.Duration
-	AuthScheme         string
-	RolesClaim         string
-	Logger             *slog.Logger
+	JWKS                string
+	Issuers             []string
+	Audiences           []string
+	Leeway              time.Duration
+	MaxAge              time.Duration
+	UserAgent           string
+	Timeout             time.Duration
+	MinRefreshInterval  time.Duration
+	MaxRefreshInterval  time.Duration
+	AuthScheme          string
+	RolesClaim          string
+	BackoffMinDelay     time.Duration
+	BackoffMaxDelay     time.Duration
+	BackoffGrowthFactor float64
+	BackoffJitterAmount float64
+	Logger              *slog.Logger
 }
 
 type Bouncer struct {
@@ -56,10 +60,10 @@ func New(cfg *Config) *Bouncer {
 		cache.WithRetryOptions(
 			retry.WithLogger(cfg.Logger),
 			retry.WithBackoff(backoff.New(
-				backoff.WithMinDelay(time.Second),
-				backoff.WithMaxDelay(time.Minute),
-				backoff.WithJitterAmount(0.66),
-				backoff.WithGrowthFactor(1.75),
+				backoff.WithMinDelay(cfg.BackoffMinDelay),
+				backoff.WithMaxDelay(cfg.BackoffMaxDelay),
+				backoff.WithJitterAmount(cfg.BackoffJitterAmount),
+				backoff.WithGrowthFactor(cfg.BackoffGrowthFactor),
 			)),
 		),
 	)
