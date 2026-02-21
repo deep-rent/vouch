@@ -25,8 +25,8 @@ type Config struct {
 	MaxBufferSize           int           `env:",default:262144"`
 	MaxIdleConns            int           `env:",default:512"`
 	IdleConnTimeout         time.Duration `env:",unit:s,default:90"`
-	TokenIssuers            []string      `env:",split"`
-	TokenAudiences          []string      `env:",split"`
+	TokenIssuers            []string      `env:""`
+	TokenAudiences          []string      `env:""`
 	TokenLeeway             time.Duration `env:",unit:s,default:30"`
 	TokenMaxAge             time.Duration `env:",unit:s,default:0"`
 	TokenAuthScheme         string        `env:",default:Bearer"`
