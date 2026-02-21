@@ -22,7 +22,7 @@ func main() {
 	runnable := func(ctx context.Context) error {
 		server := &http.Server{
 			Addr:    fmt.Sprintf(":%s", cfg.Port),
-			Handler: guard.New(cfg),
+			Handler: guard.New(&guard.Config{}),
 		}
 
 		go func() {

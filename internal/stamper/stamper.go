@@ -5,25 +5,28 @@ import (
 	"strings"
 
 	"github.com/deep-rent/vouch/internal/bouncer"
-	"github.com/deep-rent/vouch/internal/config"
 )
 
-type Stamper struct {
-	userHeader  string
-	rolesHeader string
+type Config struct {
+	UserNameHeader string
+	RolesHeader    string
 }
 
-func New(cfg *config.Config) *Stamper {
+type Stamper struct {
+	userNameHeader string
+	rolesHeader    string
+}
+
+func New(cfg *Config) *Stamper {
 	return &Stamper{
-		userHeader:  cfg.UserHeader,
-		rolesHeader: cfg.RolesHeader,
+		userNameHeader: cfg.UserNameHeader,
+		rolesHeader:    cfg.RolesHeader,
 	}
 }
 
 func (s *Stamper) Stamp(req *http.Request, pass *bouncer.Pass) {
-	req.Header.Set(s.userHeader, pass.User)
+	req.Header.Set(s.userNameHeader, pass.UserName)
 	if len(pass.Roles) > 0 {
 		req.Header.Set(s.rolesHeader, strings.Join(pass.Roles, ","))
 	}
-	req.Header.Del("Authorization")
 }

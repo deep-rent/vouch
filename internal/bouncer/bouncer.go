@@ -2,6 +2,7 @@ package bouncer
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,15 +12,29 @@ import (
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
 	"github.com/deep-rent/nexus/retry"
-	"github.com/deep-rent/vouch/internal/config"
 )
 
 var ErrMissingToken = errors.New("missing access token")
 var ErrUndefinedSubject = errors.New("undefined subject in access token")
 
 type Pass struct {
-	User  string
-	Roles []string
+	UserName string
+	Roles    []string
+}
+
+type Config struct {
+	JWKS               string
+	Issuers            []string
+	Audiences          []string
+	Leeway             time.Duration
+	MaxAge             time.Duration
+	UserAgent          string
+	Timeout            time.Duration
+	MinRefreshInterval time.Duration
+	MaxRefreshInterval time.Duration
+	AuthScheme         string
+	RolesClaim         string
+	Logger             *slog.Logger
 }
 
 type Bouncer struct {
@@ -28,7 +43,7 @@ type Bouncer struct {
 	rolesClaim string
 }
 
-func New(cfg *config.Config) *Bouncer {
+func New(cfg *Config) *Bouncer {
 	set := jwk.NewCacheSet(
 		cfg.JWKS,
 		cache.WithLogger(cfg.Logger),
@@ -59,6 +74,7 @@ func New(cfg *config.Config) *Bouncer {
 
 func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 	token := header.Credentials(req.Header, b.authScheme)
+	req.Header.Del("Authorization")
 	if token == "" {
 		return nil, ErrMissingToken
 	}
@@ -66,8 +82,8 @@ func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 	if err != nil {
 		return nil, err
 	}
-	user := claims.Sub
-	if user == "" {
+	userName := claims.Sub
+	if userName == "" {
 		return nil, ErrUndefinedSubject
 	}
 	roles, ok := jwt.Get[[]string](claims, b.rolesClaim)
@@ -75,7 +91,7 @@ func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 		roles = make([]string, 0)
 	}
 	return &Pass{
-		User:  user,
-		Roles: roles,
+		UserName: userName,
+		Roles:    roles,
 	}, nil
 }
