@@ -1,6 +1,6 @@
 package config
 
 type Config struct {
-	LogLevel  string
-	LogFormat string
+	LogLevel  string `env:",default=info"`
+	LogFormat string `env:",default=json"`
 }
