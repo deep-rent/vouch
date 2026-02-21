@@ -7,6 +7,9 @@ import (
 	"github.com/deep-rent/nexus/env"
 )
 
+// Config holds the application configuration. It is populated from environment
+// variables prefixed with "VOUCH_". The struct tags define the default values
+// and parsing rules for each field.
 type Config struct {
 	LogLevel                string        `env:",default:info"`
 	LogFormat               string        `env:",default:json"`
@@ -43,6 +46,9 @@ type Config struct {
 	KeysBackoffJitterAmount float64       `env:",default:0.66"`
 }
 
+// Load reads the configuration from environment variables, applying the
+// "VOUCH_" prefix to all lookups. It returns an error if required variables
+// are missing or if parsing fails.
 func Load() (*Config, error) {
 	var cfg Config
 	if err := env.Unmarshal(&cfg, env.WithPrefix("VOUCH_")); err != nil {
