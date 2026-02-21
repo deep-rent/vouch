@@ -23,6 +23,8 @@ func main() {
 		server := &http.Server{
 			Addr:    net.JoinHostPort(cfg.Host, cfg.Port),
 			Handler: guard.New(&guard.Config{}),
+			// Strictly rely on CouchDB to close connections.
+			WriteTimeout: 0,
 		}
 
 		go func() {
