@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/deep-rent/nexus/middleware"
 )
 
 type Config struct {
@@ -26,10 +28,19 @@ type Server struct {
 }
 
 func New(cfg *Config) *Server {
+	// Collect middleware to apply to the handler.
+	pipes := []middleware.Pipe{middleware.Recover(cfg.Logger)}
+
+	// Only add logging middleware if debug logging is enabled, to avoid the
+	// overhead of logging every request when it's not necessary.
+	if cfg.Logger.Enabled(context.Background(), slog.LevelDebug) {
+		pipes = append(pipes, middleware.Log(cfg.Logger))
+	}
+
 	return &Server{
 		server: &http.Server{
 			Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
-			Handler:           cfg.Handler,
+			Handler:           middleware.Chain(cfg.Handler, pipes...),
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 			ReadTimeout:       cfg.ReadTimeout,
 			WriteTimeout:      cfg.WriteTimeout,

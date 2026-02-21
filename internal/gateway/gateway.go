@@ -1,13 +1,11 @@
 package gateway
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/deep-rent/nexus/middleware"
 	"github.com/deep-rent/nexus/proxy"
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/stamper"
@@ -61,16 +59,6 @@ func New(cfg *Config) http.Handler {
 		proxy.WithLogger(cfg.Logger),
 	)
 
-	// Collect middleware to apply to the handler.
-	pipes := []middleware.Pipe{middleware.Recover(cfg.Logger)}
-
-	// Only add logging middleware if debug logging is enabled, to avoid the
-	// overhead of logging every request when it's not necessary.
-	if cfg.Logger.Enabled(context.Background(), slog.LevelDebug) {
-		pipes = append(pipes, middleware.Log(cfg.Logger))
-	}
-
-	handler = middleware.Chain(handler, pipes...)
 	return &Gateway{
 		bouncer: cfg.Bouncer,
 		stamper: cfg.Stamper,
