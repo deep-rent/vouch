@@ -23,18 +23,22 @@ func main() {
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			JWKS:               cfg.KeySetURL,
-			Issuers:            cfg.TokenIssuers,
-			Audiences:          cfg.TokenAudiences,
-			Leeway:             cfg.TokenLeeway,
-			MaxAge:             cfg.TokenMaxAge,
-			UserAgent:          cfg.KeySetUserAgent,
-			Timeout:            cfg.KeySetTimeout,
-			MinRefreshInterval: cfg.KeySetMinRefreshInterval,
-			MaxRefreshInterval: cfg.KeySetMaxRefreshInterval,
-			AuthScheme:         cfg.TokenAuthScheme,
-			RolesClaim:         cfg.TokenRolesClaim,
-			Logger:             logger,
+			Token: &bouncer.TokenConfig{
+				Issuers:    cfg.TokenIssuers,
+				Audiences:  cfg.TokenAudiences,
+				Leeway:     cfg.TokenLeeway,
+				MaxAge:     cfg.TokenMaxAge,
+				AuthScheme: cfg.TokenAuthScheme,
+				RolesClaim: cfg.TokenRolesClaim,
+			},
+			Keys: &bouncer.KeysConfig{
+				URL:                cfg.KeysURL,
+				UserAgent:          cfg.KeysUserAgent,
+				Timeout:            cfg.KeysTimeout,
+				MinRefreshInterval: cfg.KeysMinRefreshInterval,
+				MaxRefreshInterval: cfg.KeysMaxRefreshInterval,
+			},
+			Logger: logger,
 		})
 
 		stamper := stamper.New(&stamper.Config{
