@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
@@ -25,6 +26,15 @@ func main() {
 			Handler: guard.New(&guard.Config{}),
 			// Strictly rely on CouchDB to close connections.
 			WriteTimeout: 0,
+			// Drop slow clients early without affecting long polling or large payload
+			// uploads.
+			ReadHeaderTimeout: 5 * time.Second,
+			// If you allow very large document uploads (e.g., attachments), ensure
+			// this is long enough to receive the payload. If you only expect small
+			// JSON documents, keep it tight.
+			ReadTimeout: 30 * time.Second,
+			// Controls the keep-alive time between the external client and the proxy.
+			IdleTimeout: 2 * time.Minute,
 		}
 
 		go func() {
