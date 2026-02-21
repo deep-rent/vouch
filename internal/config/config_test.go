@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/deep-rent/vouch/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoad(t *testing.T) {
@@ -49,114 +51,46 @@ func TestLoad(t *testing.T) {
 	}
 
 	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load() returned unexpected error: %v", err)
-	}
-	if cfg.LogLevel != "warn" {
-		t.Errorf("LogLevel: got %q, want %q", cfg.LogLevel, "debug")
-	}
-	if cfg.LogFormat != "text" {
-		t.Errorf("LogFormat: got %q, want %q", cfg.LogFormat, "text")
-	}
-	if cfg.Host != "127.0.0.1" {
-		t.Errorf("Host: got %q, want %q", cfg.Host, "127.0.0.1")
-	}
-	if cfg.Port != "9090" {
-		t.Errorf("Port: got %q, want %q", cfg.Port, "9090")
-	}
-	if cfg.UserNameHeader != "X-User" {
-		t.Errorf("UserNameHeader: got %q, want %q", cfg.UserNameHeader, "X-User")
-	}
-	if cfg.RolesHeader != "X-Roles" {
-		t.Errorf("RolesHeader: got %q, want %q", cfg.RolesHeader, "X-Roles")
-	}
-	if cfg.TokenAuthScheme != "OAuth" {
-		t.Errorf("TokenAuthScheme: got %q, want %q", cfg.TokenAuthScheme, "OAuth")
-	}
-	if cfg.TokenRolesClaim != "roles" {
-		t.Errorf("TokenRolesClaim: got %q, want %q", cfg.TokenRolesClaim, "roles")
-	}
-	if cfg.KeysURL != "https://c.com/.well-known/jwks.json" {
-		t.Errorf("KeysURL: got %q, want %q", cfg.KeysURL, "https://c.com/.well-known/jwks.json")
-	}
-	if cfg.KeysUserAgent != "Vouch-Test" {
-		t.Errorf("KeysUserAgent: got %q, want %q", cfg.KeysUserAgent, "Vouch-Test")
-	}
-	if cfg.MaxHeaderBytes != 1048576 {
-		t.Errorf("MaxHeaderBytes: got %d, want %d", cfg.MaxHeaderBytes, 1048576)
-	}
-	if cfg.MinBufferSize != 4096 {
-		t.Errorf("MinBufferSize: got %d, want %d", cfg.MinBufferSize, 4096)
-	}
-	if cfg.MaxBufferSize != 8192 {
-		t.Errorf("MaxBufferSize: got %d, want %d", cfg.MaxBufferSize, 8192)
-	}
-	if cfg.MaxIdleConns != 100 {
-		t.Errorf("MaxIdleConns: got %d, want %d", cfg.MaxIdleConns, 100)
-	}
-	if cfg.KeysAttemptLimit != 3 {
-		t.Errorf("KeysAttemptLimit: got %d, want %d", cfg.KeysAttemptLimit, 3)
-	}
-	if expected := 10 * time.Second; cfg.ReadHeaderTimeout != expected {
-		t.Errorf("ReadHeaderTimeout: got %v, want %v", cfg.ReadHeaderTimeout, expected)
-	}
-	if expected := 15 * time.Second; cfg.ReadTimeout != expected {
-		t.Errorf("ReadTimeout: got %v, want %v", cfg.ReadTimeout, expected)
-	}
-	if expected := 20 * time.Second; cfg.WriteTimeout != expected {
-		t.Errorf("WriteTimeout: got %v, want %v", cfg.WriteTimeout, expected)
-	}
-	if expected := 120 * time.Second; cfg.IdleTimeout != expected {
-		t.Errorf("IdleTimeout: got %v, want %v", cfg.IdleTimeout, expected)
-	}
-	if expected := 500 * time.Millisecond; cfg.FlushInterval != expected {
-		t.Errorf("FlushInterval: got %v, want %v", cfg.FlushInterval, expected)
-	}
-	if expected := 60 * time.Second; cfg.IdleConnTimeout != expected {
-		t.Errorf("IdleConnTimeout: got %v, want %v", cfg.IdleConnTimeout, expected)
-	}
-	if expected := 5 * time.Second; cfg.TokenLeeway != expected {
-		t.Errorf("TokenLeeway: got %v, want %v", cfg.TokenLeeway, expected)
-	}
-	if expected := 3600 * time.Second; cfg.TokenMaxAge != expected {
-		t.Errorf("TokenMaxAge: got %v, want %v", cfg.TokenMaxAge, expected)
-	}
-	if expected := 5 * time.Second; cfg.KeysTimeout != expected {
-		t.Errorf("KeysTimeout: got %v, want %v", cfg.KeysTimeout, expected)
-	}
-	if expected := 10 * time.Minute; cfg.KeysMinRefreshInterval != expected {
-		t.Errorf("KeysMinRefreshInterval: got %v, want %v", cfg.KeysMinRefreshInterval, expected)
-	}
-	if expected := 60 * time.Minute; cfg.KeysMaxRefreshInterval != expected {
-		t.Errorf("KeysMaxRefreshInterval: got %v, want %v", cfg.KeysMaxRefreshInterval, expected)
-	}
-	if expected := 2 * time.Second; cfg.KeysBackoffMinDelay != expected {
-		t.Errorf("KeysBackoffMinDelay: got %v, want %v", cfg.KeysBackoffMinDelay, expected)
-	}
-	if expected := 30 * time.Second; cfg.KeysBackoffMaxDelay != expected {
-		t.Errorf("KeysBackoffMaxDelay: got %v, want %v", cfg.KeysBackoffMaxDelay, expected)
-	}
-	if cfg.Target == nil || cfg.Target.String() != "http://couchdb:5984" {
-		t.Errorf("Target: got %v, want %q", cfg.Target, "http://couchdb:5984")
-	}
-	if len(cfg.TokenIssuers) != 2 {
-		t.Errorf("TokenIssuers length: got %d, want 2", len(cfg.TokenIssuers))
-	} else {
-		if cfg.TokenIssuers[0] != "https://a.com" {
-			t.Errorf("TokenIssuers[0]: got %q", cfg.TokenIssuers[0])
-		}
-	}
-	if len(cfg.TokenAudiences) != 2 {
-		t.Errorf("TokenAudiences length: got %d, want 2", len(cfg.TokenAudiences))
-	} else {
-		if cfg.TokenAudiences[0] != "api" {
-			t.Errorf("TokenAudiences[0]: got %q", cfg.TokenAudiences[0])
-		}
-	}
-	if cfg.KeysBackoffGrowthFactor != 2.5 {
-		t.Errorf("KeysBackoffGrowthFactor: got %f, want 2.5", cfg.KeysBackoffGrowthFactor)
-	}
-	if cfg.KeysBackoffJitterAmount != 0.1 {
-		t.Errorf("KeysBackoffJitterAmount: got %f, want 0.1", cfg.KeysBackoffJitterAmount)
-	}
+	require.NoError(t, err)
+
+	assert.Equal(t, "warn", cfg.LogLevel)
+	assert.Equal(t, "text", cfg.LogFormat)
+	assert.Equal(t, "127.0.0.1", cfg.Host)
+	assert.Equal(t, "9090", cfg.Port)
+	assert.Equal(t, "X-User", cfg.UserNameHeader)
+	assert.Equal(t, "X-Roles", cfg.RolesHeader)
+	assert.Equal(t, "OAuth", cfg.TokenAuthScheme)
+	assert.Equal(t, "roles", cfg.TokenRolesClaim)
+	assert.Equal(t, "https://c.com/.well-known/jwks.json", cfg.KeysURL)
+	assert.Equal(t, "Vouch-Test", cfg.KeysUserAgent)
+	assert.Equal(t, 1048576, cfg.MaxHeaderBytes)
+	assert.Equal(t, 4096, cfg.MinBufferSize)
+	assert.Equal(t, 8192, cfg.MaxBufferSize)
+	assert.Equal(t, 100, cfg.MaxIdleConns)
+	assert.Equal(t, 3, cfg.KeysAttemptLimit)
+	assert.Equal(t, 10*time.Second, cfg.ReadHeaderTimeout)
+	assert.Equal(t, 15*time.Second, cfg.ReadTimeout)
+	assert.Equal(t, 20*time.Second, cfg.WriteTimeout)
+	assert.Equal(t, 120*time.Second, cfg.IdleTimeout)
+	assert.Equal(t, 500*time.Millisecond, cfg.FlushInterval)
+	assert.Equal(t, 60*time.Second, cfg.IdleConnTimeout)
+	assert.Equal(t, 5*time.Second, cfg.TokenLeeway)
+	assert.Equal(t, 3600*time.Second, cfg.TokenMaxAge)
+	assert.Equal(t, 5*time.Second, cfg.KeysTimeout)
+	assert.Equal(t, 10*time.Minute, cfg.KeysMinRefreshInterval)
+	assert.Equal(t, 60*time.Minute, cfg.KeysMaxRefreshInterval)
+	assert.Equal(t, 2*time.Second, cfg.KeysBackoffMinDelay)
+	assert.Equal(t, 30*time.Second, cfg.KeysBackoffMaxDelay)
+
+	require.NotNil(t, cfg.Target)
+	assert.Equal(t, "http://couchdb:5984", cfg.Target.String())
+
+	assert.Len(t, cfg.TokenIssuers, 2)
+	assert.Equal(t, "https://a.com", cfg.TokenIssuers[0])
+
+	assert.Len(t, cfg.TokenAudiences, 2)
+	assert.Equal(t, "api", cfg.TokenAudiences[0])
+
+	assert.Equal(t, 2.5, cfg.KeysBackoffGrowthFactor)
+	assert.Equal(t, 0.1, cfg.KeysBackoffJitterAmount)
 }
