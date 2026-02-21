@@ -22,6 +22,12 @@ type Config struct {
 	UserNameHeader    string        `env:",default:X-Auth-CouchDB-UserName"`
 	RolesHeader       string        `env:",default:X-Auth-CouchDB-Roles"`
 
+	FlushInterval   time.Duration
+	MinBufferSize   int
+	MaxBufferSize   int
+	MaxIdleConns    int
+	IdleConnTimeout time.Duration
+
 	Issuers    []string      `env:",split"`
 	Audiences  []string      `env:",split"`
 	Leeway     time.Duration `env:",unit:s,default:30"`

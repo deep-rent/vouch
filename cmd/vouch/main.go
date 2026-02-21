@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"os"
-	"time"
 
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
@@ -47,11 +46,11 @@ func main() {
 			Bouncer:         bouncer,
 			Stamper:         stamper,
 			URL:             cfg.URL,
-			FlushInterval:   -1,
-			MinBufferSize:   0,
-			MaxBufferSize:   0,
-			MaxIdleConns:    0,
-			IdleConnTimeout: time.Second,
+			FlushInterval:   cfg.FlushInterval,
+			MinBufferSize:   cfg.MinBufferSize,
+			MaxBufferSize:   cfg.MaxBufferSize,
+			MaxIdleConns:    cfg.MaxIdleConns,
+			IdleConnTimeout: cfg.IdleConnTimeout,
 			Logger:          logger,
 		})
 
