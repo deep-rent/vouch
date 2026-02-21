@@ -12,7 +12,7 @@ type Config struct {
 	Format              string        `env:",default:json"`
 	URL                 *url.URL      `env:",required"`
 	Host                string        `env:",default:"`
-	Port                string        `env:",default:8080"`
+	Port                string        `env:",default:5984"`
 	ReadHeaderTimeout   time.Duration `env:",unit:s,default:5"`
 	ReadTimeout         time.Duration `env:",unit:s,default:30"`
 	WriteTimeout        time.Duration `env:",unit:s,default:0"`
