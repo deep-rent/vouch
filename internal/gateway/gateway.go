@@ -50,7 +50,8 @@ func New(cfg *Config) http.Handler {
 			MaxIdleConnsPerHost: cfg.MaxIdleConns,
 			// We wish to reuse connections as much as possible, but we also need to
 			// eventually prune that CouchDB might have silently dropped.
-			IdleConnTimeout:    cfg.IdleConnTimeout,
+			IdleConnTimeout: cfg.IdleConnTimeout,
+			// CouchDB already compresses its responses if the client requests it.
 			DisableCompression: true,
 			// CouchDB doesn't support HTTP/2.
 			ForceAttemptHTTP2: false,
