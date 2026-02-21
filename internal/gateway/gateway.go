@@ -29,6 +29,7 @@ type Gateway struct {
 	bouncer *bouncer.Bouncer
 	stamper *stamper.Stamper
 	backend http.Handler
+	logger  *slog.Logger
 }
 
 func New(cfg *Config) http.Handler {
@@ -74,12 +75,18 @@ func New(cfg *Config) http.Handler {
 		bouncer: cfg.Bouncer,
 		stamper: cfg.Stamper,
 		backend: handler,
+		logger:  cfg.Logger,
 	}
 }
 
 func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	pass, err := h.bouncer.Bounce(req)
 	if err != nil {
+		h.logger.DebugContext(
+			req.Context(),
+			"Request denied",
+			slog.Any("error", err),
+		)
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
