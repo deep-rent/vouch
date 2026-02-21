@@ -29,7 +29,7 @@ func TestLoad(t *testing.T) {
 		"VOUCH_MAX_IDLE_CONNS":             "100",
 		"VOUCH_IDLE_CONN_TIMEOUT":          "60",
 		"VOUCH_TOKEN_ISSUERS":              "https://auth-1.com,https://auth-2.com",
-		"VOUCH_TOKEN_AUDIENCES":            "api,admin",
+		"VOUCH_TOKEN_AUDIENCES":            "basic,admin",
 		"VOUCH_TOKEN_LEEWAY":               "5",
 		"VOUCH_TOKEN_MAX_AGE":              "3600",
 		"VOUCH_TOKEN_AUTH_SCHEME":          "OAuth",
@@ -87,7 +87,8 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "https://auth-1.com", cfg.TokenIssuers[0])
 	assert.Equal(t, "https://auth-2.com", cfg.TokenIssuers[1])
 	assert.Len(t, cfg.TokenAudiences, 2)
-	assert.Equal(t, "api", cfg.TokenAudiences[0])
+	assert.Equal(t, "basic", cfg.TokenAudiences[0])
+	assert.Equal(t, "admin", cfg.TokenAudiences[1])
 	assert.Equal(t, 2.5, cfg.KeysBackoffGrowthFactor)
 	assert.Equal(t, 0.1, cfg.KeysBackoffJitterAmount)
 }
