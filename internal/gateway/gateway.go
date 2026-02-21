@@ -59,16 +59,15 @@ func New(cfg *Config) http.Handler {
 		}),
 		proxy.WithLogger(cfg.Logger),
 	)
-	handler = middleware.Chain(
-		handler,
+
+	pipes := []middleware.Pipe{
 		middleware.Recover(cfg.Logger),
-	)
-	if cfg.Logger.Enabled(context.Background(), slog.LevelDebug) {
-		handler = middleware.Chain(
-			handler,
-			middleware.Log(cfg.Logger),
-		)
 	}
+	if cfg.Logger.Enabled(context.Background(), slog.LevelDebug) {
+		pipes = append(pipes, middleware.Log(cfg.Logger))
+	}
+
+	handler = middleware.Chain(handler, pipes...)
 	return &Gateway{
 		bouncer: cfg.Bouncer,
 		stamper: cfg.Stamper,
