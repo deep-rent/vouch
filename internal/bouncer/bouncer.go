@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	ErrMissingToken     = errors.New("missing access token")
-	ErrUndefinedSubject = errors.New("undefined subject in access token")
+	ErrMissingToken      = errors.New("missing access token")
+	ErrUndefinedUserName = errors.New("undefined subject in access token")
 )
 
 type Pass struct {
@@ -76,6 +76,8 @@ func New(cfg *Config) *Bouncer {
 
 func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 	token := header.Credentials(req.Header, b.authScheme)
+	// Strip the token from the request header to prevent it from being forwarded
+	// to the upstream service.
 	req.Header.Del("Authorization")
 	if token == "" {
 		return nil, ErrMissingToken
@@ -86,7 +88,7 @@ func (b *Bouncer) Bounce(req *http.Request) (*Pass, error) {
 	}
 	userName := claims.Sub
 	if userName == "" {
-		return nil, ErrUndefinedSubject
+		return nil, ErrUndefinedUserName
 	}
 	roles, ok := jwt.Get[[]string](claims, b.rolesClaim)
 	if !ok {
