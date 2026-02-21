@@ -14,8 +14,10 @@ import (
 	"github.com/deep-rent/nexus/retry"
 )
 
-var ErrMissingToken = errors.New("missing access token")
-var ErrUndefinedSubject = errors.New("undefined subject in access token")
+var (
+	ErrMissingToken     = errors.New("missing access token")
+	ErrUndefinedSubject = errors.New("undefined subject in access token")
+)
 
 type Pass struct {
 	UserName string
