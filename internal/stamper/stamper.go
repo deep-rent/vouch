@@ -27,8 +27,10 @@ func New(cfg *Config) *Stamper {
 func (s *Stamper) Stamp(req *http.Request, user *bouncer.User) {
 	req.Header.Set(s.userNameHeader, user.Name)
 
-	if len(user.Roles) != 0 {
-		roles := strings.Join(user.Roles, ",")
-		req.Header.Set(s.rolesHeader, roles)
+	if len(user.Roles) == 0 {
+		req.Header.Del(s.rolesHeader)
+		return
 	}
+
+	req.Header.Set(s.rolesHeader, strings.Join(user.Roles, ","))
 }
