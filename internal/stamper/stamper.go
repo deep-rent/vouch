@@ -8,8 +8,8 @@ import (
 )
 
 type Config struct {
-	UserNameHeader string
-	RolesHeader    string
+	UserNameHeader string // The header to set with the authenticated user's name.
+	RolesHeader    string // The header to set with the user's roles.
 }
 
 type Stamper struct {
