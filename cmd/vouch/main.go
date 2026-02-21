@@ -19,21 +19,21 @@ func main() {
 		panic(err.Error())
 	}
 
-	logger := log.New(log.WithLevel(cfg.Level), log.WithFormat(cfg.Format))
+	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
 
 	runnable := func(ctx context.Context) error {
 		bouncer := bouncer.New(&bouncer.Config{
-			JWKS:               cfg.JWKS,
-			Issuers:            cfg.Issuers,
-			Audiences:          cfg.Audiences,
-			Leeway:             cfg.Leeway,
-			MaxAge:             cfg.MaxAge,
-			UserAgent:          cfg.UserAgent,
-			Timeout:            cfg.Timeout,
-			MinRefreshInterval: cfg.MinRefreshInterval,
-			MaxRefreshInterval: cfg.MaxRefreshInterval,
-			AuthScheme:         cfg.AuthScheme,
-			RolesClaim:         cfg.RolesClaim,
+			JWKS:               cfg.KeySetURL,
+			Issuers:            cfg.TokenIssuers,
+			Audiences:          cfg.TokenAudiences,
+			Leeway:             cfg.TokenLeeway,
+			MaxAge:             cfg.TokenMaxAge,
+			UserAgent:          cfg.KeySetUserAgent,
+			Timeout:            cfg.KeySetTimeout,
+			MinRefreshInterval: cfg.KeySetMinRefreshInterval,
+			MaxRefreshInterval: cfg.KeySetMaxRefreshInterval,
+			AuthScheme:         cfg.TokenAuthScheme,
+			RolesClaim:         cfg.TokenRolesClaim,
 			Logger:             logger,
 		})
 
@@ -45,7 +45,7 @@ func main() {
 		gateway := gateway.New(&gateway.Config{
 			Bouncer:         bouncer,
 			Stamper:         stamper,
-			URL:             cfg.URL,
+			URL:             cfg.Target,
 			FlushInterval:   cfg.FlushInterval,
 			MinBufferSize:   cfg.MinBufferSize,
 			MaxBufferSize:   cfg.MaxBufferSize,
