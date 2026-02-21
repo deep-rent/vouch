@@ -10,7 +10,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	envVars := map[string]string{
+	vars := map[string]string{
 		"VOUCH_LOG_LEVEL":                  "warn",
 		"VOUCH_LOG_FORMAT":                 "text",
 		"VOUCH_HOST":                       "127.0.0.1",
@@ -20,22 +20,22 @@ func TestLoad(t *testing.T) {
 		"VOUCH_WRITE_TIMEOUT":              "20",
 		"VOUCH_IDLE_TIMEOUT":               "120",
 		"VOUCH_MAX_HEADER_BYTES":           "1048576",
-		"VOUCH_USER_NAME_HEADER":           "X-User",
-		"VOUCH_ROLES_HEADER":               "X-Roles",
+		"VOUCH_USER_NAME_HEADER":           "X-Vouch-User",
+		"VOUCH_ROLES_HEADER":               "X-Vouch-Roles",
 		"VOUCH_TARGET":                     "http://couchdb:5984",
 		"VOUCH_FLUSH_INTERVAL":             "500",
 		"VOUCH_MIN_BUFFER_SIZE":            "4096",
 		"VOUCH_MAX_BUFFER_SIZE":            "8192",
 		"VOUCH_MAX_IDLE_CONNS":             "100",
 		"VOUCH_IDLE_CONN_TIMEOUT":          "60",
-		"VOUCH_TOKEN_ISSUERS":              "https://issuer-1.com,https://issuer-2.com",
+		"VOUCH_TOKEN_ISSUERS":              "https://auth-1.com,https://auth-2.com",
 		"VOUCH_TOKEN_AUDIENCES":            "api,admin",
 		"VOUCH_TOKEN_LEEWAY":               "5",
 		"VOUCH_TOKEN_MAX_AGE":              "3600",
 		"VOUCH_TOKEN_AUTH_SCHEME":          "OAuth",
 		"VOUCH_TOKEN_ROLES_CLAIM":          "roles",
-		"VOUCH_KEYS_URL":                   "https://issuer.com/.well-known/jwks.json",
-		"VOUCH_KEYS_USER_AGENT":            "Vouch-Test",
+		"VOUCH_KEYS_URL":                   "https://auth.com/.well-known/jwks.json",
+		"VOUCH_KEYS_USER_AGENT":            "Vouch/1.0.0",
 		"VOUCH_KEYS_TIMEOUT":               "5",
 		"VOUCH_KEYS_MIN_REFRESH_INTERVAL":  "10",
 		"VOUCH_KEYS_MAX_REFRESH_INTERVAL":  "60",
@@ -46,7 +46,7 @@ func TestLoad(t *testing.T) {
 		"VOUCH_KEYS_BACKOFF_JITTER_AMOUNT": "0.1",
 	}
 
-	for k, v := range envVars {
+	for k, v := range vars {
 		t.Setenv(k, v)
 	}
 
@@ -57,12 +57,12 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "text", cfg.LogFormat)
 	assert.Equal(t, "127.0.0.1", cfg.Host)
 	assert.Equal(t, "9090", cfg.Port)
-	assert.Equal(t, "X-User", cfg.UserNameHeader)
-	assert.Equal(t, "X-Roles", cfg.RolesHeader)
+	assert.Equal(t, "X-Vouch-User", cfg.UserNameHeader)
+	assert.Equal(t, "X-Vouch-Roles", cfg.RolesHeader)
 	assert.Equal(t, "OAuth", cfg.TokenAuthScheme)
 	assert.Equal(t, "roles", cfg.TokenRolesClaim)
-	assert.Equal(t, "https://issuer.com/.well-known/jwks.json", cfg.KeysURL)
-	assert.Equal(t, "Vouch-Test", cfg.KeysUserAgent)
+	assert.Equal(t, "https://auth.com/.well-known/jwks.json", cfg.KeysURL)
+	assert.Equal(t, "Vouch/1.0.0", cfg.KeysUserAgent)
 	assert.Equal(t, 1048576, cfg.MaxHeaderBytes)
 	assert.Equal(t, 4096, cfg.MinBufferSize)
 	assert.Equal(t, 8192, cfg.MaxBufferSize)
@@ -84,8 +84,8 @@ func TestLoad(t *testing.T) {
 	assert.NotNil(t, cfg.Target)
 	assert.Equal(t, "http://couchdb:5984", cfg.Target.String())
 	assert.Len(t, cfg.TokenIssuers, 2)
-	assert.Equal(t, "https://issuer-1.com", cfg.TokenIssuers[0])
-	assert.Equal(t, "https://issuer-2.com", cfg.TokenIssuers[1])
+	assert.Equal(t, "https://auth-1.com", cfg.TokenIssuers[0])
+	assert.Equal(t, "https://auth-2.com", cfg.TokenIssuers[1])
 	assert.Len(t, cfg.TokenAudiences, 2)
 	assert.Equal(t, "api", cfg.TokenAudiences[0])
 	assert.Equal(t, 2.5, cfg.KeysBackoffGrowthFactor)
