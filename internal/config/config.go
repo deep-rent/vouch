@@ -8,33 +8,29 @@ import (
 )
 
 type Config struct {
-	Level  string `env:",default:info"`
-	Format string `env:",default:json"`
-
-	URL               *url.URL      `env:",required"`
-	Host              string        `env:",default:"`
-	Port              string        `env:",default:8080"`
-	ReadHeaderTimeout time.Duration `env:",unit:s,default:5"`
-	ReadTimeout       time.Duration `env:",unit:s,default:5"`
-	WriteTimeout      time.Duration `env:",unit:s,default:5"`
-	IdleTimeout       time.Duration `env:",unit:s,default:5"`
-	MaxHeaderBytes    int           `env:",default:0"`
-	UserNameHeader    string        `env:",default:X-Auth-CouchDB-UserName"`
-	RolesHeader       string        `env:",default:X-Auth-CouchDB-Roles"`
-
-	FlushInterval   time.Duration
-	MinBufferSize   int
-	MaxBufferSize   int
-	MaxIdleConns    int
-	IdleConnTimeout time.Duration
-
-	Issuers    []string      `env:",split"`
-	Audiences  []string      `env:",split"`
-	Leeway     time.Duration `env:",unit:s,default:30"`
-	MaxAge     time.Duration `env:",unit:s,default:0"`
-	AuthScheme string        `env:",default:Bearer"`
-	RolesClaim string        `env:",default:_couchdb.roles"`
-
+	Level               string        `env:",default:info"`
+	Format              string        `env:",default:json"`
+	URL                 *url.URL      `env:",required"`
+	Host                string        `env:",default:"`
+	Port                string        `env:",default:8080"`
+	ReadHeaderTimeout   time.Duration `env:",unit:s,default:5"`
+	ReadTimeout         time.Duration `env:",unit:s,default:30"`
+	WriteTimeout        time.Duration `env:",unit:s,default:0"`
+	IdleTimeout         time.Duration `env:",unit:s,default:120"`
+	MaxHeaderBytes      int           `env:",default:0"`
+	UserNameHeader      string        `env:",default:X-Auth-CouchDB-UserName"`
+	RolesHeader         string        `env:",default:X-Auth-CouchDB-Roles"`
+	FlushInterval       time.Duration `env:",unit:s,default:-1"`
+	MinBufferSize       int           `env:",default:32768"`
+	MaxBufferSize       int           `env:",default:262144"`
+	MaxIdleConns        int           `env:",default:1000"`
+	IdleConnTimeout     time.Duration `env:",unit:s,default:90"`
+	Issuers             []string      `env:",split"`
+	Audiences           []string      `env:",split"`
+	Leeway              time.Duration `env:",unit:s,default:30"`
+	MaxAge              time.Duration `env:",unit:s,default:0"`
+	AuthScheme          string        `env:",default:Bearer"`
+	RolesClaim          string        `env:",default:_couchdb.roles"`
 	JWKS                string        `env:",required"`
 	UserAgent           string        `env:",default:Vouch"`
 	Timeout             time.Duration `env:",unit:s,default:10"`
