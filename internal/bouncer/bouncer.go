@@ -2,6 +2,7 @@ package bouncer
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -16,7 +17,6 @@ import (
 
 var (
 	ErrMissingToken      = errors.New("missing access token")
-	ErrInvalidToken      = errors.New("invalid access token")
 	ErrUndefinedUserName = errors.New("undefined subject in access token")
 )
 
@@ -49,7 +49,6 @@ type Bouncer struct {
 	verifier   *jwt.Verifier[*jwt.DynamicClaims]
 	authScheme string
 	rolesClaim string
-	logger     *slog.Logger
 }
 
 func New(cfg *Config) *Bouncer {
@@ -79,7 +78,6 @@ func New(cfg *Config) *Bouncer {
 			WithMaxAge(cfg.TokenMaxAge),
 		authScheme: cfg.TokenAuthScheme,
 		rolesClaim: cfg.TokenRolesClaim,
-		logger:     cfg.Logger,
 	}
 }
 
@@ -93,12 +91,7 @@ func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	}
 	claims, err := b.verifier.Verify([]byte(token))
 	if err != nil {
-		b.logger.DebugContext(
-			req.Context(),
-			"Token verification failed",
-			slog.String("token", token), slog.Any("error", err),
-		)
-		return nil, ErrInvalidToken
+		return nil, fmt.Errorf("invalid access token: %w", err)
 	}
 	name := claims.Sub
 	if name == "" {
