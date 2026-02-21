@@ -1,4 +1,4 @@
-package guard
+package gateway
 
 import (
 	"log/slog"
@@ -24,13 +24,13 @@ type Config struct {
 	Logger          *slog.Logger
 }
 
-type Guard struct {
+type Gateway struct {
 	bouncer *bouncer.Bouncer
 	stamper *stamper.Stamper
 	backend http.Handler
 }
 
-func New(cfg *Config) *Guard {
+func New(cfg *Config) http.Handler {
 	handler := proxy.NewHandler(
 		cfg.URL,
 		// For long polling, such as CouchDB's _changes feed, we want to flush as
@@ -61,19 +61,19 @@ func New(cfg *Config) *Guard {
 		handler,
 		middleware.Recover(cfg.Logger),
 	)
-	return &Guard{
+	return &Gateway{
 		bouncer: bouncer.New(cfg.Bouncer),
 		stamper: stamper.New(cfg.Stamper),
 		backend: handler,
 	}
 }
 
-func (g *Guard) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	pass, err := g.bouncer.Bounce(req)
+func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	pass, err := h.bouncer.Bounce(req)
 	if err != nil {
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	g.stamper.Stamp(req, pass)
-	g.backend.ServeHTTP(res, req)
+	h.stamper.Stamp(req, pass)
+	h.backend.ServeHTTP(res, req)
 }
