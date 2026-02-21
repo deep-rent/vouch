@@ -19,6 +19,9 @@ import (
 )
 
 func TestBouncer_Bounce(t *testing.T) {
+	// Ensure the test client bypasses any local proxy settings.
+	t.Setenv("NO_PROXY", "127.0.0.1,localhost")
+
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
@@ -50,7 +53,7 @@ func TestBouncer_Bounce(t *testing.T) {
 		KeysURL:                 s.URL,
 		KeysUserAgent:           "Vouch-Test",
 		KeysTimeout:             1 * time.Second,
-		KeysMinRefreshInterval:  1 * time.Minute,
+		KeysMinRefreshInterval:  100 * time.Millisecond,
 		KeysMaxRefreshInterval:  1 * time.Hour,
 		KeysAttemptLimit:        3,
 		KeysBackoffMinDelay:     10 * time.Millisecond,
