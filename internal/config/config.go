@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/deep-rent/nexus/env"
+)
 
 type Config struct {
 	Level  string `env:",default:info"`
@@ -32,4 +36,12 @@ type Config struct {
 	BackoffMaxDelay     time.Duration `env:",unit:s,default:120"`
 	BackoffGrowthFactor float64       `env:",default:1.75"`
 	BackoffJitterAmount float64       `env:",default:0.66"`
+}
+
+func Load() (*Config, error) {
+	var cfg Config
+	if err := env.Unmarshal(&cfg, env.WithPrefix("VOUCH_")); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
