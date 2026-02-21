@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Level               string        `env:",default:info"`
 	Format              string        `env:",default:json"`
-	URL                 *url.URL      `env:",required"`
+	URL                 *url.URL      `env:",default:http://localhost:5984"`
 	Host                string        `env:",default:"`
 	Port                string        `env:",default:5984"`
 	ReadHeaderTimeout   time.Duration `env:",unit:s,default:5"`
