@@ -8,9 +8,6 @@ indent_style = space
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.go,go.mod]
-indent_size = 4
-
 [Makefile]
 indent_style = tab
 indent_size = 4
