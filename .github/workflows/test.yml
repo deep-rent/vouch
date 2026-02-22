@@ -1,61 +1,96 @@
 name: Test
+
 on:
+  push:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   workflow_dispatch: {}
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+        env:
+          GOEXPERIMENT: jsonv2
+
+  test:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          persist-credentials: true
           fetch-depth: 0
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Cache Go modules
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-      - name: Download dependencies
+          cache: true
+      - name: Download Dependencies
         run: go mod download
-      - name: Vet source code
-        run: go vet ./...
-      - name: Execute tests
+
+      - name: Execute Tests and Generate HTML
         run: |
-          go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
+          GOEXPERIMENT=jsonv2 go test -v -cover -coverprofile=coverage.out ./...
+          mkdir -p public
+          go tool cover -html=coverage.out -o public/index.html
           go tool cover -func=coverage.out -o=coverage.out
-      - name: Go Coverage Badge
+
+      - name: Upload GitHub Pages Artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+
+      - name: Generate Coverage Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: tj-actions/coverage-badge-go@v3
         with:
           filename: coverage.out
-      - name: Verify changed files
-        uses: tj-actions/verify-changed-files@v20
-        id: verify-changed-files
+          link: https://deep-rent.github.io/nexus
+
+      - name: Create Pull Request for Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: peter-evans/create-pull-request@v8
         with:
-          files: README.md
-      - name: Commit changes
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add README.md
-          git commit -m "chore: update coverage badge"
-      - name: Push changes
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ github.token }}
-          branch: ${{ github.head_ref }}
+          commit-message: "docs: update coverage badge"
+          title: "Update Coverage Badge"
+          body: "Updates the coverage badge based on the latest test results."
+          branch: "docs/badge-update"
+          base: "main"
+          delete-branch: true
+          labels: skip-changelog
+
+  deploy-pages:
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
