@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package config provides the configuration structure and loading logic for the
+// Vouch application.
 package config
 
 import (
