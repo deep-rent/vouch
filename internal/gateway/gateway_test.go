@@ -26,7 +26,7 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	// Ensure the test client bypasses any local proxy settings.
 	t.Setenv("NO_PROXY", "127.0.0.1,localhost")
 
-	// 1. Setup Mock Backend (Target)
+	// Setup a mock backend
 	called := false
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -43,10 +43,10 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	backendURL, err := url.Parse(backend.URL)
 	require.NoError(t, err)
 
-	// 2. Setup Mock JWKS Server (Auth Provider)
+	// Host a mock JWKS
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	keyID := "test-key"
+	keyID := "test"
 
 	sharedKey := jwk.NewKeyBuilder(jwa.ES256).
 		WithKeyID(keyID).
@@ -67,7 +67,7 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	)
 	defer authServer.Close()
 
-	// 3. Setup Bouncer
+	// Initialize the bouncer
 	bouncerCfg := &bouncer.Config{
 		TokenIssuers:            []string{"https://issuer.com"},
 		TokenAudiences:          []string{"app"},
@@ -91,14 +91,14 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	defer cancel()
 	go b.Start(ctx)
 
-	// 4. Setup Stamper
+	// Initialize the stamper
 	stamperCfg := &stamper.Config{
 		UserNameHeader: "X-Vouch-User",
 		RolesHeader:    "X-Vouch-Roles",
 	}
 	s := stamper.New(stamperCfg)
 
-	// 5. Setup Gateway
+	// Construct the gateway
 	gwCfg := &gateway.Config{
 		Bouncer:         b,
 		Stamper:         s,
@@ -120,20 +120,23 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	}
 
 	// Wait for bouncer to load keys
-	validPayload := map[string]any{
+	validToken := createToken(map[string]any{
 		"sub": "warmup",
 		"iss": "https://issuer.com",
 		"aud": "app",
 		"exp": time.Now().Add(time.Hour).Unix(),
-	}
-	validToken := createToken(validPayload)
+	})
 
 	require.Eventually(t, func() bool {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		_, err := b.Bounce(req)
 		return err == nil
-	}, 2*time.Second, 50*time.Millisecond, "Bouncer failed to load keys")
+	},
+		2*time.Second,
+		50*time.Millisecond,
+		"Bouncer failed to load keys",
+	)
 
 	t.Run("Authorized", func(t *testing.T) {
 		called = false
