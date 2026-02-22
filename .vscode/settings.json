@@ -1,13 +1,10 @@
 {
   "editor.formatOnSave": true,
   "editor.formatOnType": true,
+  "files.associations": {
+    "LICENSE": "plaintext"
+  },
   "files.encoding": "utf8",
-  "[json]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
   "[go]": {
     "editor.rulers": [
       80
@@ -21,6 +18,9 @@
     "editor.rulers": [
       100
     ]
+  },
+  "[plaintext]": {
+    "editor.formatOnSave": false
   },
   "go.lintTool": "golangci-lint",
   "go.lintFlags": [
@@ -39,13 +39,6 @@
     "GOEXPERIMENT": "jsonv2"
   },
   "go.toolsManagement.autoUpdate": true,
-  "files.exclude": {
-    "**/.DS_Store": true,
-    "**/.git": true,
-    "**/.hg": true,
-    "**/.svn": true,
-    "**/Thumbs.db": true
-  },
   "search.exclude": {
     "**/bin": true,
     "**/coverage.out": true,
