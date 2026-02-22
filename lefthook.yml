@@ -1,5 +1,18 @@
 $schema: 'https://raw.githubusercontent.com/evilmartians/lefthook/master/schema.json'
-commit-msg:
+# commit-msg:
+#   commands:
+#     lint:
+#       run: go-gitlint --msg-file={1}
+
+pre-commit:
+  parallel: true
   commands:
     lint:
-      run: go-gitlint --msg-file={1}
+      root: "."
+      glob: "*.go"
+      run: GOEXPERIMENT=jsonv2 golangci-lint run --fix
+      stage_fixed: true
+    test:
+      root: "."
+      glob: "*.go"
+      run: GOEXPERIMENT=jsonv2 go test -v ./...
