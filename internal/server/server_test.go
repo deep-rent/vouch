@@ -79,3 +79,41 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal("Server did not return from Start() after Stop()")
 	}
 }
+
+func TestServer_Recovery(t *testing.T) {
+	// Find a free port
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
+	l.Close()
+
+	// Configure server with panicking handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("unexpected failure")
+	})
+
+	cfg := &server.Config{
+		Handler: handler,
+		Host:    "127.0.0.1",
+		Port:    port,
+		Logger:  slog.Default(),
+	}
+
+	srv := server.New(cfg)
+
+	go srv.Start()
+	defer srv.Stop()
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
+
+	// Verify recovery (expecting status 500)
+	require.Eventually(t, func() bool {
+		res, err := http.Get(baseURL)
+		if err != nil {
+			return false
+		}
+		defer res.Body.Close()
+		return res.StatusCode == http.StatusInternalServerError
+	}, 2*time.Second, 50*time.Millisecond, "Server failed to recover from panic")
+}
