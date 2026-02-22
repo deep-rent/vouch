@@ -48,7 +48,7 @@ func TestGateway_ServeHTTP(t *testing.T) {
 		assert.Equal(t, "alice", r.Header.Get("X-Vouch-User"))
 		assert.Equal(t, "admin", r.Header.Get("X-Vouch-Roles"))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("backend response"))
+		_, _ = w.Write([]byte("backend response"))
 	})
 
 	backend := httptest.NewServer(h)
@@ -76,7 +76,7 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	authServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write(jwks)
+			_, _ = w.Write(jwks)
 		}),
 	)
 	defer authServer.Close()
@@ -103,7 +103,9 @@ func TestGateway_ServeHTTP(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go b.Start(ctx)
+	go func() {
+		_ = b.Start(ctx)
+	}()
 
 	// Initialize the stamper
 	stamperCfg := &stamper.Config{

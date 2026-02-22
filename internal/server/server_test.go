@@ -34,12 +34,12 @@ func TestServer_Lifecycle(t *testing.T) {
 	require.NoError(t, err)
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.NoError(t, err)
-	l.Close()
+	_ = l.Close()
 
 	// Configure Server
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	cfg := &server.Config{
@@ -70,7 +70,7 @@ func TestServer_Lifecycle(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		res.Body.Close()
+		_ = res.Body.Close()
 		return res.StatusCode == http.StatusOK
 	}, 2*time.Second, 50*time.Millisecond, "Server failed to start")
 
@@ -78,7 +78,7 @@ func TestServer_Lifecycle(t *testing.T) {
 	res, err := http.Get(baseURL)
 	require.NoError(t, err)
 	body, _ := io.ReadAll(res.Body)
-	res.Body.Close()
+	_ = res.Body.Close()
 	assert.Equal(t, "ok", string(body))
 
 	// Stop server
@@ -100,7 +100,8 @@ func TestServer_Recovery(t *testing.T) {
 	require.NoError(t, err)
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.NoError(t, err)
-	l.Close()
+	err = l.Close()
+	require.NoError(t, err)
 
 	// Configure server with panicking handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,8 +117,12 @@ func TestServer_Recovery(t *testing.T) {
 
 	srv := server.New(cfg)
 
-	go srv.Start()
-	defer srv.Stop()
+	go func() {
+		_ = srv.Start()
+	}()
+	defer func() {
+		_ = srv.Stop()
+	}()
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 
@@ -127,7 +132,9 @@ func TestServer_Recovery(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		return res.StatusCode == http.StatusInternalServerError
 	}, 2*time.Second, 50*time.Millisecond, "Server failed to recover from panic")
 }

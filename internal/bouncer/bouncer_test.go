@@ -55,7 +55,7 @@ func TestBouncer_Bounce(t *testing.T) {
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(bytes)
+		_, _ = w.Write(bytes)
 	})
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -82,7 +82,9 @@ func TestBouncer_Bounce(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go b.Start(ctx)
+	go func() {
+		_ = b.Start(ctx)
+	}()
 
 	createToken := func(claims any) string {
 		token, err := jwt.Sign(keyPair, claims)
