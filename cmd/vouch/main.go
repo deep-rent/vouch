@@ -19,6 +19,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -132,7 +133,7 @@ func main() {
 	}
 
 	if err := app.Run(runnable, app.WithLogger(logger)); err != nil {
-		logger.Error("Application failed", "error", err)
+		logger.Error("Application failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
