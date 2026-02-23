@@ -76,10 +76,10 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 			})
 
 			if err != nil {
-				logger.Warn("Could not check for newer release", slog.Any("error", err))
+				logger.Warn("Unable to check for newer release", slog.Any("error", err))
 			} else if rel != nil {
 				logger.Info(
-					"New release available",
+					"A new release is available",
 					slog.String("version", rel.Version),
 					slog.String("url", rel.URL),
 				)
