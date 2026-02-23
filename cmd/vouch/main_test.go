@@ -45,9 +45,11 @@ func TestVersion(t *testing.T) {
 func TestMissingConfig(t *testing.T) {
 	key := "VOUCH_KEYS_URL"
 	if val, ok := os.LookupEnv(key); ok {
-		defer os.Setenv(key, val)
+		defer func() {
+			_ = os.Setenv(key, val)
+		}()
 	}
-	os.Unsetenv(key)
+	require.NoError(t, os.Unsetenv(key))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
