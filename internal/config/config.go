@@ -57,7 +57,7 @@ type Config struct {
 	TokenRolesClaim         string        `env:",default:_couchdb.roles"`
 	KeysURL                 string        `env:",required"`
 	KeysTimeout             time.Duration `env:",unit:s,default:10"`
-	KeysMinRefreshInterval  time.Duration `env:",unit:m,default:60"`
+	KeysMinRefreshInterval  time.Duration `env:",unit:m,default:1"`
 	KeysMaxRefreshInterval  time.Duration `env:",unit:m,default:10080"`
 	KeysAttemptLimit        int           `env:",default:0"`
 	KeysBackoffMinDelay     time.Duration `env:",unit:s,default:1"`
