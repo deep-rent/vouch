@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -128,7 +127,7 @@ func TestIntegration(t *testing.T) {
 	defer backend.Close()
 
 	// 3. configure and run vouch.
-	port := getFreePort(t)
+	port := ports.FreeT(t)
 	host := "127.0.0.1"
 	vouch := fmt.Sprintf("http://%s:%d", host, port)
 
@@ -213,13 +212,4 @@ func TestIntegration(t *testing.T) {
 	defer respInvalid.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, respInvalid.StatusCode)
-}
-
-func getFreePort(t *testing.T) int {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	l, err := net.ListenTCP("tcp", addr)
-	require.NoError(t, err)
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
 }
