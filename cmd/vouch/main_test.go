@@ -36,7 +36,7 @@ import (
 )
 
 func TestVersion(t *testing.T) {
-	exe := build.Binary(t, ".", "vouch")
+	exe := compile(t)
 	cmd := exec.Command(exe, "-v")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestMissingConfig(t *testing.T) {
-	exe := build.Binary(t, ".", "vouch")
+	exe := compile(t)
 	cmd := exec.Command(exe)
 	cmd.Env = []string{}
 	out, err := cmd.CombinedOutput()
@@ -55,7 +55,7 @@ func TestMissingConfig(t *testing.T) {
 }
 
 func TestIntegration(t *testing.T) {
-	exe := build.Binary(t, ".", "vouch")
+	exe := compile(t)
 	mat, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -150,7 +150,9 @@ func TestIntegration(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		return res.StatusCode == http.StatusOK
 	},
 		5*time.Second,
@@ -167,7 +169,14 @@ func TestIntegration(t *testing.T) {
 	badReq.Header.Set("Authorization", "Bearer invalid.token.here")
 	badRes, err := client.Do(badReq)
 	require.NoError(t, err)
-	defer badRes.Body.Close()
+	defer func() {
+		_ = badRes.Body.Close()
+	}()
 
 	assert.Equal(t, http.StatusUnauthorized, badRes.StatusCode)
+}
+
+func compile(t *testing.T) string {
+	t.Helper()
+	return build.Binary(t, ".", "vouch")
 }
