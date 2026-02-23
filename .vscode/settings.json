@@ -22,6 +22,9 @@
   "[plaintext]": {
     "editor.formatOnSave": false
   },
+  "go.buildFlags": [
+    "-tags=experimental"
+  ],
   "go.lintTool": "golangci-lint",
   "go.lintFlags": [
     "--path-mode=abs",
@@ -36,6 +39,7 @@
     "--stdin"
   ],
   "go.toolsEnvVars": {
+    "GOFLAGS": "-tags=experimental",
     "GOEXPERIMENT": "jsonv2"
   },
   "go.toolsManagement.autoUpdate": true,
