@@ -1,5 +1,6 @@
 *          text=auto
 *.bat      text eol=crlf
+*.env      text
 *.go       text
 *.json     text
 *.md       text diff=markdown
@@ -13,4 +14,3 @@ go.mod     text
 go.sum     text
 LICENSE    text
 Makefile   text
-
