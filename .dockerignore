@@ -1,7 +1,6 @@
 *
 !.dockerignore
 !/cmd/
-!/container/
 !/go.mod
 !/go.sum
 !/internal/
