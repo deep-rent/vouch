@@ -37,7 +37,7 @@ import (
 
 func TestVersion(t *testing.T) {
 	var buf bytes.Buffer
-	err := run(context.Background(), []string{"vouch", "-v"}, &buf)
+	err := boot(context.Background(), []string{"vouch", "-v"}, &buf)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "dev", "output should contain the version")
 }
@@ -54,7 +54,7 @@ func TestMissingConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err := run(ctx, []string{"vouch"}, io.Discard)
+	err := boot(ctx, []string{"vouch"}, io.Discard)
 	assert.Error(t, err)
 	if err != nil {
 		assert.Contains(
@@ -121,7 +121,7 @@ func TestIntegration(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		_ = run(ctx, []string{"vouch"}, io.Discard)
+		_ = boot(ctx, []string{"vouch"}, io.Discard)
 	}()
 
 	ports.WaitT(t, host, port)

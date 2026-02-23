@@ -37,13 +37,13 @@ import (
 var version = "dev"
 
 func main() {
-	if err := run(context.Background(), os.Args, os.Stdout); err != nil {
+	if err := boot(context.Background(), os.Args, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string, stdout io.Writer) error {
+func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(stdout)
 	showVersion := flags.Bool("v", false, "Display version and exit")
