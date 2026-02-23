@@ -35,7 +35,6 @@ import (
 // The application version injected via -ldflags during build time.
 var version = "dev"
 
-// main initializes and runs the application components.
 func main() {
 	showVersion := flag.Bool("v", false, "Display version and exit")
 	flag.Parse()
