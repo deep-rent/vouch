@@ -30,10 +30,16 @@ import (
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
+	"github.com/deep-rent/nexus/testutil/build"
 	"github.com/deep-rent/nexus/testutil/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCompile(t *testing.T) {
+	exe := build.Binary(t, ".", "vouch")
+	assert.FileExists(t, exe)
+}
 
 func TestVersion(t *testing.T) {
 	var buf bytes.Buffer
