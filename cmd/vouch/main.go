@@ -66,27 +66,6 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
 	ua := fmt.Sprintf("Vouch/%s", version)
 
-	if cfg.UpdateCheck {
-		go func() {
-			rel, err := updater.Check(ctx, &updater.Config{
-				Owner:      "deep-rent",
-				Repository: "vouch",
-				Current:    version,
-				UserAgent:  ua,
-			})
-
-			if err != nil {
-				logger.Warn("Unable to check for newer release", slog.Any("error", err))
-			} else if rel != nil {
-				logger.Info(
-					"A new release is available",
-					slog.String("version", rel.Version),
-					slog.String("url", rel.URL),
-				)
-			}
-		}()
-	}
-
 	// Initialize the Bouncer to handle JWT verification and JWKS caching.
 	bouncer := bouncer.New(&bouncer.Config{
 		TokenIssuers:            cfg.TokenIssuers,
@@ -160,6 +139,32 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	components := []app.Runnable{serve, fetch}
+	if cfg.UpdaterEnabled {
+		check := func(ctx context.Context) error {
+			rel, err := updater.Check(ctx, &updater.Config{
+				BaseURL:    cfg.UpdaterBaseURL,
+				Owner:      "deep-rent",
+				Repository: "vouch",
+				Current:    version,
+				UserAgent:  ua,
+			})
+			if err != nil {
+				logger.Warn(
+					"Unable to check for newer release",
+					slog.Any("error", err),
+				)
+			} else if rel != nil {
+				logger.Info(
+					"A new release is available",
+					slog.String("version", rel.Version),
+					slog.String("url", rel.URL),
+				)
+			}
+			return nil
+		}
+
+		components = append(components, check)
+	}
 
 	// Spin up the HTTP server and the JWKS refresh loop concurrently.
 	if err := app.RunAll(
