@@ -93,8 +93,8 @@ func TestIntegration(t *testing.T) {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	backend := httptest.NewServer(h2)
-	defer backend.Close()
+	target := httptest.NewServer(h2)
+	defer target.Close()
 
 	port := ports.FreeT(t)
 	host := "127.0.0.1"
@@ -103,7 +103,7 @@ func TestIntegration(t *testing.T) {
 	cmd := exec.Command(exe)
 	cmd.Env = append(os.Environ(),
 		"VOUCH_KEYS_URL="+jwks.URL,
-		"VOUCH_TARGET="+backend.URL,
+		"VOUCH_TARGET="+target.URL,
 		"VOUCH_PORT="+fmt.Sprintf("%d", port),
 		"VOUCH_HOST="+host,
 		"VOUCH_LOG_LEVEL=debug",
