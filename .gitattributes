@@ -4,7 +4,6 @@
 *.go       text
 *.json     text
 *.md       text diff=markdown
-*.png      binary
 *.sh       text eol=lf
 *.svg      text
 *.yaml     text
