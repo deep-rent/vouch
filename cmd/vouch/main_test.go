@@ -45,7 +45,12 @@ func TestVersion(t *testing.T) {
 	var buf bytes.Buffer
 	err := boot(t.Context(), []string{"vouch", "-v"}, &buf)
 	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "dev", "output should contain the version")
+	assert.Contains(
+		t,
+		buf.String(),
+		"v0.0.0",
+		"output should contain the version",
+	)
 }
 
 func TestMissingConfig(t *testing.T) {
