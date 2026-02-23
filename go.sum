@@ -2,12 +2,6 @@ github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deep-rent/nexus v1.1.16 h1:cpQ0AmBSkEW4WKBmZJ1El+0hyL5Vhm10xzj2glEZHII=
-github.com/deep-rent/nexus v1.1.16/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
-github.com/deep-rent/nexus v1.1.17 h1:kd/RVAAjuzHPfczrbmlZP4cXMEZYP83qnNBQrmkekmU=
-github.com/deep-rent/nexus v1.1.17/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
-github.com/deep-rent/nexus v1.1.18 h1:S+47swpofArOz6ZKNQrhGDSaVapp7x6LWv/qb9ktB7k=
-github.com/deep-rent/nexus v1.1.18/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
 github.com/deep-rent/nexus v1.1.19 h1:iu2dA8AYUhvRHF4n2qeutVFAli/xdef6TARQLtf8EyY=
 github.com/deep-rent/nexus v1.1.19/go.mod h1:eOhXtaZ33gFCY3sBoKNB/FTQfI5aqq8gSs7N4NZrYiY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -16,6 +10,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 golang.org/x/crypto v0.48.0 h1:/VRzVqiRSggnhY7gNRxPauEQ5Drw9haKdM0jqfcCFts=
 golang.org/x/crypto v0.48.0/go.mod h1:r0kV5h3qnFPlQnBSrULhlsRfryS2pmewsg+XfMgkVos=
+golang.org/x/mod v0.33.0 h1:tHFzIWbBifEmbwtGz65eaWyGiGZatSrT9prnU8DbVL8=
+golang.org/x/mod v0.33.0/go.mod h1:swjeQEj+6r7fODbD2cqrnje9PnziFuw4bmLbBZFrQ5w=
 golang.org/x/sync v0.19.0 h1:vV+1eWNmZ5geRlYjzm2adRgW2/mcpevXNg50YZtPCE4=
 golang.org/x/sync v0.19.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
 golang.org/x/sys v0.41.0 h1:Ivj+2Cp/ylzLiEU89QhWblYnOE9zerudt9Ftecq2C6k=
