@@ -23,12 +23,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   go build -trimpath -ldflags="-s -w -X 'main.version=${VERSION}'" -o /out/vouch ./cmd/vouch
 
 # Final image with CA certs included by base
-FROM gcr.io/distroless/base:nonroot
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
-COPY --from=build /out/vouch /vouch
+COPY --from=build /out/vouch /app/vouch
 
-EXPOSE 8080
+EXPOSE 5984
 USER nonroot:nonroot
 
-ENTRYPOINT ["/vouch"]
-CMD ["-c", "/app/config.yaml"]
+ENTRYPOINT ["/app/vouch"]
