@@ -36,9 +36,11 @@ var (
 	ErrUndefinedUserName = errors.New("undefined subject in access token")
 )
 
+// User represents an authenticated CouchDB user.
+// This data gets forwarded via proxy authentication headers.
 type User struct {
-	Name  string
-	Roles []string
+	Name  string   // CouchDB username, taken from the "sub" claim.
+	Roles []string // List of CouchDB roles, read from a configurable claim.
 }
 
 type Config struct {
