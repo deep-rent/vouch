@@ -133,7 +133,7 @@ func main() {
 	}
 
 	if err := app.Run(runnable, app.WithLogger(logger)); err != nil {
-		logger.Error("Application failed", slog.Any("error", err))
+		logger.Error("Application exited with error", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
