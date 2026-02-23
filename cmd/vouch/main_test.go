@@ -12,50 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main_test
+package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
-	"github.com/deep-rent/nexus/testutil/build"
 	"github.com/deep-rent/nexus/testutil/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVersion(t *testing.T) {
-	exe := compile(t)
-	cmd := exec.Command(exe, "-v")
-	out, err := cmd.CombinedOutput()
+	var buf bytes.Buffer
+	err := run(context.Background(), []string{"vouch", "-v"}, &buf)
 	require.NoError(t, err)
-	assert.Contains(t, string(out), "dev", "output should contain the version")
+	assert.Contains(t, buf.String(), "dev", "output should contain the version")
 }
 
 func TestMissingConfig(t *testing.T) {
-	exe := compile(t)
-	cmd := exec.Command(exe)
-	cmd.Env = []string{}
-	out, err := cmd.CombinedOutput()
+	key := "VOUCH_KEYS_URL"
+	if val, ok := os.LookupEnv(key); ok {
+		defer os.Setenv(key, val)
+		os.Unsetenv(key)
+	} else {
+		os.Unsetenv(key)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := run(ctx, []string{"vouch"}, io.Discard)
 	assert.Error(t, err)
-	assert.Contains(t, string(out),
-		"required variable \"VOUCH_KEYS_URL\" is not set",
-	)
+	if err != nil {
+		assert.Contains(
+			t,
+			err.Error(),
+			"required variable \"VOUCH_KEYS_URL\" is not set",
+		)
+	}
 }
 
 func TestIntegration(t *testing.T) {
-	exe := compile(t)
 	mat, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -100,23 +110,18 @@ func TestIntegration(t *testing.T) {
 	host := "127.0.0.1"
 	baseURL := fmt.Sprintf("http://%s:%d", host, port)
 
-	cmd := exec.Command(exe)
-	cmd.Env = append(os.Environ(),
-		"VOUCH_KEYS_URL="+jwks.URL,
-		"VOUCH_TARGET="+target.URL,
-		"VOUCH_PORT="+fmt.Sprintf("%d", port),
-		"VOUCH_HOST="+host,
-		"VOUCH_LOG_LEVEL=debug",
-		"VOUCH_KEYS_MIN_REFRESH_INTERVAL=1",
-	)
+	t.Setenv("VOUCH_KEYS_URL", jwks.URL)
+	t.Setenv("VOUCH_TARGET", target.URL)
+	t.Setenv("VOUCH_PORT", fmt.Sprintf("%d", port))
+	t.Setenv("VOUCH_HOST", host)
+	t.Setenv("VOUCH_LOG_LEVEL", "debug")
+	t.Setenv("VOUCH_KEYS_MIN_REFRESH_INTERVAL", "1")
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	require.NoError(t, cmd.Start())
-	defer func() {
-		_ = cmd.Process.Kill()
+	go func() {
+		_ = run(ctx, []string{"vouch"}, io.Discard)
 	}()
 
 	ports.WaitT(t, host, port)
@@ -157,9 +162,7 @@ func TestIntegration(t *testing.T) {
 	},
 		5*time.Second,
 		200*time.Millisecond,
-		"Vouch failed to proxy valid request (see logs: %s\n%s)",
-		stderr.String(),
-		stdout.String(),
+		"Vouch failed to proxy valid request",
 	)
 
 	assert.Equal(t, "alice", res.Header.Get("X-Received-User"))
@@ -174,9 +177,4 @@ func TestIntegration(t *testing.T) {
 	}()
 
 	assert.Equal(t, http.StatusUnauthorized, badRes.StatusCode)
-}
-
-func compile(t *testing.T) string {
-	t.Helper()
-	return build.Binary(t, ".", "vouch")
 }
