@@ -32,6 +32,7 @@ const Prefix = "VOUCH_"
 type Config struct {
 	LogLevel                string        `env:",default:info"`
 	LogFormat               string        `env:",default:json"`
+	UpdateCheck             bool          `env:",default:false"`
 	Host                    string        `env:",default:0.0.0.0"`
 	Port                    string        `env:",default:8080"`
 	ReadHeaderTimeout       time.Duration `env:",unit:s,default:5"`

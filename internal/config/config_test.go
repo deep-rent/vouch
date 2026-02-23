@@ -27,6 +27,7 @@ func TestLoad(t *testing.T) {
 	vars := map[string]string{
 		"VOUCH_LOG_LEVEL":                  "warn",
 		"VOUCH_LOG_FORMAT":                 "text",
+		"VOUCH_UPDATE_CHECK":               "true",
 		"VOUCH_HOST":                       "127.0.0.1",
 		"VOUCH_PORT":                       "9090",
 		"VOUCH_READ_HEADER_TIMEOUT":        "10",
@@ -68,6 +69,7 @@ func TestLoad(t *testing.T) {
 
 	assert.Equal(t, "warn", cfg.LogLevel)
 	assert.Equal(t, "text", cfg.LogFormat)
+	assert.True(t, cfg.UpdateCheck)
 	assert.Equal(t, "127.0.0.1", cfg.Host)
 	assert.Equal(t, "9090", cfg.Port)
 	assert.Equal(t, "X-Vouch-User", cfg.UserNameHeader)
@@ -113,6 +115,7 @@ func TestLoadDefaults(t *testing.T) {
 
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "json", cfg.LogFormat)
+	assert.False(t, cfg.UpdateCheck)
 	assert.Equal(t, "0.0.0.0", cfg.Host)
 	assert.Equal(t, "8080", cfg.Port)
 	assert.Equal(t, 5*time.Second, cfg.ReadHeaderTimeout)

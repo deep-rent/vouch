@@ -20,11 +20,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
+	"github.com/deep-rent/nexus/updater"
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/gateway"
@@ -62,6 +64,28 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
+	userAgent := fmt.Sprintf("Vouch/%s", version)
+
+	if cfg.UpdateCheck {
+		go func() {
+			rel, err := updater.Check(ctx, &updater.Config{
+				Owner:      "deep-rent",
+				Repository: "vouch",
+				Current:    version,
+				UserAgent:  userAgent,
+			})
+
+			if err != nil {
+				logger.Warn("Could not check for newer release", slog.Any("error", err))
+			} else if rel != nil {
+				logger.Info(
+					"New release available",
+					slog.String("version", rel.Version),
+					slog.String("url", rel.URL),
+				)
+			}
+		}()
+	}
 
 	// Initialize the Bouncer to handle JWT verification and JWKS caching.
 	bouncer := bouncer.New(&bouncer.Config{
@@ -72,7 +96,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		TokenAuthScheme:         cfg.TokenAuthScheme,
 		TokenRolesClaim:         cfg.TokenRolesClaim,
 		KeysURL:                 cfg.KeysURL,
-		KeysUserAgent:           fmt.Sprintf("Vouch/%s", version),
+		KeysUserAgent:           userAgent,
 		KeysTimeout:             cfg.KeysTimeout,
 		KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
 		KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,
