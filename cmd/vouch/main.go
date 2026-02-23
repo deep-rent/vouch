@@ -35,7 +35,7 @@ import (
 )
 
 // The application version injected via -ldflags during build time.
-var version = "dev"
+var version = "v0.0.0"
 
 func main() {
 	if err := boot(context.Background(), os.Args, os.Stdout); err != nil {
@@ -64,7 +64,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
-	userAgent := fmt.Sprintf("Vouch/%s", version)
+	ua := fmt.Sprintf("Vouch/%s", version)
 
 	if cfg.UpdateCheck {
 		go func() {
@@ -72,7 +72,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 				Owner:      "deep-rent",
 				Repository: "vouch",
 				Current:    version,
-				UserAgent:  userAgent,
+				UserAgent:  ua,
 			})
 
 			if err != nil {
@@ -96,7 +96,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		TokenAuthScheme:         cfg.TokenAuthScheme,
 		TokenRolesClaim:         cfg.TokenRolesClaim,
 		KeysURL:                 cfg.KeysURL,
-		KeysUserAgent:           userAgent,
+		KeysUserAgent:           ua,
 		KeysTimeout:             cfg.KeysTimeout,
 		KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
 		KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,
