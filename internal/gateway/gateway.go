@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package gateway implements the reverse proxy logic, orchestrating
+// authentication and request forwarding.
 package gateway
 
 import (
@@ -25,6 +27,7 @@ import (
 	"github.com/deep-rent/vouch/internal/stamper"
 )
 
+// Config holds the configuration for the Gateway.
 type Config struct {
 	Bouncer         *bouncer.Bouncer
 	Stamper         *stamper.Stamper
@@ -37,6 +40,8 @@ type Config struct {
 	Logger          *slog.Logger
 }
 
+// Gateway is an http.Handler that authenticates requests using a Bouncer,
+// stamps them with a Stamper, and proxies them to a backend.
 type Gateway struct {
 	bouncer *bouncer.Bouncer
 	stamper *stamper.Stamper
@@ -44,6 +49,7 @@ type Gateway struct {
 	logger  *slog.Logger
 }
 
+// New creates a new Gateway handler.
 func New(cfg *Config) http.Handler {
 	handler := proxy.NewHandler(
 		cfg.URL,
@@ -80,7 +86,9 @@ func New(cfg *Config) http.Handler {
 	}
 }
 
+// ServeHTTP handles the HTTP request lifecycle: authenticate, stamp, and proxy.
 func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	// Authenticate the request.
 	pass, err := h.bouncer.Bounce(req)
 	if err != nil {
 		h.logger.DebugContext(
@@ -91,6 +99,8 @@ func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+	// Inject identity headers.
 	h.stamper.Stamp(req, pass)
+	// Forward to the backend.
 	h.backend.ServeHTTP(res, req)
 }
