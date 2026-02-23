@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -37,11 +36,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// binaryPath stores the path to the compiled Vouch binary used for testing.
+// binaryPath stores the path to the compiled vouch binary used for testing.
 var binaryPath string
 
-// TestMain compiles the Vouch binary once before running all tests.
-// This ensures we are testing the actual build artifact.
+// TestMain compiles the vouch binary once before running all tests.
+// this ensures we are testing the actual build artifact.
 func TestMain(m *testing.M) {
 	// Create a temporary directory for the build artifact.
 	tmpDir, err := os.MkdirTemp("", "vouch-build")
@@ -86,25 +85,30 @@ func TestMissingConfig(t *testing.T) {
 }
 
 func TestIntegration(t *testing.T) {
-	// 1. Setup Mock JWKS Server
-	// Generate a fresh RSA key pair for signing tokens.
-	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// 1. setup mock jwks server.
+	// generate a fresh RSA key pair for signing tokens.
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	// Create a JWK Set containing the public key.
-	pubKey := &privKey.PublicKey
-	jwkKey := jwk.NewKeyBuilder(jwa.RS256).WithKeyID("test-key").Build(pubKey)
-	jwkSet := jwk.Singleton(jwkKey)
+	// create a jwk set containing the public key.
+	pub := &key.PublicKey
+	k := jwk.NewKeyBuilder(jwa.RS256).WithKeyID("test-key").Build(pub)
+	set := jwk.Singleton(k)
 
-	jwksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	jwks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwkSet)
+		data, err := jwk.WriteSet(set)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(data)
 	}))
-	defer jwksServer.Close()
+	defer jwks.Close()
 
-	// 2. Setup Mock Upstream (CouchDB)
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify that Vouch injected the proxy authentication headers.
+	// 2. setup mock upstream (couchdb).
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// verify that vouch injected the proxy authentication headers.
 		user := r.Header.Get("X-Auth-CouchDB-UserName")
 		roles := r.Header.Get("X-Auth-CouchDB-Roles")
 
@@ -114,32 +118,33 @@ func TestIntegration(t *testing.T) {
 			return
 		}
 
-		// Echo the headers back in the response for assertion.
+		// echo the headers back in the response for assertion.
 		w.Header().Set("X-Received-User", user)
 		w.Header().Set("X-Received-Roles", roles)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	}))
-	defer upstream.Close()
+	defer backend.Close()
 
-	// 3. Configure and Run Vouch
+	// 3. configure and run vouch.
 	port := getFreePort(t)
 	host := "127.0.0.1"
-	vouchURL := fmt.Sprintf("http://%s:%d", host, port)
+	vouch := fmt.Sprintf("http://%s:%d", host, port)
 
 	cmd := exec.Command(binaryPath)
 	cmd.Env = append(os.Environ(),
-		"VOUCH_KEYS_URL="+jwksServer.URL,
-		"VOUCH_TARGET="+upstream.URL,
+		"VOUCH_KEYS_URL="+jwks.URL,
+		"VOUCH_TARGET="+backend.URL,
 		"VOUCH_PORT="+fmt.Sprintf("%d", port),
 		"VOUCH_HOST="+host,
 		"VOUCH_LOG_LEVEL=debug",
-		// Speed up refresh to ensure keys are loaded quickly.
-		"VOUCH_KEYS_MIN_REFRESH_INTERVAL=1s",
+		// speed up refresh to ensure keys are loaded quickly.
+		"VOUCH_KEYS_MIN_REFRESH_INTERVAL=1",
 	)
 
-	// Capture stderr to debug potential startup failures.
-	var stderr bytes.Buffer
+	// capture stderr to debug potential startup failures.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	require.NoError(t, cmd.Start())
@@ -148,15 +153,16 @@ func TestIntegration(t *testing.T) {
 	}()
 
 	// Wait for Vouch to start listening.
-	waitForPort(t, host, port)
+	if !waitForPort(host, port) {
+		t.Fatalf("timed out waiting for port %d. logs:\n%s\n%s", port, stdout.String(), stderr.String())
+	}
 
 	// 4. Generate a Valid JWT
 	signer := jwt.NewSigner(
 		jwk.NewKeyBuilder(jwa.RS256).
 			WithKeyID("test-key").
-			BuildPair(privKey),
+			BuildPair(key),
 	)
-	require.NoError(t, err)
 
 	// payload := map[string]any{
 	// 	"sub":            "alice",
@@ -181,7 +187,7 @@ func TestIntegration(t *testing.T) {
 	var res *http.Response
 
 	require.Eventually(t, func() bool {
-		req, _ := http.NewRequest("GET", vouchURL+"/some/db", nil)
+		req, _ := http.NewRequest("GET", vouch+"/some/db", nil)
 		req.Header.Set("Authorization", "Bearer "+string(token))
 
 		res, err = client.Do(req)
@@ -193,15 +199,16 @@ func TestIntegration(t *testing.T) {
 	},
 		5*time.Second,
 		200*time.Millisecond,
-		"Vouch failed to proxy valid request (check logs: %s)",
+		"Vouch failed to proxy valid request (check logs: %s\n%s)",
 		stderr.String(),
+		stdout.String(),
 	)
 
 	assert.Equal(t, "alice", res.Header.Get("X-Received-User"))
 	assert.Equal(t, "admin,basic", res.Header.Get("X-Received-Roles"))
 
-	// 6. Test Invalid Token
-	reqInvalid, _ := http.NewRequest("GET", vouchURL+"/some/db", nil)
+	// 6. test invalid token.
+	reqInvalid, _ := http.NewRequest("GET", vouch+"/some/db", nil)
 	reqInvalid.Header.Set("Authorization", "Bearer invalid.token.here")
 	respInvalid, err := client.Do(reqInvalid)
 	require.NoError(t, err)
@@ -211,7 +218,7 @@ func TestIntegration(t *testing.T) {
 }
 
 func getFreePort(t *testing.T) int {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	l, err := net.ListenTCP("tcp", addr)
 	require.NoError(t, err)
@@ -219,19 +226,16 @@ func getFreePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-func waitForPort(t *testing.T, host string, port int) {
+func waitForPort(host string, port int) bool {
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	require.Eventually(t, func() bool {
+	end := time.Now().Add(5 * time.Second)
+	for time.Now().Before(end) {
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if err == nil {
 			conn.Close()
 			return true
 		}
-		return false
-	},
-		5*time.Second,
-		100*time.Millisecond,
-		"Timed out waiting for %s to be available",
-		addr,
-	)
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
 }
