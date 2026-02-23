@@ -23,61 +23,31 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
+	"github.com/deep-rent/nexus/testutil/build"
 	"github.com/deep-rent/nexus/testutil/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// binaryPath stores the path to the compiled vouch binary used for testing.
-var binaryPath string
-
-// TestMain compiles the vouch binary once before running all tests.
-// this ensures we are testing the actual build artifact.
-func TestMain(m *testing.M) {
-	// Create a temporary directory for the build artifact.
-	tmpDir, err := os.MkdirTemp("", "vouch-build")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp dir: %v", err))
-	}
-	defer os.RemoveAll(tmpDir)
-
-	binaryPath = filepath.Join(tmpDir, "vouch")
-	if runtime.GOOS == "windows" {
-		binaryPath += ".exe"
-	}
-
-	// Build the binary from the current directory (cmd/vouch).
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "building vouch failed: %v\n%s\n", err, out)
-		os.Exit(1)
-	}
-
-	os.Exit(m.Run())
-}
-
 func TestVersion(t *testing.T) {
-	cmd := exec.Command(binaryPath, "-v")
+	exe := build.Binary(t, ".", "vouch")
+	cmd := exec.Command(exe, "-v")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	assert.Contains(t, string(out), "dev", "output should contain the version")
 }
 
 func TestMissingConfig(t *testing.T) {
-	cmd := exec.Command(binaryPath)
-	// Clear environment variables to ensure required config is missing.
+	exe := build.Binary(t, ".", "vouch")
+	cmd := exec.Command(exe)
 	cmd.Env = []string{}
 	out, err := cmd.CombinedOutput()
-
-	// The process should fail.
 	assert.Error(t, err)
 	assert.Contains(t, string(out),
 		"required variable \"VOUCH_KEYS_URL\" is not set",
@@ -85,17 +55,16 @@ func TestMissingConfig(t *testing.T) {
 }
 
 func TestIntegration(t *testing.T) {
-	// 1. setup mock jwks server.
-	// generate a fresh RSA key pair for signing tokens.
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	exe := build.Binary(t, ".", "vouch")
+	mat, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	// create a jwk set containing the public key.
-	pub := &key.PublicKey
-	k := jwk.NewKeyBuilder(jwa.RS256).WithKeyID("test-key").Build(pub)
-	set := jwk.Singleton(k)
+	pub := &mat.PublicKey
+	keyID := "test"
+	key := jwk.NewKeyBuilder(jwa.RS256).WithKeyID(keyID).Build(pub)
+	set := jwk.Singleton(key)
 
-	jwks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h1 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		data, err := jwk.WriteSet(set)
 		if err != nil {
@@ -103,12 +72,12 @@ func TestIntegration(t *testing.T) {
 			return
 		}
 		_, _ = w.Write(data)
-	}))
+	})
+
+	jwks := httptest.NewServer(h1)
 	defer jwks.Close()
 
-	// 2. setup mock upstream (couchdb).
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// verify that vouch injected the proxy authentication headers.
+	h2 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := r.Header.Get("X-Auth-CouchDB-UserName")
 		roles := r.Header.Get("X-Auth-CouchDB-Roles")
 
@@ -118,31 +87,29 @@ func TestIntegration(t *testing.T) {
 			return
 		}
 
-		// echo the headers back in the response for assertion.
 		w.Header().Set("X-Received-User", user)
 		w.Header().Set("X-Received-Roles", roles)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
-	}))
+	})
+
+	backend := httptest.NewServer(h2)
 	defer backend.Close()
 
-	// 3. configure and run vouch.
 	port := ports.FreeT(t)
 	host := "127.0.0.1"
 	vouch := fmt.Sprintf("http://%s:%d", host, port)
 
-	cmd := exec.Command(binaryPath)
+	cmd := exec.Command(exe)
 	cmd.Env = append(os.Environ(),
 		"VOUCH_KEYS_URL="+jwks.URL,
 		"VOUCH_TARGET="+backend.URL,
 		"VOUCH_PORT="+fmt.Sprintf("%d", port),
 		"VOUCH_HOST="+host,
 		"VOUCH_LOG_LEVEL=debug",
-		// speed up refresh to ensure keys are loaded quickly.
 		"VOUCH_KEYS_MIN_REFRESH_INTERVAL=1",
 	)
 
-	// capture stderr to debug potential startup failures.
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -154,17 +121,11 @@ func TestIntegration(t *testing.T) {
 
 	ports.WaitT(t, host, port)
 
-	// 4. Generate a Valid JWT
 	signer := jwt.NewSigner(
 		jwk.NewKeyBuilder(jwa.RS256).
-			WithKeyID("test-key").
-			BuildPair(key),
+			WithKeyID(keyID).
+			BuildPair(mat),
 	)
-
-	// payload := map[string]any{
-	// 	"sub":            "alice",
-	// 	"_couchdb.roles": []string{"admin", "basic"},
-	// }
 
 	type Claims struct {
 		jwt.Reserved
@@ -178,8 +139,6 @@ func TestIntegration(t *testing.T) {
 	token, err := signer.Sign(payload)
 	require.NoError(t, err)
 
-	// We retry a few times to allow the Bouncer to fetch the JWKS in the
-	// background.
 	client := &http.Client{Timeout: 5 * time.Second}
 	var res *http.Response
 
@@ -196,7 +155,7 @@ func TestIntegration(t *testing.T) {
 	},
 		5*time.Second,
 		200*time.Millisecond,
-		"Vouch failed to proxy valid request (check logs: %s\n%s)",
+		"Vouch failed to proxy valid request (see logs: %s\n%s)",
 		stderr.String(),
 		stdout.String(),
 	)
@@ -204,12 +163,11 @@ func TestIntegration(t *testing.T) {
 	assert.Equal(t, "alice", res.Header.Get("X-Received-User"))
 	assert.Equal(t, "admin,basic", res.Header.Get("X-Received-Roles"))
 
-	// 6. test invalid token.
-	reqInvalid, _ := http.NewRequest("GET", vouch+"/some/db", nil)
-	reqInvalid.Header.Set("Authorization", "Bearer invalid.token.here")
-	respInvalid, err := client.Do(reqInvalid)
+	badReq, _ := http.NewRequest("GET", vouch+"/some/db", nil)
+	badReq.Header.Set("Authorization", "Bearer invalid.token.here")
+	badRes, err := client.Do(badReq)
 	require.NoError(t, err)
-	defer respInvalid.Body.Close()
+	defer badRes.Body.Close()
 
-	assert.Equal(t, http.StatusUnauthorized, respInvalid.StatusCode)
+	assert.Equal(t, http.StatusUnauthorized, badRes.StatusCode)
 }
