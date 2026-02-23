@@ -9,9 +9,9 @@ IMAGE ?= ghcr.io/deep-rent/vouch
 PLATFORMS ?= linux/amd64,linux/arm64
 
 .DEFAULT_GOAL := help
-.PHONY: all test build clean lint up down logs help tidy fmt vet run publish
+.PHONY: all test build clean lint up down logs help tidy run publish
 
-all: tidy fmt vet lint test build ## Run all checks, tests, and build
+all: tidy lint test build ## Run all checks, tests, and build
 
 tidy: ## Tidy go modules
 	go mod tidy
