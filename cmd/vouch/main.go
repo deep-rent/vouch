@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 
@@ -46,13 +45,14 @@ func main() {
 func boot(ctx context.Context, args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(stdout)
+
 	showVersion := flags.Bool("v", false, "Display version and exit")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
 
 	if *showVersion {
-		fmt.Fprintf(stdout, "Vouch %s\n", version)
+		_, _ = fmt.Fprintf(stdout, "Vouch %s\n", version)
 		return nil
 	}
 
@@ -130,17 +130,19 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 			return nil
 		}
 	}
+
 	fetch := func(ctx context.Context) error {
 		return bouncer.Start(ctx)
 	}
+
 	components := []app.Runnable{serve, fetch}
-	// Start the HTTP server and the Bouncer concurrently.
+
+	// Spin up the HTTP server and the JWKS refresh loop concurrently.
 	if err := app.RunAll(
 		components,
 		app.WithContext(ctx),
 		app.WithLogger(logger),
 	); err != nil {
-		logger.Error("Application exited with an error", slog.Any("error", err))
 		return err
 	}
 
