@@ -41,6 +41,48 @@ func TestCompile(t *testing.T) {
 	assert.FileExists(t, exe)
 }
 
+func TestUpdateCheck(t *testing.T) {
+	hit := make(chan struct{}, 1)
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/deep-rent/vouch/releases/latest" {
+			assert.Equal(t, "application/vnd.github.v3+json", r.Header.Get("Accept"))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(
+				`{"tag_name": "v1.0.0", "html_url": "https://example.com"}`,
+			))
+			hit <- struct{}{}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"keys": []}`))
+	})
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	port := ports.FreeT(t)
+	t.Setenv("VOUCH_UPDATER_ENABLED", "true")
+	t.Setenv("VOUCH_UPDATER_BASE_URL", s.URL)
+	t.Setenv("VOUCH_KEYS_URL", s.URL)
+	t.Setenv("VOUCH_PORT", fmt.Sprintf("%d", port))
+	t.Setenv("VOUCH_TARGET", "http://localhost:5984")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	go func() {
+		_ = boot(ctx, []string{"vouch"}, io.Discard)
+	}()
+
+	ports.WaitT(t, "127.0.0.1", port)
+
+	select {
+	case <-hit:
+		// Success
+	case <-time.After(2 * time.Second):
+		t.Fatal("updater did not hit the mock server")
+	}
+}
+
 func TestVersion(t *testing.T) {
 	var buf bytes.Buffer
 	err := boot(t.Context(), []string{"vouch", "-v"}, &buf)
