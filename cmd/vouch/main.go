@@ -61,7 +61,7 @@ func main() {
 			TokenAuthScheme:         cfg.TokenAuthScheme,
 			TokenRolesClaim:         cfg.TokenRolesClaim,
 			KeysURL:                 cfg.KeysURL,
-			KeysUserAgent:           cfg.KeysUserAgent,
+			KeysUserAgent:           fmt.Sprintf("Vouch/%s", version),
 			KeysTimeout:             cfg.KeysTimeout,
 			KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
 			KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,

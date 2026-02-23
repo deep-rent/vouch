@@ -54,7 +54,6 @@ type Config struct {
 	TokenAuthScheme         string        `env:",default:Bearer"`
 	TokenRolesClaim         string        `env:",default:_couchdb.roles"`
 	KeysURL                 string        `env:",required"`
-	KeysUserAgent           string        `env:",default:Vouch"`
 	KeysTimeout             time.Duration `env:",unit:s,default:10"`
 	KeysMinRefreshInterval  time.Duration `env:",unit:m,default:60"`
 	KeysMaxRefreshInterval  time.Duration `env:",unit:m,default:28800"`

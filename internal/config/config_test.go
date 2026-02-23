@@ -49,7 +49,6 @@ func TestLoad(t *testing.T) {
 		"VOUCH_TOKEN_AUTH_SCHEME":          "OAuth",
 		"VOUCH_TOKEN_ROLES_CLAIM":          "roles",
 		"VOUCH_KEYS_URL":                   "https://auth.com/.well-known/jwks.json",
-		"VOUCH_KEYS_USER_AGENT":            "Vouch/1.0.0",
 		"VOUCH_KEYS_TIMEOUT":               "5",
 		"VOUCH_KEYS_MIN_REFRESH_INTERVAL":  "10",
 		"VOUCH_KEYS_MAX_REFRESH_INTERVAL":  "60",
@@ -76,7 +75,6 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "OAuth", cfg.TokenAuthScheme)
 	assert.Equal(t, "roles", cfg.TokenRolesClaim)
 	assert.Equal(t, "https://auth.com/.well-known/jwks.json", cfg.KeysURL)
-	assert.Equal(t, "Vouch/1.0.0", cfg.KeysUserAgent)
 	assert.Equal(t, 1048576, cfg.MaxHeaderBytes)
 	assert.Equal(t, 4096, cfg.MinBufferSize)
 	assert.Equal(t, 8192, cfg.MaxBufferSize)
@@ -138,7 +136,6 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, "Bearer", cfg.TokenAuthScheme)
 	assert.Equal(t, "_couchdb.roles", cfg.TokenRolesClaim)
 	assert.Equal(t, "https://required.com/jwks.json", cfg.KeysURL)
-	assert.Equal(t, "Vouch", cfg.KeysUserAgent)
 	assert.Equal(t, 10*time.Second, cfg.KeysTimeout)
 	assert.Equal(t, 60*time.Minute, cfg.KeysMinRefreshInterval)
 	assert.Equal(t, 28800*time.Minute, cfg.KeysMaxRefreshInterval)
