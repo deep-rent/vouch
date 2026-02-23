@@ -63,88 +63,80 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
 
-	runnable := func(ctx context.Context) error {
-		// Initialize the Bouncer to handle JWT verification and JWKS caching.
-		bouncer := bouncer.New(&bouncer.Config{
-			TokenIssuers:            cfg.TokenIssuers,
-			TokenAudiences:          cfg.TokenAudiences,
-			TokenLeeway:             cfg.TokenLeeway,
-			TokenMaxAge:             cfg.TokenMaxAge,
-			TokenAuthScheme:         cfg.TokenAuthScheme,
-			TokenRolesClaim:         cfg.TokenRolesClaim,
-			KeysURL:                 cfg.KeysURL,
-			KeysUserAgent:           fmt.Sprintf("Vouch/%s", version),
-			KeysTimeout:             cfg.KeysTimeout,
-			KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
-			KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,
-			KeysAttemptLimit:        cfg.KeysAttemptLimit,
-			KeysBackoffMinDelay:     cfg.KeysBackoffMinDelay,
-			KeysBackoffMaxDelay:     cfg.KeysBackoffMaxDelay,
-			KeysBackoffGrowthFactor: cfg.KeysBackoffGrowthFactor,
-			KeysBackoffJitterAmount: cfg.KeysBackoffJitterAmount,
-			Logger:                  logger,
-		})
+	// Initialize the Bouncer to handle JWT verification and JWKS caching.
+	bouncer := bouncer.New(&bouncer.Config{
+		TokenIssuers:            cfg.TokenIssuers,
+		TokenAudiences:          cfg.TokenAudiences,
+		TokenLeeway:             cfg.TokenLeeway,
+		TokenMaxAge:             cfg.TokenMaxAge,
+		TokenAuthScheme:         cfg.TokenAuthScheme,
+		TokenRolesClaim:         cfg.TokenRolesClaim,
+		KeysURL:                 cfg.KeysURL,
+		KeysUserAgent:           fmt.Sprintf("Vouch/%s", version),
+		KeysTimeout:             cfg.KeysTimeout,
+		KeysMinRefreshInterval:  cfg.KeysMinRefreshInterval,
+		KeysMaxRefreshInterval:  cfg.KeysMaxRefreshInterval,
+		KeysAttemptLimit:        cfg.KeysAttemptLimit,
+		KeysBackoffMinDelay:     cfg.KeysBackoffMinDelay,
+		KeysBackoffMaxDelay:     cfg.KeysBackoffMaxDelay,
+		KeysBackoffGrowthFactor: cfg.KeysBackoffGrowthFactor,
+		KeysBackoffJitterAmount: cfg.KeysBackoffJitterAmount,
+		Logger:                  logger,
+	})
 
-		// Initialize the Stamper to inject proxy authentication headers.
-		stamper := stamper.New(&stamper.Config{
-			UserNameHeader: cfg.UserNameHeader,
-			RolesHeader:    cfg.RolesHeader,
-		})
+	// Initialize the Stamper to inject proxy authentication headers.
+	stamper := stamper.New(&stamper.Config{
+		UserNameHeader: cfg.UserNameHeader,
+		RolesHeader:    cfg.RolesHeader,
+	})
 
-		// Initialize the Gateway to proxy requests to the upstream service.
-		gateway := gateway.New(&gateway.Config{
-			Bouncer:         bouncer,
-			Stamper:         stamper,
-			URL:             cfg.Target,
-			FlushInterval:   cfg.FlushInterval,
-			MinBufferSize:   cfg.MinBufferSize,
-			MaxBufferSize:   cfg.MaxBufferSize,
-			MaxIdleConns:    cfg.MaxIdleConns,
-			IdleConnTimeout: cfg.IdleConnTimeout,
-			Logger:          logger,
-		})
+	// Initialize the Gateway to proxy requests to the upstream service.
+	gateway := gateway.New(&gateway.Config{
+		Bouncer:         bouncer,
+		Stamper:         stamper,
+		URL:             cfg.Target,
+		FlushInterval:   cfg.FlushInterval,
+		MinBufferSize:   cfg.MinBufferSize,
+		MaxBufferSize:   cfg.MaxBufferSize,
+		MaxIdleConns:    cfg.MaxIdleConns,
+		IdleConnTimeout: cfg.IdleConnTimeout,
+		Logger:          logger,
+	})
 
-		// Initialize the HTTP server.
-		s := server.New(&server.Config{
-			Handler:           gateway,
-			Host:              cfg.Host,
-			Port:              cfg.Port,
-			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
-			ReadTimeout:       cfg.ReadTimeout,
-			WriteTimeout:      cfg.WriteTimeout,
-			IdleTimeout:       cfg.IdleTimeout,
-			MaxHeaderBytes:    cfg.MaxHeaderBytes,
-			Logger:            logger,
-		})
+	// Initialize the HTTP server.
+	s := server.New(&server.Config{
+		Handler:           gateway,
+		Host:              cfg.Host,
+		Port:              cfg.Port,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+		MaxHeaderBytes:    cfg.MaxHeaderBytes,
+		Logger:            logger,
+	})
 
+	serve := func(ctx context.Context) error {
 		errCh := make(chan error, 1)
-
-		// Start the HTTP server concurrently.
 		go func() { errCh <- s.Start() }()
-
-		// Schedule the background refresh of the remote JWKS.
-		go func() {
-			if err := bouncer.Start(ctx); err != nil {
-				errCh <- err
-			}
-		}()
-
-		// Wait for an error or a shutdown signal.
 		select {
 		case err := <-errCh:
 			return err
 		case <-ctx.Done():
 			// Gracefully stop the server on context cancellation.
-			err := s.Stop()
-			if err != nil && err != http.ErrServerClosed {
+			if err := s.Stop(); err != nil && err != http.ErrServerClosed {
 				return err
 			}
 			return nil
 		}
 	}
-
-	if err := app.Run(
-		runnable,
+	fetch := func(ctx context.Context) error {
+		return bouncer.Start(ctx)
+	}
+	components := []app.Runnable{serve, fetch}
+	// Start the HTTP server and the Bouncer concurrently.
+	if err := app.RunAll(
+		components,
 		app.WithContext(ctx),
 		app.WithLogger(logger),
 	); err != nil {
