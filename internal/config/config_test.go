@@ -114,7 +114,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "json", cfg.LogFormat)
 	assert.Equal(t, "0.0.0.0", cfg.Host)
-	assert.Equal(t, "5984", cfg.Port)
+	assert.Equal(t, "8080", cfg.Port)
 	assert.Equal(t, 5*time.Second, cfg.ReadHeaderTimeout)
 	assert.Equal(t, 30*time.Second, cfg.ReadTimeout)
 	assert.Equal(t, time.Duration(0), cfg.WriteTimeout)

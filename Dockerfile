@@ -27,7 +27,7 @@ FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
 COPY --from=build /out/vouch /app/vouch
 
-EXPOSE 5984
+EXPOSE 8080
 USER nonroot:nonroot
 
 ENTRYPOINT ["/app/vouch"]

@@ -33,7 +33,7 @@ type Config struct {
 	LogLevel                string        `env:",default:info"`
 	LogFormat               string        `env:",default:json"`
 	Host                    string        `env:",default:0.0.0.0"`
-	Port                    string        `env:",default:5984"`
+	Port                    string        `env:",default:8080"`
 	ReadHeaderTimeout       time.Duration `env:",unit:s,default:5"`
 	ReadTimeout             time.Duration `env:",unit:s,default:30"`
 	WriteTimeout            time.Duration `env:",unit:s,default:0"`
