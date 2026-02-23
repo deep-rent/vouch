@@ -1,0 +1,19 @@
+apiVersion: v2
+name: vouch
+description: Deploys the Vouch sidecar alongside CouchDB
+type: application
+version: 0.1.0
+appVersion: "0.0.1"
+keywords:
+  - couchdb
+  - jwt
+  - proxy
+  - security
+  - sidecar
+sources:
+  - https://github.com/deep-rent/vouch
+dependencies:
+  - name: couchdb
+    version: 4.6.3
+    repository: https://apache.github.io/couchdb-helm
+    condition: couchdb.enabled

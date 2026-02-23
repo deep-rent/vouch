@@ -1,0 +1,85 @@
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# Configuration for the CouchDB dependency.
+# We use the 'sidecars' feature of the upstream chart to inject Vouch.
+couchdb:
+  enabled: true
+
+  # Standard CouchDB configuration
+  adminUsername: admin
+  adminPassword: password
+  allowAdminParty: false
+
+  # Inject Vouch as a sidecar container
+  sidecars:
+    - name: vouch
+      image: ghcr.io/deep-rent/vouch:0.2.0
+      imagePullPolicy: IfNotPresent
+      ports:
+        - name: vouch
+          containerPort: 8080
+      env:
+        # --- Network Configuration ---
+        - name: VOUCH_PORT
+          value: "8080"
+        - name: VOUCH_HOST
+          value: "0.0.0.0"
+        - name: VOUCH_TARGET
+          value: "http://127.0.0.1:5984"
+
+        # --- JWKS Configuration (REQUIRED) ---
+        # You must override this value with your Identity Provider's JWKS URL.
+        - name: VOUCH_KEYS_URL
+          value: ""
+
+        # --- Logging ---
+        - name: VOUCH_LOG_LEVEL
+          value: "info"
+        - name: VOUCH_LOG_FORMAT
+          value: "json"
+
+        # --- Token Validation ---
+        # - name: VOUCH_TOKEN_ISSUERS
+        #   value: "https://accounts.google.com"
+        # - name: VOUCH_TOKEN_AUDIENCES
+        #   value: "my-client-id"
+        # - name: VOUCH_TOKEN_ROLES_CLAIM
+        #   value: "https://deep.rent/roles"
+
+        # --- Caching & Performance ---
+        # - name: VOUCH_KEYS_MIN_REFRESH_INTERVAL
+        #   value: "15m"
+        # - name: VOUCH_FLUSH_INTERVAL
+        #   value: "0s"
+
+      # Liveness probe to ensure Vouch is up
+      livenessProbe:
+        httpGet:
+          path: /_health # Assuming Vouch doesn't have a dedicated health endpoint yet, this might fail if auth is required.
+          # Ideally, Vouch should expose a non-authed /healthz endpoint.
+          # For now, we can check TCP connectivity.
+        tcpSocket:
+          port: vouch
+        initialDelaySeconds: 5
+        periodSeconds: 10
+
+      # Readiness probe
+      readinessProbe:
+        tcpSocket:
+          port: vouch
+        initialDelaySeconds: 5
+        periodSeconds: 10
+
+      resources: {}
+        # limits:
+        #   cpu: 100m
+        #   memory: 128Mi
+        # requests:
+        #   cpu: 100m
+        #   memory: 128Mi
