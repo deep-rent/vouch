@@ -8,6 +8,8 @@ github.com/deep-rent/nexus v1.1.17 h1:kd/RVAAjuzHPfczrbmlZP4cXMEZYP83qnNBQrmkekm
 github.com/deep-rent/nexus v1.1.17/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
 github.com/deep-rent/nexus v1.1.18 h1:S+47swpofArOz6ZKNQrhGDSaVapp7x6LWv/qb9ktB7k=
 github.com/deep-rent/nexus v1.1.18/go.mod h1:c6yiJBFQG4X6zaQQrr0N4m2Bnjd8sSGzXgti+q1TMlU=
+github.com/deep-rent/nexus v1.1.19 h1:iu2dA8AYUhvRHF4n2qeutVFAli/xdef6TARQLtf8EyY=
+github.com/deep-rent/nexus v1.1.19/go.mod h1:eOhXtaZ33gFCY3sBoKNB/FTQfI5aqq8gSs7N4NZrYiY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
