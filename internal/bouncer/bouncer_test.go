@@ -79,7 +79,7 @@ func TestBouncer_Bounce(t *testing.T) {
 	}
 
 	b := bouncer.New(cfg)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	go func() {

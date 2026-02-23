@@ -43,7 +43,7 @@ func TestCompile(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	var buf bytes.Buffer
-	err := boot(context.Background(), []string{"vouch", "-v"}, &buf)
+	err := boot(t.Context(), []string{"vouch", "-v"}, &buf)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "dev", "output should contain the version")
 }
@@ -57,7 +57,7 @@ func TestMissingConfig(t *testing.T) {
 	}
 	require.NoError(t, os.Unsetenv(key))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	err := boot(ctx, []string{"vouch"}, io.Discard)
@@ -123,7 +123,7 @@ func TestIntegration(t *testing.T) {
 	t.Setenv("VOUCH_LOG_LEVEL", "debug")
 	t.Setenv("VOUCH_KEYS_MIN_REFRESH_INTERVAL", "1")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	go func() {

@@ -101,7 +101,7 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	}
 	b := bouncer.New(bouncerCfg)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	go func() {
 		_ = b.Start(ctx)
