@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Vouch",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/vouch",
+      "env": {
+        "VOUCH_KEYS_URL": "https://www.googleapis.com/oauth2/v3/certs",
+        "VOUCH_TARGET": "http://localhost:5984",
+        "VOUCH_LOG_LEVEL": "debug",
+        "VOUCH_PORT": "8080"
+      },
+      "buildFlags": "-ldflags='-X main.version=debug'"
+    },
+    {
+      "name": "Test Current Package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}"
+    }
+  ]
+}
