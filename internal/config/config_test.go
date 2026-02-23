@@ -144,7 +144,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, "https://required.com/jwks.json", cfg.KeysURL)
 	assert.Equal(t, 10*time.Second, cfg.KeysTimeout)
 	assert.Equal(t, 60*time.Minute, cfg.KeysMinRefreshInterval)
-	assert.Equal(t, 28800*time.Minute, cfg.KeysMaxRefreshInterval)
+	assert.Equal(t, 10080*time.Minute, cfg.KeysMaxRefreshInterval)
 	assert.Equal(t, 0, cfg.KeysAttemptLimit)
 	assert.Equal(t, 1*time.Second, cfg.KeysBackoffMinDelay)
 	assert.Equal(t, 120*time.Second, cfg.KeysBackoffMaxDelay)
