@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package main is the entry point for the Vouch sidecar proxy application.
 package main
 
 import (
@@ -33,6 +34,7 @@ import (
 // The application version injected via -ldflags during build time.
 var version = "dev"
 
+// main initializes and runs the application components.
 func main() {
 	showVersion := flag.Bool("v", false, "Show version and exit")
 	flag.Parse()
@@ -50,6 +52,7 @@ func main() {
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
 
 	runnable := func(ctx context.Context) error {
+		// Initialize the Bouncer to handle JWT verification and JWKS caching.
 		bouncer := bouncer.New(&bouncer.Config{
 			TokenIssuers:            cfg.TokenIssuers,
 			TokenAudiences:          cfg.TokenAudiences,
@@ -70,11 +73,13 @@ func main() {
 			Logger:                  logger,
 		})
 
+		// Initialize the Stamper to inject proxy authentication headers.
 		stamper := stamper.New(&stamper.Config{
 			UserNameHeader: cfg.UserNameHeader,
 			RolesHeader:    cfg.RolesHeader,
 		})
 
+		// Initialize the Gateway to proxy requests to the upstream service.
 		gateway := gateway.New(&gateway.Config{
 			Bouncer:         bouncer,
 			Stamper:         stamper,
@@ -87,6 +92,7 @@ func main() {
 			Logger:          logger,
 		})
 
+		// Initialize the HTTP server.
 		s := server.New(&server.Config{
 			Handler:           gateway,
 			Host:              cfg.Host,
@@ -100,17 +106,23 @@ func main() {
 		})
 
 		errCh := make(chan error, 1)
+
+		// Start the HTTP server concurrently.
 		go func() { errCh <- s.Start() }()
+
+		// Schedule the background refresh of the remote JWKS.
 		go func() {
 			if err := bouncer.Start(ctx); err != nil {
 				errCh <- err
 			}
 		}()
 
+		// Wait for an error or a shutdown signal.
 		select {
 		case err := <-errCh:
 			return err
 		case <-ctx.Done():
+			// Gracefully stop the server on context cancellation.
 			err := s.Stop()
 			if err != nil && err != http.ErrServerClosed {
 				return err
