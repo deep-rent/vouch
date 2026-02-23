@@ -26,6 +26,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.8.1
       - name: Quick sanity build
         run: |
           go build -trimpath -ldflags="-s -w -X 'main.version=${GITHUB_REF_NAME}'" ./cmd/vouch
@@ -50,6 +52,7 @@ jobs:
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
       - name: Build and push
+        id: build-and-push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -65,6 +68,11 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: mode=max
           sbom: true
+      - name: Sign the published Docker image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
       # - name: Trivy scan
       #   uses: aquasecurity/trivy-action@0.24.0
       #   with:
