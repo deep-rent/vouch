@@ -19,6 +19,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,17 +37,28 @@ import (
 var version = "dev"
 
 func main() {
-	showVersion := flag.Bool("v", false, "Display version and exit")
-	flag.Parse()
+	if err := run(context.Background(), os.Args, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	showVersion := flags.Bool("v", false, "Display version and exit")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
 
 	if *showVersion {
-		fmt.Printf("Vouch %s\n", version)
-		os.Exit(0)
+		fmt.Fprintf(stdout, "Vouch %s\n", version)
+		return nil
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	logger := log.New(log.WithLevel(cfg.LogLevel), log.WithFormat(cfg.LogFormat))
@@ -131,8 +143,14 @@ func main() {
 		}
 	}
 
-	if err := app.Run(runnable, app.WithLogger(logger)); err != nil {
-		logger.Error("Application exited with error", slog.Any("error", err))
-		os.Exit(1)
+	if err := app.Run(
+		runnable,
+		app.WithContext(ctx),
+		app.WithLogger(logger),
+	); err != nil {
+		logger.Error("Application exited with an error", slog.Any("error", err))
+		return err
 	}
+
+	return nil
 }
