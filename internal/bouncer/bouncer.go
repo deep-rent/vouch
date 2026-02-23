@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package bouncer provides the logic for verifying JWTs against a remote JWKS.
 package bouncer
 
 import (
@@ -43,6 +44,7 @@ type User struct {
 	Roles []string // List of CouchDB roles, read from a configurable claim.
 }
 
+// Config holds the configuration for the Bouncer.
 type Config struct {
 	TokenIssuers            []string
 	TokenAudiences          []string
@@ -63,6 +65,8 @@ type Config struct {
 	Logger                  *slog.Logger
 }
 
+// Bouncer is responsible for validating incoming HTTP requests by verifying
+// their bearer tokens.
 type Bouncer struct {
 	verifier   *jwt.Verifier[*jwt.DynamicClaims]
 	authScheme string
@@ -70,7 +74,10 @@ type Bouncer struct {
 	tick       scheduler.Tick
 }
 
+// New creates a new Bouncer instance.
 func New(cfg *Config) *Bouncer {
+	// Create a caching JWK set that automatically refreshes keys from the
+	// remote endpoint.
 	set := jwk.NewCacheSet(
 		cfg.KeysURL,
 		cache.WithLogger(cfg.Logger),
@@ -90,6 +97,7 @@ func New(cfg *Config) *Bouncer {
 		),
 	)
 	return &Bouncer{
+		// Configure the JWT verifier with the key set and validation rules.
 		verifier: jwt.NewVerifier[*jwt.DynamicClaims](set).
 			WithIssuers(cfg.TokenIssuers...).
 			WithAudiences(cfg.TokenAudiences...).
@@ -101,6 +109,8 @@ func New(cfg *Config) *Bouncer {
 	}
 }
 
+// Start begins the background process for refreshing the JWK set.
+// It blocks until the context is canceled.
 func (b *Bouncer) Start(ctx context.Context) error {
 	sched := scheduler.New(ctx)
 	sched.Dispatch(b.tick)
@@ -110,6 +120,8 @@ func (b *Bouncer) Start(ctx context.Context) error {
 	return nil
 }
 
+// Bounce verifies the bearer token in the request and returns the authenticated
+// user. It returns an error if the token is missing, invalid, or expired.
 func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	token := header.Credentials(req.Header, b.authScheme)
 	// Strip the token from the request header to prevent it from being forwarded
@@ -126,6 +138,7 @@ func (b *Bouncer) Bounce(req *http.Request) (*User, error) {
 	if name == "" {
 		return nil, ErrUndefinedUserName
 	}
+	// Extract roles from the custom claim.
 	roles, ok := jwt.Get[[]string](claims, b.rolesClaim)
 	if !ok {
 		roles = make([]string, 0)
