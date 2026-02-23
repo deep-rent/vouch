@@ -17,16 +17,16 @@ tidy: ## Tidy go modules
 	go mod tidy
 
 test: ## Run tests with race detector and coverage
-	go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
+	GOEXPERIMENT=jsonv2 go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
 
 cover: test ## Open the HTML coverage report
-	go tool cover -html=coverage.out
+	GOEXPERIMENT=jsonv2 go tool cover -html=coverage.out
 
 build: ## Build the application binary
-	go build -trimpath $(LDFLAGS) -o $(BINDIR)/$(BINARY_NAME) $(BINARY_PATH)
+	GOEXPERIMENT=jsonv2 go build -trimpath $(LDFLAGS) -o $(BINDIR)/$(BINARY_NAME) $(BINARY_PATH)
 
 run: ## Run the application locally
-	go run $(BINARY_PATH)
+	GOEXPERIMENT=jsonv2 go run $(BINARY_PATH)
 
 release: BINDIR=dist
 release: clean build ## Build release artifact into dist/
