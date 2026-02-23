@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package server provides a wrapper around the standard HTTP server with
+// graceful shutdown capabilities and middleware integration.
 package server
 
 import (
@@ -24,6 +26,7 @@ import (
 	"github.com/deep-rent/nexus/middleware"
 )
 
+// Config holds the configuration for the Server.
 type Config struct {
 	Handler           http.Handler
 	Host              string
@@ -36,11 +39,13 @@ type Config struct {
 	Logger            *slog.Logger
 }
 
+// Server wraps http.Server to provide a simplified lifecycle management.
 type Server struct {
 	server *http.Server
 	logger *slog.Logger
 }
 
+// New creates a new Server instance.
 func New(cfg *Config) *Server {
 	// Collect middleware to apply to the handler.
 	pipes := []middleware.Pipe{middleware.Recover(cfg.Logger)}
@@ -69,6 +74,8 @@ func New(cfg *Config) *Server {
 	}
 }
 
+// Start begins listening for incoming HTTP requests.
+// It returns an error if the server fails to start.
 func (s *Server) Start() error {
 	host, port, _ := net.SplitHostPort(s.server.Addr)
 	s.logger.Info(
@@ -79,6 +86,7 @@ func (s *Server) Start() error {
 	return s.server.ListenAndServe()
 }
 
+// Stop gracefully shuts down the server.
 func (s *Server) Stop() error {
 	return s.server.Shutdown(context.Background())
 }
