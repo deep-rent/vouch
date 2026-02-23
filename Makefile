@@ -16,12 +16,6 @@ all: tidy fmt vet lint test build ## Run all checks, tests, and build
 tidy: ## Tidy go modules
 	go mod tidy
 
-fmt: ## Format code
-	go fmt ./...
-
-vet: ## Vet code
-	go vet ./...
-
 test: ## Run tests with race detector and coverage
 	go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
 
