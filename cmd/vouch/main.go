@@ -37,7 +37,7 @@ var version = "dev"
 
 // main initializes and runs the application components.
 func main() {
-	showVersion := flag.Bool("v", false, "Show version and exit")
+	showVersion := flag.Bool("v", false, "Display version and exit")
 	flag.Parse()
 
 	if *showVersion {
