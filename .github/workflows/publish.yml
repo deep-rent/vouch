@@ -73,14 +73,6 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-      # - name: Trivy scan
-      #   uses: aquasecurity/trivy-action@0.24.0
-      #   with:
-      #     image-ref: ghcr.io/deep-rent/vouch:${{ github.ref_name }}
-      #     format: table
-      #     vuln-type: os,library
-      #     severity: HIGH,CRITICAL
-      #     exit-code: 1
       - name: Summary
         run: |
           echo "Published tags:"
