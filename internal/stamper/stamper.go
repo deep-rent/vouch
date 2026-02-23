@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package stamper handles the injection of proxy authentication headers
+// into HTTP requests.
 package stamper
 
 import (
@@ -21,16 +23,19 @@ import (
 	"github.com/deep-rent/vouch/internal/bouncer"
 )
 
+// Config holds the configuration for the Stamper.
 type Config struct {
 	UserNameHeader string // The header to set with the authenticated user's name.
 	RolesHeader    string // The header to set with the user's roles.
 }
 
+// Stamper is responsible for modifying requests to include identity information.
 type Stamper struct {
 	userNameHeader string
 	rolesHeader    string
 }
 
+// New creates a new Stamper instance.
 func New(cfg *Config) *Stamper {
 	return &Stamper{
 		userNameHeader: cfg.UserNameHeader,
@@ -38,10 +43,12 @@ func New(cfg *Config) *Stamper {
 	}
 }
 
+// Stamp injects the user's name and roles into the request headers.
 func (s *Stamper) Stamp(req *http.Request, user *bouncer.User) {
 	req.Header.Set(s.userNameHeader, user.Name)
 
 	if len(user.Roles) == 0 {
+		// Ensure no stale roles header exists if the user has no roles.
 		req.Header.Del(s.rolesHeader)
 	} else {
 		req.Header.Set(s.rolesHeader, strings.Join(user.Roles, ","))
