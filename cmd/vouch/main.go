@@ -41,7 +41,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(version)
+		fmt.Printf("Vouch %s\n", version)
 		os.Exit(0)
 	}
 
