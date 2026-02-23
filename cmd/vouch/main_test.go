@@ -32,6 +32,7 @@ import (
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
+	"github.com/deep-rent/nexus/testutil/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,10 +153,7 @@ func TestIntegration(t *testing.T) {
 		_ = cmd.Process.Kill()
 	}()
 
-	// Wait for Vouch to start listening.
-	if !waitForPort(host, port) {
-		t.Fatalf("timed out waiting for port %d. logs:\n%s\n%s", port, stdout.String(), stderr.String())
-	}
+	ports.WaitT(t, host, port)
 
 	// 4. Generate a Valid JWT
 	signer := jwt.NewSigner(
@@ -224,18 +222,4 @@ func getFreePort(t *testing.T) int {
 	require.NoError(t, err)
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port
-}
-
-func waitForPort(host string, port int) bool {
-	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	end := time.Now().Add(5 * time.Second)
-	for time.Now().Before(end) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return true
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return false
 }
