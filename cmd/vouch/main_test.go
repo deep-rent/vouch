@@ -98,7 +98,7 @@ func TestIntegration(t *testing.T) {
 
 	port := ports.FreeT(t)
 	host := "127.0.0.1"
-	vouch := fmt.Sprintf("http://%s:%d", host, port)
+	baseURL := fmt.Sprintf("http://%s:%d", host, port)
 
 	cmd := exec.Command(exe)
 	cmd.Env = append(os.Environ(),
@@ -143,7 +143,7 @@ func TestIntegration(t *testing.T) {
 	var res *http.Response
 
 	require.Eventually(t, func() bool {
-		req, _ := http.NewRequest("GET", vouch+"/some/db", nil)
+		req, _ := http.NewRequest("GET", baseURL+"/some/db", nil)
 		req.Header.Set("Authorization", "Bearer "+string(token))
 
 		res, err = client.Do(req)
@@ -165,7 +165,7 @@ func TestIntegration(t *testing.T) {
 	assert.Equal(t, "alice", res.Header.Get("X-Received-User"))
 	assert.Equal(t, "admin,basic", res.Header.Get("X-Received-Roles"))
 
-	badReq, _ := http.NewRequest("GET", vouch+"/some/db", nil)
+	badReq, _ := http.NewRequest("GET", baseURL+"/some/db", nil)
 	badReq.Header.Set("Authorization", "Bearer invalid.token.here")
 	badRes, err := client.Do(badReq)
 	require.NoError(t, err)
