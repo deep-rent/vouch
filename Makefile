@@ -8,16 +8,28 @@ LDFLAGS = -ldflags="-s -w -X 'main.version=${VERSION}'"
 IMAGE ?= ghcr.io/deep-rent/vouch
 PLATFORMS ?= linux/amd64,linux/arm64
 
-.DEFAULT_GOAL := help
-.PHONY: all test build clean lint up down logs help tidy run publish
+FLAGS := GOEXPERIMENT=jsonv2
+PACKAGES := ./...
 
-all: tidy lint test build ## Run all checks, tests, and build
+.DEFAULT_GOAL := help
+.PHONY: all format test build clean lint up down logs help tidy run publish
+
+all: format lint test
 
 tidy: ## Tidy go modules
 	go mod tidy
 
-test: ## Run tests with race detector and coverage
-	GOEXPERIMENT=jsonv2 go test -v -race -cover -covermode=atomic -coverprofile=coverage.out ./...
+format:
+	@echo "Formatting..."
+	@$(FLAGS) golangci-lint fmt $(PACKAGES)
+
+lint:
+	@echo "Linting..."
+	@$(FLAGS) golangci-lint run $(PACKAGES)
+
+test:
+	@echo "Testing..."
+	@$(FLAGS) go test -v -cover -coverprofile=coverage.out $(PACKAGES)
 
 cover: test ## Open the HTML coverage report
 	GOEXPERIMENT=jsonv2 go tool cover -html=coverage.out
@@ -34,10 +46,6 @@ release: clean build ## Build release artifact into dist/
 clean: ## Remove the built binary and test cache
 	rm -rf $(BINDIR) dist coverage.out
 	go clean -testcache
-
-lint: ## Run golangci-lint
-	@command -v golangci-lint >/dev/null 2>&1 || (echo "golangci-lint not found. Please install: https://golangci-lint.run/usage/install/" && exit 1)
-	golangci-lint run
 
 image: ## Build the multi-platform Docker image
 	docker buildx build \
@@ -56,8 +64,11 @@ publish: ## Build and push the multi-platform Docker image
 		--push \
 		.
 
-help: ## Show this help message
-	@echo "Usage: make <target>"
-	@echo ""
+help:
 	@echo "Targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "  all:            Runs format, lint, and test."
+	@echo "  format:         Formats the code."
+	@echo "  lint:           Lints the code."
+	@echo "  test:           Executes the tests."
+	@echo "  help:           Shows this help message."
