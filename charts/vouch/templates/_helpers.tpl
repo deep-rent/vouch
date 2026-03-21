@@ -72,7 +72,7 @@ X-Vouch-Roles
 {{- end -}}
 
 {{/*
-Create the environment variables for the vouch container.
+Environment variables for the Vouch container
 */}}
 {{- define "vouch.env" -}}
 - name: VOUCH_LOG_LEVEL
@@ -107,4 +107,17 @@ Create the environment variables for the vouch container.
 - name: VOUCH_TOKEN_AUDIENCES
   value: {{ .Values.vouch.config.token.audiences | join "," | quote }}
 {{- end }}
+{{- end -}}
+
+{{/*
+CouchDB configuration
+*/}}
+{{- define "vouch.couchdb.extraIni" -}}
+10-vouch.ini: |
+  [httpd]
+  authentication_handlers = {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}
+
+  [chttpd_auth]
+  x_auth_username = {{ include "vouch.userNameHeader" . }}
+  x_auth_roles = {{ include "vouch.rolesHeader" . }}
 {{- end -}}
