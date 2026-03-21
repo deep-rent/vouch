@@ -30,14 +30,14 @@ import (
 )
 
 func TestServer_Lifecycle(t *testing.T) {
-	// Find a free port
+	// Find a free port.
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.NoError(t, err)
 	_ = l.Close()
 
-	// Configure Server
+	// Configure the server.
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -57,7 +57,7 @@ func TestServer_Lifecycle(t *testing.T) {
 
 	srv := server.New(cfg)
 
-	// Launch server in background
+	// Launch server in background.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- srv.Start()
@@ -65,9 +65,9 @@ func TestServer_Lifecycle(t *testing.T) {
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 
-	// Wait for readiness
+	// Wait for readiness using the health check endpoint.
 	require.Eventually(t, func() bool {
-		res, err := http.Get(baseURL)
+		res, err := http.Get(baseURL + "/healthz")
 		if err != nil {
 			return false
 		}
@@ -75,18 +75,24 @@ func TestServer_Lifecycle(t *testing.T) {
 		return res.StatusCode == http.StatusOK
 	}, 2*time.Second, 50*time.Millisecond, "Server failed to start")
 
-	// Verify handler
-	res, err := http.Get(baseURL)
+	// Verify main handler.
+	res, err := http.Get(baseURL + "/")
 	require.NoError(t, err)
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
 	assert.Equal(t, "ok", string(body))
 
-	// Stop server
+	// Verify health check endpoint explicitly returns empty 200 OK.
+	resHealth, errHealth := http.Get(baseURL + "/healthz")
+	require.NoError(t, errHealth)
+	_ = resHealth.Body.Close()
+	assert.Equal(t, http.StatusOK, resHealth.StatusCode)
+
+	// Stop the server.
 	err = srv.Stop()
 	require.NoError(t, err)
 
-	// Verify shutdown
+	// Verify shutdown.
 	select {
 	case err := <-errCh:
 		assert.ErrorIs(t, err, http.ErrServerClosed)
@@ -96,7 +102,7 @@ func TestServer_Lifecycle(t *testing.T) {
 }
 
 func TestServer_Recovery(t *testing.T) {
-	// Find a free port
+	// Find a free port.
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	_, port, err := net.SplitHostPort(l.Addr().String())
@@ -104,7 +110,7 @@ func TestServer_Recovery(t *testing.T) {
 	err = l.Close()
 	require.NoError(t, err)
 
-	// Configure server with panicking handler
+	// Configure server with panicking handler.
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		panic("unexpected failure")
 	})
@@ -127,15 +133,19 @@ func TestServer_Recovery(t *testing.T) {
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 
-	// Verify recovery (expecting status 500)
+	// Wait for readiness using the health check endpoint (which won't panic).
 	require.Eventually(t, func() bool {
-		res, err := http.Get(baseURL)
+		res, err := http.Get(baseURL + "/healthz")
 		if err != nil {
 			return false
 		}
-		defer func() {
-			_ = res.Body.Close()
-		}()
-		return res.StatusCode == http.StatusInternalServerError
-	}, 2*time.Second, 50*time.Millisecond, "Server failed to recover from panic")
+		_ = res.Body.Close()
+		return res.StatusCode == http.StatusOK
+	}, 2*time.Second, 50*time.Millisecond, "Server failed to start")
+
+	// Verify recovery on the main endpoint (expecting status 500).
+	res, err := http.Get(baseURL + "/")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 }
