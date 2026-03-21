@@ -28,3 +28,44 @@ Vouch is designed to be deployed as a sidecar to your CouchDB container. This me
 4.  If a roles claim is configured, Vouch extracts the roles from the specified claim.
 5.  Vouch forwards the request to CouchDB, including the extracted username and roles in the `X-Auth-CouchDB-UserName` and `X-Auth-CouchDB-Roles` proxy authentication headers.
 6.  CouchDB uses these headers to authorize the request.
+
+## Configuration
+
+Vouch is configured using environment variables. The following table lists the available variables and their default values:
+
+| Environment Variable | Description | Default |
+| --- | --- | --- |
+| `VOUCH_LOG_LEVEL` | Log level (e.g., debug, info, warn, error). | `info` |
+| `VOUCH_LOG_FORMAT` | Log format (e.g., text, json). | `json` |
+| `VOUCH_UPDATER_ENABLED` | Enable checking for new releases. | `false` |
+| `VOUCH_UPDATER_BASE_URL` | Base URL for the updater. | |
+| `VOUCH_HOST` | Host to bind the server to. | `0.0.0.0` |
+| `VOUCH_PORT` | Port to bind the server to. | `8080` |
+| `VOUCH_READ_HEADER_TIMEOUT` | Read header timeout. | `5s` |
+| `VOUCH_READ_TIMEOUT` | Read timeout. | `30s` |
+| `VOUCH_WRITE_TIMEOUT` | Write timeout. | `0s` |
+| `VOUCH_IDLE_TIMEOUT` | Idle timeout. | `120s` |
+| `VOUCH_MAX_HEADER_BYTES` | Maximum header bytes. | `0` |
+| `VOUCH_USER_NAME_HEADER` | Header to forward the username. | `X-Auth-CouchDB-UserName` |
+| `VOUCH_ROLES_HEADER` | Header to forward the roles. | `X-Auth-CouchDB-Roles` |
+| `VOUCH_TARGET` | Target URL for the proxy. | `http://localhost:5984` |
+| `VOUCH_FLUSH_INTERVAL` | Flush interval for streaming responses. | `-1` |
+| `VOUCH_MIN_BUFFER_SIZE` | Minimum buffer size for streaming responses. | `32768` |
+| `VOUCH_MAX_BUFFER_SIZE` | Maximum buffer size for streaming responses. | `262144` |
+| `VOUCH_MAX_IDLE_CONNS` | Maximum number of idle connections to the target. | `512` |
+| `VOUCH_IDLE_CONN_TIMEOUT` | Idle connection timeout for connections to the target. | `90s` |
+| `VOUCH_TOKEN_ISSUERS` | Comma-separated list of allowed token issuers. | |
+| `VOUCH_TOKEN_AUDIENCES`| Comma-separated list of allowed token audiences. | |
+| `VOUCH_TOKEN_LEEWAY` | Leeway for token expiration. | `30s` |
+| `VOUCH_TOKEN_MAX_AGE` | Maximum age of a token. | `0s` |
+| `VOUCH_TOKEN_AUTH_SCHEME` | Authentication scheme for tokens. | `Bearer` |
+| `VOUCH_TOKEN_ROLES_CLAIM` | Claim to extract roles from. | `_couchdb.roles` |
+| `VOUCH_KEYS_URL` | URL to fetch the JWKS from. | **required** |
+| `VOUCH_KEYS_TIMEOUT` | Timeout for fetching keys. | `10s` |
+| `VOUCH_KEYS_MIN_REFRESH_INTERVAL` | Minimum refresh interval for keys. | `1m` |
+| `VOUCH_KEYS_MAX_REFRESH_INTERVAL` | Maximum refresh interval for keys. | `10080m` |
+| `VOUCH_KEYS_ATTEMPT_LIMIT` | Attempt limit for fetching keys. | `0` |
+| `VOUCH_KEYS_BACKOFF_MIN_DELAY` | Minimum backoff delay for fetching keys. | `1s` |
+| `VOUCH_KEYS_BACKOFF_MAX_DELAY` | Maximum backoff delay for fetching keys. | `120s` |
+| `VOUCH_KEYS_BACKOFF_GROWTH_FACTOR` | Backoff growth factor for fetching keys. | `1.75` |
+| `VOUCH_KEYS_BACKOFF_JITTER_AMOUNT` | Backoff jitter amount for fetching keys. | `0.66` |
