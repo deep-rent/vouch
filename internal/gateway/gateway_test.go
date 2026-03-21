@@ -41,13 +41,13 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	// Ensure the test client bypasses any local proxy settings.
 	t.Setenv("NO_PROXY", "127.0.0.1,localhost")
 
-	// Setup a mock backend
 	called := false
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		// Verify stamped headers
-		assert.Equal(t, "alice", r.Header.Get("X-Vouch-User"))
-		assert.Equal(t, "admin", r.Header.Get("X-Vouch-Roles"))
+		if r.URL.Path != "/_up" {
+			assert.Equal(t, "alice", r.Header.Get("X-Vouch-User"))
+			assert.Equal(t, "admin", r.Header.Get("X-Vouch-Roles"))
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("backend response"))
 	})
@@ -58,7 +58,6 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	backendURL, err := url.Parse(backend.URL)
 	require.NoError(t, err)
 
-	// Host a mock JWKS
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	keyID := "test"
@@ -82,7 +81,6 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	)
 	defer authServer.Close()
 
-	// Initialize the bouncer
 	bouncerCfg := &bouncer.Config{
 		TokenIssuers:            []string{"https://issuer.com"},
 		TokenAudiences:          []string{"app"},
@@ -108,14 +106,11 @@ func TestGateway_ServeHTTP(t *testing.T) {
 		_ = b.Start(ctx)
 	}()
 
-	// Initialize the stamper
-	stamperCfg := &stamper.Config{
+	s := stamper.New(&stamper.Config{
 		UserNameHeader: "X-Vouch-User",
 		RolesHeader:    "X-Vouch-Roles",
-	}
-	s := stamper.New(stamperCfg)
+	})
 
-	// Construct the gateway
 	gwCfg := &gateway.Config{
 		Bouncer:         b,
 		Stamper:         s,
@@ -129,14 +124,12 @@ func TestGateway_ServeHTTP(t *testing.T) {
 	}
 	gw := gateway.New(gwCfg)
 
-	// Helper to create tokens
 	createToken := func(claims any) string {
 		token, err := jwt.Sign(keyPair, claims)
 		require.NoError(t, err)
 		return string(token)
 	}
 
-	// Wait for bouncer to load keys
 	validToken := createToken(map[string]any{
 		"sub": "warmup",
 		"iss": "https://issuer.com",
@@ -177,6 +170,18 @@ func TestGateway_ServeHTTP(t *testing.T) {
 		assert.True(t, called, "Backend should have been called")
 	})
 
+	t.Run("Bypass_ReadinessProbe", func(t *testing.T) {
+		called = false
+		req := httptest.NewRequest("GET", "/_up", nil)
+		rec := httptest.NewRecorder()
+
+		gw.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "backend response", rec.Body.String())
+		assert.True(t, called, "Backend should have been called for /_up without auth")
+	})
+
 	t.Run("Unauthorized_MissingToken", func(t *testing.T) {
 		called = false
 		req := httptest.NewRequest("GET", "/resource", nil)
@@ -198,19 +203,5 @@ func TestGateway_ServeHTTP(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		assert.False(t, called, "Backend should NOT have been called")
-	})
-
-	t.Run("Bypass_ReadinessProbe", func(t *testing.T) {
-		called = false
-		// Hit the CouchDB readiness probe endpoint.
-		req := httptest.NewRequest("GET", "/_up", nil)
-		// Specifically NOT setting an Authorization header.
-		rec := httptest.NewRecorder()
-
-		gw.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "backend response", rec.Body.String())
-		assert.True(t, called, "Backend should have been called for /_up without auth")
 	})
 }
