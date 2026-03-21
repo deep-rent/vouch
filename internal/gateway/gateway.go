@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/deep-rent/nexus/proxy"
+
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/stamper"
 )

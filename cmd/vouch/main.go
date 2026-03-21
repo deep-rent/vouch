@@ -27,6 +27,7 @@ import (
 	"github.com/deep-rent/nexus/app"
 	"github.com/deep-rent/nexus/log"
 	"github.com/deep-rent/nexus/updater"
+
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/config"
 	"github.com/deep-rent/vouch/internal/gateway"

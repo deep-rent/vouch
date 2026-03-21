@@ -18,9 +18,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/stamper"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStamper_Stamp(t *testing.T) {

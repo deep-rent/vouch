@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deep-rent/vouch/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deep-rent/vouch/internal/server"
 )
 
 func TestServer_Lifecycle(t *testing.T) {

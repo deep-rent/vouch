@@ -28,9 +28,10 @@ import (
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
-	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deep-rent/vouch/internal/bouncer"
 )
 
 func TestBouncer_Bounce(t *testing.T) {

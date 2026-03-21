@@ -29,11 +29,12 @@ import (
 	"github.com/deep-rent/nexus/jose/jwa"
 	"github.com/deep-rent/nexus/jose/jwk"
 	"github.com/deep-rent/nexus/jose/jwt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/deep-rent/vouch/internal/bouncer"
 	"github.com/deep-rent/vouch/internal/gateway"
 	"github.com/deep-rent/vouch/internal/stamper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGateway_ServeHTTP(t *testing.T) {

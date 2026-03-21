@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deep-rent/vouch/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deep-rent/vouch/internal/config"
 )
 
 func TestLoad(t *testing.T) {
