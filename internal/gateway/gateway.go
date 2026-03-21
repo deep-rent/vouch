@@ -89,6 +89,11 @@ func New(cfg *Config) http.Handler {
 
 // ServeHTTP handles the HTTP request lifecycle: authenticate, stamp, and proxy.
 func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	// Bypass authentication for CouchDB's native readiness endpoint.
+	if req.URL.Path == "/_up" {
+		h.backend.ServeHTTP(res, req)
+		return
+	}
 	// Authenticate the request.
 	pass, err := h.bouncer.Bounce(req)
 	if err != nil {
@@ -102,6 +107,6 @@ func (h *Gateway) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 	// Inject identity headers.
 	h.stamper.Stamp(req, pass)
-	// Forward to the backend.
+	// Forward to the backend (CouchDB).
 	h.backend.ServeHTTP(res, req)
 }
