@@ -94,10 +94,3 @@ Create the environment variables for the vouch container.
   value: {{ .Values.vouch.config.token.audiences | join "," | quote }}
 {{- end }}
 {{- end -}}
-
-{{/*
-Generate a random password for the CouchDB admin user.
-*/}}
-{{- define "vouch.genPassword" -}}
-{{- randAlphaNum 24 -}}
-{{- end -}}
