@@ -67,7 +67,7 @@ func TestServer_Lifecycle(t *testing.T) {
 
 	// Wait for readiness using the health check endpoint.
 	require.Eventually(t, func() bool {
-		res, err := http.Get(baseURL + "/healthz")
+		res, err := http.Get(baseURL + "/health")
 		if err != nil {
 			return false
 		}
@@ -83,7 +83,7 @@ func TestServer_Lifecycle(t *testing.T) {
 	assert.Equal(t, "ok", string(body))
 
 	// Verify health check endpoint explicitly returns empty 200 OK.
-	resHealth, errHealth := http.Get(baseURL + "/healthz")
+	resHealth, errHealth := http.Get(baseURL + "/health")
 	require.NoError(t, errHealth)
 	_ = resHealth.Body.Close()
 	assert.Equal(t, http.StatusOK, resHealth.StatusCode)
@@ -135,7 +135,7 @@ func TestServer_Recovery(t *testing.T) {
 
 	// Wait for readiness using the health check endpoint (which won't panic).
 	require.Eventually(t, func() bool {
-		res, err := http.Get(baseURL + "/healthz")
+		res, err := http.Get(baseURL + "/health")
 		if err != nil {
 			return false
 		}

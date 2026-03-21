@@ -61,7 +61,7 @@ func New(cfg *Config) *Server {
 
 	// Register the health check handler.
 	// This sits outside the middleware chain to prevent log spam.
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
