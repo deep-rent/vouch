@@ -1,0 +1,44 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "vouch.fullname" . }}
+  labels:
+    {{- include "vouch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vouch.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from the ingress controller.
+    # This assumes the ingress controller is in a namespace with the label "ingress-nginx".
+    # This might need to be adjusted based on the user's environment.
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            ingress-nginx: "true"
+      ports:
+        - port: http
+          protocol: TCP
+  egress:
+    # Allow egress to the CouchDB service.
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: couchdb
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: 5984
+          protocol: TCP
+    # Allow egress to the JWKS endpoint.
+    # This allows all egress traffic on port 443 (HTTPS).
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+{{- end }}

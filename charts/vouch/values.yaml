@@ -74,6 +74,13 @@ tolerations: []
 
 affinity: {}
 
+pdb:
+  enabled: false
+  minAvailable: 1
+
+networkPolicy:
+  enabled: false
+
 # Vouch specific configuration
 vouch:
   # See https://github.com/deep-rent/vouch for configuration options
@@ -85,7 +92,7 @@ vouch:
     target: "http://{{ .Release.Name }}-couchdb.{{ .Release.Namespace }}.svc.cluster.local:5984"
     tokenRolesClaim: "_couchdb.roles"
     keys:
-      url: "" # REQUIRED: Set this to your JWKS URL
+      # REQUIRED: Set this to your JWKS URL during installation.
       timeout: 10s
       minRefreshInterval: 1m
       maxRefreshInterval: 10080m
@@ -113,14 +120,15 @@ couchdb:
   persistentVolume:
     enabled: false
 
-  # For security reasons, it's recommended to set a password.
+  # For security reasons, it's recommended to set a password. If not set, a
+  # random password will be generated.
   adminUsername: admin
-  adminPassword: "password"
+  adminPassword: ""
   createAdminSecret: true
 
-  # We don't need a service for CouchDB, as it's only accessed by Vouch.
+  # We need a service for CouchDB so that Vouch can connect to it.
   service:
-    enabled: false
+    enabled: true
 
   # The CouchDB container is exposed via the Vouch service.
   # We don't need an ingress for CouchDB itself.
