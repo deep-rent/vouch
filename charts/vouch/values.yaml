@@ -113,6 +113,18 @@ couchdb:
   persistentVolume:
     enabled: false
 
+  extraVolumes:
+    - name: vouch-config
+      configMap:
+        # Match the name format: {{ .Release.Name }}-vouch-couchdb-config
+        # Replace "my-release" with your actual release name if hardcoding,
+        # or see the note below on dynamic naming.
+        name: vouch-couchdb-config
+  extraVolumeMounts:
+    - name: vouch-config
+      mountPath: /opt/couchdb/etc/local.d/10-vouch.ini
+      subPath: 10-vouch.ini
+
   # For security reasons, it's recommended to set a password. If not set, a
   # random password will be generated.
   adminUsername: admin
