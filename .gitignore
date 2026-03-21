@@ -1,5 +1,7 @@
 # Miscellaneous
 .DS_Store
+.env
+*.env
 *.log
 *.sw[mnpcod]
 *.tmp
