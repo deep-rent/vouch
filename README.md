@@ -1,6 +1,6 @@
 # Vouch
 
-[![Coverage](https://img.shields.io/badge/Coverage-89.0%25-brightgreen)](https://deep-rent.github.io/vouch)
+[![Coverage](https://img.shields.io/badge/Coverage-89.5%25-brightgreen)](https://deep-rent.github.io/vouch)
 [![Report](https://goreportcard.com/badge/github.com/deep-rent/vouch)](https://goreportcard.com/report/github.com/deep-rent/vouch)
 ![Test](https://github.com/deep-rent/vouch/actions/workflows/test.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
