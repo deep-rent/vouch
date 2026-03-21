@@ -16,7 +16,7 @@ PACKAGES := ./...
 
 all: format lint test
 
-tidy: ## Tidy go modules
+tidy:
 	go mod tidy
 
 format:
@@ -31,23 +31,23 @@ test:
 	@echo "Testing..."
 	@$(FLAGS) go test -v -cover -coverprofile=coverage.out $(PACKAGES)
 
-cover: test ## Open the HTML coverage report
+cover: test
 	GOEXPERIMENT=jsonv2 go tool cover -html=coverage.out
 
-build: ## Build the application binary
+build:
 	GOEXPERIMENT=jsonv2 go build -trimpath $(LDFLAGS) -o $(BINDIR)/$(BINARY_NAME) $(BINARY_PATH)
 
-run: ## Run the application locally
+run:
 	GOEXPERIMENT=jsonv2 go run $(BINARY_PATH)
 
 release: BINDIR=dist
-release: clean build ## Build release artifact into dist/
+release: clean build
 
-clean: ## Remove the built binary and test cache
+clean:
 	rm -rf $(BINDIR) dist coverage.out
 	go clean -testcache
 
-image: ## Build the multi-platform Docker image
+image:
 	docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg "VERSION=${VERSION}" \
@@ -55,7 +55,7 @@ image: ## Build the multi-platform Docker image
 		-t $(IMAGE):latest \
 		.
 
-publish: ## Build and push the multi-platform Docker image
+publish:
 	docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg "VERSION=${VERSION}" \
@@ -71,4 +71,12 @@ help:
 	@echo "  format:         Formats the code."
 	@echo "  lint:           Lints the code."
 	@echo "  test:           Executes the tests."
+	@echo "  tidy:           Tidies go modules."
+	@echo "  cover:          Opens the HTML coverage report."
+	@echo "  build:          Builds the application binary."
+	@echo "  run:            Runs the application locally."
+	@echo "  release:        Builds release artifact into dist/."
+	@echo "  clean:          Removes the built binary and test cache."
+	@echo "  image:          Builds the multi-platform Docker image."
+	@echo "  publish:        Builds and pushes the multi-platform Docker image."
 	@echo "  help:           Shows this help message."
