@@ -113,9 +113,20 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		Logger:          logger,
 	})
 
+	// Create a new multiplexer to route requests.
+	mux := http.NewServeMux()
+
+	// Register the health check handler.
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Register the gateway as the default handler.
+	mux.Handle("/", gateway)
+
 	// Initialize the HTTP server.
 	s := server.New(&server.Config{
-		Handler:           gateway,
+		Handler:           mux,
 		Host:              cfg.Host,
 		Port:              cfg.Port,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
