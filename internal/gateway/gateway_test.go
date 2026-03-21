@@ -199,4 +199,18 @@ func TestGateway_ServeHTTP(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		assert.False(t, called, "Backend should NOT have been called")
 	})
+
+	t.Run("Bypass_ReadinessProbe", func(t *testing.T) {
+		called = false
+		// Hit the CouchDB readiness probe endpoint.
+		req := httptest.NewRequest("GET", "/_up", nil)
+		// Specifically NOT setting an Authorization header.
+		rec := httptest.NewRecorder()
+
+		gw.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "backend response", rec.Body.String())
+		assert.True(t, called, "Backend should have been called for /_up without auth")
+	})
 }
