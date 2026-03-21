@@ -1,3 +1,4 @@
+{{- required "A JWKS URL is required for the Vouch proxy" .Values.vouch.config.keys.url -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,11 +40,11 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
