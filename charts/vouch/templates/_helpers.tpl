@@ -78,7 +78,7 @@ Create the environment variables for the vouch container.
 - name: VOUCH_TOKEN_ROLES_CLAIM
   value: {{ .Values.vouch.config.tokenRolesClaim | quote }}
 - name: VOUCH_KEYS_URL
-  value: {{ .Values.vouch.config.keys.url | quote }}
+  value: {{ required "A JWKS URL is required" .Values.vouch.config.keys.url | quote }}
 - name: VOUCH_KEYS_TIMEOUT
   value: {{ .Values.vouch.config.keys.timeout | quote }}
 - name: VOUCH_KEYS_MIN_REFRESH_INTERVAL
@@ -93,4 +93,11 @@ Create the environment variables for the vouch container.
 - name: VOUCH_TOKEN_AUDIENCES
   value: {{ .Values.vouch.config.token.audiences | join "," | quote }}
 {{- end }}
+{{- end -}}
+
+{{/*
+Generate a random password for the CouchDB admin user.
+*/}}
+{{- define "vouch.genPassword" -}}
+{{- randAlphaNum 24 -}}
 {{- end -}}
