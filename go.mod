@@ -3,7 +3,7 @@ module github.com/deep-rent/vouch
 go 1.26.1
 
 require (
-	github.com/deep-rent/nexus v1.1.19
+	github.com/deep-rent/nexus v1.1.20
 	github.com/stretchr/testify v1.11.1
 )
 

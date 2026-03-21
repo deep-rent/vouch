@@ -2,8 +2,8 @@ github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deep-rent/nexus v1.1.19 h1:iu2dA8AYUhvRHF4n2qeutVFAli/xdef6TARQLtf8EyY=
-github.com/deep-rent/nexus v1.1.19/go.mod h1:eOhXtaZ33gFCY3sBoKNB/FTQfI5aqq8gSs7N4NZrYiY=
+github.com/deep-rent/nexus v1.1.20 h1:dMZTjChIhRlLrENoGOBrwYXB+12FeOU36bu4enbuf9c=
+github.com/deep-rent/nexus v1.1.20/go.mod h1:4pYLXHXj3H5FhF/CsY3jG+QTFg7NKXDZIQFRiqPF7KA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
