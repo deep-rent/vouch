@@ -56,10 +56,22 @@ func New(cfg *Config) *Server {
 		pipes = append(pipes, middleware.Log(cfg.Logger))
 	}
 
+	// Create a new multiplexer for routing.
+	mux := http.NewServeMux()
+
+	// Register the health check handler.
+	// This sits outside the middleware chain to prevent log spam.
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Register the provided handler wrapped in middleware as the default handler.
+	mux.Handle("/", middleware.Chain(cfg.Handler, pipes...))
+
 	return &Server{
 		server: &http.Server{
 			Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
-			Handler:           middleware.Chain(cfg.Handler, pipes...),
+			Handler:           mux,
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 			ReadTimeout:       cfg.ReadTimeout,
 			WriteTimeout:      cfg.WriteTimeout,
