@@ -198,7 +198,7 @@ func TestBouncer_Bounce(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid issuer")
 	})
 
-	t.Run("MissingUsername", func(t *testing.T) {
+	t.Run("MissingUserName", func(t *testing.T) {
 		payload := map[string]any{
 			"iss": "https://issuer.com",
 			"aud": "consumer",
