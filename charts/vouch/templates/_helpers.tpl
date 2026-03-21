@@ -62,6 +62,13 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Static name for the internal CouchDB config
+*/}}
+{{- define "vouch.couchdb.configName" -}}
+vouch-internal-header-config
+{{- end -}}
+
+{{/*
 Constants for Vouch headers
 */}}
 {{- define "vouch.userNameHeader" -}}

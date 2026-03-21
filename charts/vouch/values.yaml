@@ -116,10 +116,7 @@ couchdb:
   extraVolumes:
     - name: vouch-config
       configMap:
-        # Match the name format: {{ .Release.Name }}-vouch-couchdb-config
-        # Replace "my-release" with your actual release name if hardcoding,
-        # or see the note below on dynamic naming.
-        name: vouch-couchdb-config
+        name: vouch-internal-header-config
   extraVolumeMounts:
     - name: vouch-config
       mountPath: /opt/couchdb/etc/local.d/10-vouch.ini
