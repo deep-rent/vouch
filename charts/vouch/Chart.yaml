@@ -2,8 +2,8 @@ apiVersion: v2
 name: vouch
 description: A Helm chart for Vouch, a proxy for Apache CouchDB to offload token-based authentication.
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.0.1
+appVersion: "0.0.1"
 keywords:
   - couchdb
   - jwt
