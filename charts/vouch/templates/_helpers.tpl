@@ -77,6 +77,10 @@ Create the environment variables for the vouch container.
   value: {{ tpl .Values.vouch.config.target . | quote }}
 - name: VOUCH_TOKEN_ROLES_CLAIM
   value: {{ .Values.vouch.config.tokenRolesClaim | quote }}
+- name: VOUCH_USER_NAME_HEADER
+  value: X-Vouch-UserName
+- name: VOUCH_ROLES_HEADER
+  value: X-Vouch-Roles
 - name: VOUCH_KEYS_URL
   value: {{ required "A JWKS URL is required" .Values.vouch.config.keys.url | quote }}
 - name: VOUCH_KEYS_TIMEOUT
