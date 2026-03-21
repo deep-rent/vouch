@@ -1,85 +1,128 @@
+# Default values for vouch.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/deep-rent/vouch
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
 service:
   type: ClusterIP
-  port: 8080
-  annotations: {}
+  port: 80
 
-# Configuration for the CouchDB dependency.
-# We use the 'sidecars' feature of the upstream chart to inject Vouch.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Vouch specific configuration
+vouch:
+  # See https://github.com/deep-rent/vouch for configuration options
+  config:
+    logLevel: info
+    logFormat: json
+    host: 0.0.0.0
+    port: 8080
+    target: "http://{{ .Release.Name }}-couchdb.{{ .Release.Namespace }}.svc.cluster.local:5984"
+    tokenRolesClaim: "_couchdb.roles"
+    keys:
+      url: "" # REQUIRED: Set this to your JWKS URL
+      timeout: 10s
+      minRefreshInterval: 1m
+      maxRefreshInterval: 10080m
+    # Example for token validation:
+    # token:
+    #   issuers:
+    #     - "https://accounts.google.com"
+    #   audiences:
+    #     - "my-client-id"
+
+# CouchDB dependency configuration
 couchdb:
   enabled: true
+  # If you disable the couchdb dependency, make sure to update vouch.config.target
+  # to point to your external CouchDB instance.
 
-  # Standard CouchDB configuration
+  # We use a ConfigMap to configure CouchDB to use Vouch for proxy authentication.
+  # The couchdb chart will mount this as /opt/couchdb/etc/local.d/10-vouch.ini
+  extraIni:
+    10-vouch.ini:
+      "[httpd]"newline"authentication_handlers = {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}"newline"[proxy]"newline"authentication_proxy = http://127.0.0.1:8080/_proxy"
+
+  # The official couchdb chart requires persistent volumes.
+  # For a quick start, you can disable them, but this is not recommended for production.
+  persistentVolume:
+    enabled: false
+
+  # For security reasons, it's recommended to set a password.
   adminUsername: admin
-  adminPassword: password
-  allowAdminParty: false
+  adminPassword: "password"
+  createAdminSecret: true
 
-  # Inject Vouch as a sidecar container
-  sidecars:
-    - name: vouch
-      image: ghcr.io/deep-rent/vouch:0.2.0
-      imagePullPolicy: IfNotPresent
-      ports:
-        - name: vouch
-          containerPort: 8080
-      env:
-        # --- Network Configuration ---
-        - name: VOUCH_PORT
-          value: "8080"
-        - name: VOUCH_HOST
-          value: "0.0.0.0"
-        - name: VOUCH_TARGET
-          value: "http://127.0.0.1:5984"
+  # We don't need a service for CouchDB, as it's only accessed by Vouch.
+  service:
+    enabled: false
 
-        # --- JWKS Configuration (REQUIRED) ---
-        # You must override this value with your Identity Provider's JWKS URL.
-        - name: VOUCH_KEYS_URL
-          value: ""
-
-        # --- Logging ---
-        - name: VOUCH_LOG_LEVEL
-          value: "info"
-        - name: VOUCH_LOG_FORMAT
-          value: "json"
-
-        # --- Token Validation ---
-        # - name: VOUCH_TOKEN_ISSUERS
-        #   value: "https://accounts.google.com"
-        # - name: VOUCH_TOKEN_AUDIENCES
-        #   value: "my-client-id"
-        # - name: VOUCH_TOKEN_ROLES_CLAIM
-        #   value: "https://deep.rent/roles"
-
-        # --- Caching & Performance ---
-        # - name: VOUCH_KEYS_MIN_REFRESH_INTERVAL
-        #   value: "15m"
-        # - name: VOUCH_FLUSH_INTERVAL
-        #   value: "0s"
-
-      # Liveness probe to ensure Vouch is up
-      livenessProbe:
-        httpGet:
-          path: /_health # Assuming Vouch doesn't have a dedicated health endpoint yet, this might fail if auth is required.
-          # Ideally, Vouch should expose a non-authed /healthz endpoint.
-          # For now, we can check TCP connectivity.
-        tcpSocket:
-          port: vouch
-        initialDelaySeconds: 5
-        periodSeconds: 10
-
-      # Readiness probe
-      readinessProbe:
-        tcpSocket:
-          port: vouch
-        initialDelaySeconds: 5
-        periodSeconds: 10
-
-      resources: {}
-        # limits:
-        #   cpu: 100m
-        #   memory: 128Mi
-        # requests:
-        #   cpu: 100m
-        #   memory: 128Mi
+  # The CouchDB container is exposed via the Vouch service.
+  # We don't need an ingress for CouchDB itself.
+  ingress:
+    enabled: false

@@ -1,9 +1,9 @@
 apiVersion: v2
 name: vouch
-description: Deploys the Vouch sidecar alongside CouchDB
+description: A Helm chart for Vouch, a proxy for Apache CouchDB to offload token-based authentication.
 type: application
-version: 0.1.0
-appVersion: "0.0.1"
+version: 0.2.0
+appVersion: "0.2.0"
 keywords:
   - couchdb
   - jwt
@@ -17,3 +17,6 @@ dependencies:
     version: 4.6.3
     repository: https://apache.github.io/couchdb-helm
     condition: couchdb.enabled
+maintainers:
+  - name: deep-rent
+    url: https://deep.rent

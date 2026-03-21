@@ -1,9 +1,19 @@
-.DS_Store
+# Patterns to ignore when building packages.
+# This supports shell glob matching, relative path matching, and
+# negation (prefixed with !).
+
+# Git
 .git/
-.gitattributes
 .gitignore
-.hg/
-.hgignore
-.svn/
+.gitattributes
+
+# IDEs and editors
 .vscode/
+.idea/
+*.swp
 *~
+
+# Misc
+.DS_Store
+.project
+.settings
