@@ -146,6 +146,8 @@ func TestServer_Recovery(t *testing.T) {
 	// Verify recovery on the main endpoint (expecting status 500).
 	res, err := http.Get(baseURL + "/")
 	require.NoError(t, err)
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 }
