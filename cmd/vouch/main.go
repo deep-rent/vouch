@@ -124,6 +124,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		Logger:            logger,
 	})
 
+	// This task spawns the HTTP server to act as a reverse proxy.
 	serve := func(ctx context.Context) error {
 		errCh := make(chan error, 1)
 		go func() { errCh <- s.Start() }()
@@ -139,14 +140,15 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		}
 	}
 
+	// This task handles the JWKS refresh loop.
 	fetch := func(ctx context.Context) error {
 		return bouncer.Start(ctx)
 	}
 
-	// Collect the main components to run into a slice.
-	components := []app.Runnable{serve, fetch}
+	// Collect the main tasks to run into a slice.
+	tasks := []app.Runnable{serve, fetch}
 
-	// Conditionally add a component to notify about new releases.
+	// Conditionally add a task to notify about new releases.
 	// This check requires network access.
 	if cfg.UpdaterEnabled {
 		check := func(ctx context.Context) error {
@@ -172,15 +174,14 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 			return nil
 		}
 
-		components = append(components, check)
+		tasks = append(tasks, check)
 	}
 
-	// Spin up the application components concurrently and wait for them to finish
+	// Spin up the application tasks concurrently and wait for them to finish
 	// or return an error.
 	if err := app.RunAll(
-		components,
-		app.WithContext(ctx),
-		app.WithLogger(logger),
+		tasks,
+		app.WithContext(ctx), app.WithLogger(logger),
 	); err != nil {
 		return err
 	}
