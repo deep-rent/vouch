@@ -112,8 +112,9 @@ couchdb:
   # We use a ConfigMap to configure CouchDB to use Vouch for proxy authentication.
   # The couchdb chart will mount this as /opt/couchdb/etc/local.d/10-vouch.ini
   extraIni:
-    10-vouch.ini:
-      "[httpd]"newline"authentication_handlers = {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}"newline"[proxy]"newline"authentication_proxy = http://127.0.0.1:8080/_proxy"
+    10-vouch.ini: |
+      [httpd]
+      authentication_handlers = {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}
 
   # The official couchdb chart requires persistent volumes.
   # For a quick start, you can disable them, but this is not recommended for production.
