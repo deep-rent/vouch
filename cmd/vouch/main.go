@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -134,7 +135,7 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 			return err
 		case <-ctx.Done():
 			// Gracefully stop the server on context cancellation.
-			if err := s.Stop(); err != nil && err != http.ErrServerClosed {
+			if err := s.Stop(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				return err
 			}
 			return nil
