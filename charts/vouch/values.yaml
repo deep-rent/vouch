@@ -117,8 +117,8 @@ couchdb:
       authentication_handlers = {chttpd_auth, proxy_authentication_handler}, {chttpd_auth, default_authentication_handler}
 
       [chttpd_auth]
-      x_auth_username = X-Vouch-Username
-      x_auth_roles = X-Vouch-Roles
+      x_auth_username = {{ include "vouch.userNameHeader" . }}
+      x_auth_roles = {{ include "vouch.rolesHeader" . }}
 
   # The official couchdb chart requires persistent volumes.
   # For a quick start, you can disable them, but this is not recommended for production.

@@ -62,6 +62,16 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Constants for Vouch headers
+*/}}
+{{- define "vouch.userNameHeader" -}}
+X-Vouch-UserName
+{{- end -}}
+{{- define "vouch.rolesHeader" -}}
+X-Vouch-Roles
+{{- end -}}
+
+{{/*
 Create the environment variables for the vouch container.
 */}}
 {{- define "vouch.env" -}}
@@ -78,9 +88,9 @@ Create the environment variables for the vouch container.
 - name: VOUCH_TOKEN_ROLES_CLAIM
   value: {{ .Values.vouch.config.tokenRolesClaim | quote }}
 - name: VOUCH_USER_NAME_HEADER
-  value: X-Vouch-UserName
+  value: {{ include "vouch.userNameHeader" . | quote }}
 - name: VOUCH_ROLES_HEADER
-  value: X-Vouch-Roles
+  value: {{ include "vouch.rolesHeader" . | quote }}
 - name: VOUCH_KEYS_URL
   value: {{ required "A JWKS URL is required" .Values.vouch.config.keys.url | quote }}
 - name: VOUCH_KEYS_TIMEOUT
