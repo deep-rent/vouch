@@ -37,6 +37,11 @@ import (
 // The application version injected via -ldflags during build time.
 var version = "v0.0.0"
 
+const (
+	owner      = "deep-rent"
+	repository = "vouch"
+)
+
 func main() {
 	if err := boot(context.Background(), os.Args, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -138,13 +143,17 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		return bouncer.Start(ctx)
 	}
 
+	// Collect the main components to run into a slice.
 	components := []app.Runnable{serve, fetch}
+
+	// Conditionally add a component to notify about new releases.
+	// This check requires network access.
 	if cfg.UpdaterEnabled {
 		check := func(ctx context.Context) error {
 			rel, err := updater.Check(ctx, &updater.Config{
 				BaseURL:    cfg.UpdaterBaseURL,
-				Owner:      "deep-rent",
-				Repository: "vouch",
+				Owner:      owner,
+				Repository: repository,
 				Current:    version,
 				UserAgent:  ua,
 			})
@@ -166,7 +175,8 @@ func boot(ctx context.Context, args []string, stdout io.Writer) error {
 		components = append(components, check)
 	}
 
-	// Spin up the HTTP server and the JWKS refresh loop concurrently.
+	// Spin up the application components concurrently and wait for them to finish
+	// or return an error.
 	if err := app.RunAll(
 		components,
 		app.WithContext(ctx),
