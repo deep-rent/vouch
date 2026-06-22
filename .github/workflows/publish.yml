@@ -19,7 +19,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Go
@@ -86,7 +86,7 @@ jobs:
   #     packages: write
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@v6
+  #       uses: actions/checkout@v7
   #     - name: Install Helm
   #       uses: azure/setup-helm@v4
   #     - name: Login to GHCR
